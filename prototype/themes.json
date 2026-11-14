@@ -357,6 +357,92 @@
       ]
     },
     {
+      "id": "rift",
+      "adaptive": true,
+      "name": "符文峡谷",
+      "desc": "手绘幽林与发光灵河之间，图标周围展开雕花青石圣坛、海克斯符文与守卫灯柱",
+      "page": "rift.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 36% 52%, rgba(46,230,214,0.72) 0%, rgba(72,92,98,0.92) 22%, rgba(43,66,54,0.88) 44%, transparent 66%), radial-gradient(circle at 72% 38%, rgba(208,162,74,0.68) 0%, rgba(30,68,54,0.9) 34%, transparent 62%), linear-gradient(140deg, #122620 0%, #1c3d32 45%, #165e68 62%, #244a38 100%)",
+      "groups": [
+        {
+          "name": "圣坛",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "符文台大小",
+              "hint": "图标周围雕花青石圣坛空开的范围",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 82,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "崖岸曲折",
+              "hint": "青石圣坛与林野崖岸轮廓蜿蜒变化的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 24
+            }
+          ]
+        },
+        {
+          "name": "符文与灵河",
+          "params": [
+            {
+              "key": "glow",
+              "label": "符文辉光",
+              "hint": "海克斯金蓝符文与河道水光的明亮程度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            },
+            {
+              "key": "wind",
+              "label": "灵风流速",
+              "hint": "树冠摇曳、河水流动与灵光飘游的速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "秘境生灵",
+          "params": [
+            {
+              "key": "wards",
+              "label": "守卫灯柱",
+              "hint": "矗立在青石边沿的海克斯守卫灯柱数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 8,
+              "step": 1,
+              "default": 4,
+              "unit": "座"
+            },
+            {
+              "key": "wisps",
+              "label": "奥术灵光",
+              "hint": "在河谷与林梢间轻盈游弋的奥术光点数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 16,
+              "step": 1,
+              "default": 8,
+              "unit": "缕"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",

@@ -84,6 +84,7 @@
     meadow: 'meadow.html',
     aurora: 'aurora.html',
     glade: 'glade.html',
+    rift: 'rift.html',
   };
 
   function pollSettings() {

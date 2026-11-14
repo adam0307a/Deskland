@@ -624,6 +624,43 @@
           "unit": ""
         }
       }
+    },
+    "rift": {
+      "name": "Runic Rift",
+      "desc": "Carved stone sanctuaries with pulsing gold-and-cyan Hextech runes open around your icons amid a painterly jungle and glowing serpentine river",
+      "groups": [
+        "Sanctuary",
+        "Runes & river",
+        "Relics & wisps"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Arena size",
+          "hint": "How wide the carved stone sanctuary clears around your icons"
+        },
+        "warp": {
+          "label": "Cliff contour",
+          "hint": "How jaggedly or organically the jungle cliff edge winds"
+        },
+        "glow": {
+          "label": "Hextech glow",
+          "hint": "How brightly the cyan runes, ward crystals, and river shimmer"
+        },
+        "wind": {
+          "label": "Drift & breeze",
+          "hint": "How fast canopies sway, river ripples flow, and wisps wander"
+        },
+        "wards": {
+          "label": "Ward lanterns",
+          "hint": "Brass-and-crystal rune lanterns standing along icon edges; set to 0 to hide",
+          "unit": ""
+        },
+        "wisps": {
+          "label": "Arcane wisps",
+          "hint": "Luminous mana wisps drifting across the river and canopy; set to 0 to hide",
+          "unit": ""
+        }
+      }
     }
   }
 }
