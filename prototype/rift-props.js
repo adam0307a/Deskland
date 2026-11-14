@@ -5,7 +5,7 @@
 // carved runic stone pedestals, hextech ward lanterns, and luminous mana wisps.
 
 const RIFT_COLS = 8;
-const RIFT_ROWS = 2;
+const RIFT_ROWS = 3;
 const RIFT_CELL = 128;
 
 let riftAtlasTex = null;
@@ -675,6 +675,132 @@ function riftPaintHeroCell(ctx, ox, oy, kind) {
   ctx.restore();
 }
 
+function riftPaintTurretCell(ctx, ox, oy, team) {
+  ctx.save();
+  ctx.translate(ox, oy);
+  const cx = 64, by = 112;
+  const isBlue = team === 0;
+
+  // Palette per team (Order stone+brass+cyan vs Chaos obsidian+bronze+crimson-amber)
+  const stoneShadow = isBlue ? '#28343d' : '#251d24';
+  const stoneMain   = isBlue ? '#4e5f6b' : '#40343e';
+  const stoneLight  = isBlue ? '#7a8f9a' : '#655462';
+  const metalCol    = isBlue ? '#d4ad52' : '#c67d38';
+  const metalDark   = isBlue ? '#876726' : '#734219';
+  const orbCore     = isBlue ? '#c6ffff' : '#ffe3a8';
+  const orbMid      = isBlue ? '#2ee6df' : '#ff5e3a';
+  const orbDark     = isBlue ? '#11798a' : '#9c1b1e';
+  const haloRgb     = isBlue ? '48, 232, 224' : '255, 96, 56';
+
+  // Wide turret foundation shadow + ambient ground glow
+  ctx.fillStyle = 'rgba(7, 12, 14, 0.52)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 3, by + 3, 34, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const orbY = by - 78;
+  const halo = ctx.createRadialGradient(cx, orbY, 4, cx, orbY, 46);
+  halo.addColorStop(0, `rgba(${haloRgb}, 0.58)`);
+  halo.addColorStop(0.5, `rgba(${haloRgb}, 0.18)`);
+  halo.addColorStop(1, `rgba(${haloRgb}, 0)`);
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(cx, orbY, 46, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Heavy octagonal stepped stone plinth
+  ctx.fillStyle = stoneShadow;
+  ctx.strokeStyle = '#14181d';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(cx - 31, by);
+  ctx.lineTo(cx - 26, by - 16);
+  ctx.lineTo(cx + 26, by - 16);
+  ctx.lineTo(cx + 31, by);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = stoneLight;
+  ctx.beginPath();
+  ctx.moveTo(cx - 31, by);
+  ctx.lineTo(cx - 26, by - 16);
+  ctx.lineTo(cx - 4, by - 16);
+  ctx.lineTo(cx - 7, by);
+  ctx.closePath();
+  ctx.fill();
+
+  // Carved tapered obelisk shaft
+  ctx.fillStyle = stoneMain;
+  ctx.beginPath();
+  ctx.moveTo(cx - 22, by - 16);
+  ctx.lineTo(cx - 15, by - 62);
+  ctx.lineTo(cx + 15, by - 62);
+  ctx.lineTo(cx + 22, by - 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Left sunlit stone bevel
+  ctx.fillStyle = stoneLight;
+  ctx.beginPath();
+  ctx.moveTo(cx - 22, by - 16);
+  ctx.lineTo(cx - 15, by - 62);
+  ctx.lineTo(cx - 2, by - 62);
+  ctx.lineTo(cx - 4, by - 16);
+  ctx.closePath();
+  ctx.fill();
+
+  // Glowing carved team rune inlay down the front face
+  ctx.strokeStyle = orbMid;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(cx, by - 55);
+  ctx.lineTo(cx, by - 25);
+  ctx.moveTo(cx - 6, by - 44);
+  ctx.lineTo(cx, by - 50);
+  ctx.lineTo(cx + 6, by - 44);
+  ctx.stroke();
+
+  // Tiered brass/bronze armor collar & cradle prongs
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(cx - 18, by - 64, 36, 7);
+  ctx.fillStyle = metalCol;
+  ctx.fillRect(cx - 19, by - 66, 38, 4.5);
+
+  ctx.strokeStyle = metalCol;
+  ctx.lineWidth = 3.6;
+  ctx.beginPath();
+  ctx.moveTo(cx - 14, by - 64);
+  ctx.quadraticCurveTo(cx - 22, by - 78, cx - 10, by - 92);
+  ctx.moveTo(cx + 14, by - 64);
+  ctx.quadraticCurveTo(cx + 22, by - 78, cx + 10, by - 92);
+  ctx.stroke();
+
+  // Floating turret crystal orb in cradle
+  ctx.fillStyle = orbDark;
+  ctx.beginPath();
+  ctx.arc(cx, orbY, 12.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  const orbGrad = ctx.createRadialGradient(cx - 3.5, orbY - 4, 2, cx, orbY, 12.5);
+  orbGrad.addColorStop(0, orbCore);
+  orbGrad.addColorStop(0.55, orbMid);
+  orbGrad.addColorStop(1, orbDark);
+  ctx.fillStyle = orbGrad;
+  ctx.beginPath();
+  ctx.arc(cx, orbY, 11.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.arc(cx - 3, orbY - 3, 4.2, Math.PI * 0.9, Math.PI * 1.65);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 function initRiftAtlas() {
   if (!gl) return;
   if (!riftAtlasTex) {
@@ -692,6 +818,10 @@ function initRiftAtlas() {
     // Row 1: 3 arcane wisp sprites (cols 0..2) + 5 LoL-inspired champions & Poro (cols 3..7)
     for (let i = 0; i < 3; i++) riftPaintWispCell(ctx, i * RIFT_CELL, RIFT_CELL, i);
     for (let i = 0; i < 5; i++) riftPaintHeroCell(ctx, (3 + i) * RIFT_CELL, RIFT_CELL, i);
+
+    // Row 2: Order Blue Turret (col 0) & Chaos Crimson Turret (col 1)
+    riftPaintTurretCell(ctx, 0, 2 * RIFT_CELL, 0);
+    riftPaintTurretCell(ctx, RIFT_CELL, 2 * RIFT_CELL, 1);
 
     riftAtlasTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, riftAtlasTex);
@@ -781,12 +911,14 @@ function riftHash(a, b, k) {
 }
 
 // Signed approximate distance from diagonal serpentine Rift River in normalized space (mirrors fragment shader).
+function riftRiverCenterNormY(u) {
+  const sOff = (seed % 997) * 0.37;
+  return 0.56 - 0.18 * (u - 0.5) + 0.095 * Math.sin(u * 4.6 + sOff * 0.7) + 0.035 * Math.cos(u * 9.2 - sOff);
+}
 function riftRiverDistPx(x, y) {
   const u = x / Math.max(1, W);
   const v = y / Math.max(1, H);
-  const sOff = (seed % 997) * 0.37;
-  const centerY = 0.56 - 0.18 * (u - 0.5) + 0.095 * Math.sin(u * 4.6 + sOff * 0.7) + 0.035 * Math.cos(u * 9.2 - sOff);
-  return Math.abs(v - centerY) * H;
+  return Math.abs(v - riftRiverCenterNormY(u)) * H;
 }
 
 // Exposes `trees` with `.grow` and `.want` so share.js settled() works seamlessly.
@@ -794,6 +926,7 @@ const trees = [];
 const wards = [];
 const wisps = [];
 const heroes = [];
+const turrets = [];
 let riftBufA = new Float32Array(0);
 let riftBufB = new Float32Array(0);
 
@@ -833,20 +966,69 @@ function rebuildRiftProps() {
     }
   }
   trees.sort((a, b) => a.y - b.y);
-  updateRiftTargets(true);
   syncRiftWardsAndWisps(true);
+  updateRiftTargets(true);
 }
 
 function updateRiftTargets(snapNow) {
   for (const t of trees) {
     const d = FB ? landS(t.x, t.y) : 999;
-    // Grow in jungle outskirts, smoothly disappear when inside carved stone sanctuaries
-    t.want = !P.adaptive || d > 12 ? 1 : 0;
+    const clearByTurret = turrets.some(tr => Math.hypot(t.x - tr.x, t.y - tr.y) < 38);
+    // Grow in jungle outskirts, smoothly clear inside stone sanctuaries & turret bases
+    t.want = !clearByTurret && (!P.adaptive || d > 12) ? 1 : 0;
     if (snapNow) t.grow = t.want;
   }
 }
 
 function syncRiftWardsAndWisps(reset) {
+  // Defense Turrets: Blue Order (top-left side of river) & Crimson Chaos (bottom-right side of river)
+  const wantTurrets = Math.max(0, Math.min(6, Math.round(typeof P.turrets === 'number' ? P.turrets : 4)));
+  turrets.length = 0;
+  if (wantTurrets > 0) {
+    const cands = [[], []];
+    const tstep = 56;
+    for (let y = 76; y < H - 72; y += tstep) {
+      for (let x = 68; x < W - 68; x += tstep) {
+        const s = FB ? landS(x, y) : 999;
+        if (s >= 2 && s <= 46 && riftRiverDistPx(x, y) > 64) {
+          const team = (y / Math.max(1, H)) < riftRiverCenterNormY(x / Math.max(1, W)) ? 0 : 1;
+          const score = Math.abs(s - 20) + riftHash(x | 0, y | 0, 61) * 7;
+          cands[team].push({ x, y, team, score, idx: (x * 11 + y * 17) | 0 });
+        }
+      }
+    }
+    cands[0].sort((a, b) => a.score - b.score);
+    cands[1].sort((a, b) => a.score - b.score);
+
+    const chosen = [];
+    for (let k = 0; k < wantTurrets; k++) {
+      const team = k % 2;
+      let hit = cands[team].find(c => chosen.every(p => Math.hypot(p.x - c.x, p.y - c.y) > 185));
+      if (!hit) {
+        hit = cands[1 - team].find(c => chosen.every(p => Math.hypot(p.x - c.x, p.y - c.y) > 185));
+      }
+      if (!hit) {
+        // Fallback strategic lane positions on either side of the river
+        const fracX = team === 0 ? (0.18 + 0.24 * (k * 0.5)) : (0.58 + 0.24 * (k * 0.5));
+        const rx = W * Math.min(0.88, Math.max(0.12, fracX));
+        const riverY = H * riftRiverCenterNormY(rx / Math.max(1, W));
+        const ry = Math.min(Math.max(84, riverY + (team === 0 ? -105 : 105)), H - 74);
+        hit = { x: rx, y: ry, team, idx: k * 23 };
+      }
+      chosen.push(hit);
+    }
+    chosen.forEach(c => {
+      turrets.push({
+        x: c.x,
+        y: c.y,
+        team: c.team,
+        phase: (c.idx % 63) * 0.1,
+        grow: reset ? 1 : 0.2,
+      });
+    });
+  }
+  updateRiftTargets(reset);
+
   const wantWards = Math.max(0, Math.min(8, Math.round(P.wards)));
   wards.length = 0;
 
@@ -867,7 +1049,8 @@ function syncRiftWardsAndWisps(reset) {
 
     const picked = [];
     for (const c of candidates) {
-      if (picked.every(p => Math.hypot(p.x - c.x, p.y - c.y) > 155)) {
+      if (picked.every(p => Math.hypot(p.x - c.x, p.y - c.y) > 155) &&
+          turrets.every(tr => Math.hypot(tr.x - c.x, tr.y - c.y) > 95)) {
         picked.push(c);
         if (picked.length >= wantWards) break;
       }
@@ -974,6 +1157,9 @@ function stepRiftProps(dt, timeSec) {
   for (const w of wards) {
     if (w.grow < 1) w.grow = Math.min(1, w.grow + rate);
   }
+  for (const tr of turrets) {
+    if (tr.grow < 1) tr.grow = Math.min(1, tr.grow + rate);
+  }
   const driftT = timeSec * (0.3 + P.wind * 0.7);
   for (const sp of wisps) {
     sp.x = sp.bx + Math.sin(driftT * sp.spd + sp.phase) * sp.rx;
@@ -1046,6 +1232,34 @@ function drawRiftProps(timeSec) {
       col: 6 + w.variant,
       row: 0,
       alpha: Math.min(1, ease * pulse),
+      flip: 1,
+    });
+  }
+
+  for (const tr of turrets) {
+    const ease = tr.grow * tr.grow * (3 - 2 * tr.grow);
+    items.push({
+      sortY: tr.y + 6,
+      x: tr.x,
+      y: tr.y,
+      size: 98 * (0.42 + 0.58 * ease),
+      rot: 0,
+      col: tr.team,
+      row: 2,
+      alpha: Math.min(1, ease * 1.15),
+      flip: tr.team === 1 ? -1 : 1,
+    });
+    // Pulsing arcane beacon core hovered over the turret crystal cradle
+    const orbPulse = (0.42 + 0.58 * P.glow) * (0.72 + 0.28 * Math.sin(timeSec * 3.4 + tr.phase));
+    items.push({
+      sortY: tr.y + 7,
+      x: tr.x,
+      y: tr.y - 58 * (0.42 + 0.58 * ease),
+      size: 34 * (0.75 + 0.35 * P.glow),
+      rot: timeSec * 0.7 + tr.phase,
+      col: tr.team === 0 ? 0 : 2,
+      row: 1,
+      alpha: Math.min(1, ease * orbPulse),
       flip: 1,
     });
   }
