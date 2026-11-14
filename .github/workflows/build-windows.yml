@@ -1,0 +1,38 @@
+name: Build Windows Preview
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "feat/*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build host and NSIS installer
+        shell: pwsh
+        run: |
+          $nsis = 'C:\Program Files (x86)\NSIS\makensis.exe'
+          if (-not (Test-Path -LiteralPath $nsis)) {
+            choco install nsis -y --no-progress
+          }
+          if (Test-Path -LiteralPath $nsis) {
+            powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1 -NsisCompiler $nsis
+          } else {
+            powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
+          }
+
+      - name: Upload Windows Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: deskland-preview-win-x64
+          path: |
+            dist\Deskland-Preview-*-win-x64-Setup.exe
+            dist\Deskland-Preview-*-win-x64-Setup.exe.sha256
+            dist\Deskland-Preview-*-win-x64-Setup.exe.manifest.json
+          if-no-files-found: error
