@@ -760,6 +760,45 @@
           "hint": "Visibility of topographic contours, coordinate grids, and outer star-fort depots"
         }
       }
+    },
+    "roach": {
+      "name": "Roach Town",
+      "desc": "Viral humanoid cockroach characters—leather-vest juice drinker, tie student, factory hard-hat crew, pink-feather diva, and red-dress couple—strolling around warm icon sidewalk patios on a cobblestone avenue",
+      "groups": [
+        "Street & Sidewalk",
+        "Roach Cast"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Sidewalk width",
+          "hint": "How far the warm tiled sidewalk island extends around your desktop icons"
+        },
+        "warp": {
+          "label": "Curb organicity",
+          "hint": "How naturally the sidewalk curb winds around your icon clusters"
+        },
+        "glow": {
+          "label": "Streetlamp glow",
+          "hint": "Intensity of warm amber lamp reflections in street puddles"
+        },
+        "vibe": {
+          "label": "Daylight yard",
+          "hint": "Crossfade from a dusk Beyoglu cobblestone boulevard to a sunny courtyard"
+        },
+        "crowd": {
+          "label": "Roach cast",
+          "hint": "Number of strolling, dancing, juice-sipping cockroach characters; set to 0 to hide",
+          "unit": ""
+        },
+        "speed": {
+          "label": "Stroll pace",
+          "hint": "How briskly the roach cast walks, dances, and reacts around corners"
+        },
+        "props": {
+          "label": "Streetlamps & props",
+          "hint": "Density of wrought-iron streetlamps, juice boxes, and tulip tea glasses"
+        }
+      }
     }
   }
 }

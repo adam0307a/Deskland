@@ -674,6 +674,97 @@
       ]
     },
     {
+      "id": "roach",
+      "adaptive": true,
+      "name": "小强剧场",
+      "desc": "爆火小强街区上线：皮马甲吸橙汁、白衬衫领带校草、安全帽工头、粉羽舞后与红裙情侣齐聚鹅卵石街道，围绕图标砖块人行道悠闲巡街",
+      "page": "roach.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 32% 45%, rgba(255,196,92,0.85) 0%, rgba(196,108,48,0.72) 28%, transparent 56%), radial-gradient(circle at 70% 54%, rgba(235,96,158,0.68) 0%, rgba(124,62,36,0.75) 34%, transparent 62%), linear-gradient(155deg, #1b202d 0%, #3a2d28 52%, #594435 100%)",
+      "groups": [
+        {
+          "name": "街景与地砖",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "人行道范围",
+              "hint": "图标周围暖色石板人行道台地向外展开的宽度",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 78,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "砖缝起伏",
+              "hint": "人行道与街头路缘随砖石走势弯曲的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 24
+            },
+            {
+              "key": "glow",
+              "label": "街灯暖光",
+              "hint": "街头水洼与鹅卵石反射暖琥珀路灯光的亮度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            },
+            {
+              "key": "vibe",
+              "label": "晴天校园",
+              "hint": "从黄昏伊斯坦布尔老街逐步切换为阳光明媚的校园操场",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "小强天团",
+          "params": [
+            {
+              "key": "crowd",
+              "label": "小强人数",
+              "hint": "在鹅卵石街道上散步、跳舞、吸橙汁的拟人小强数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 22,
+              "step": 1,
+              "default": 12,
+              "unit": "只"
+            },
+            {
+              "key": "speed",
+              "label": "漫步节奏",
+              "hint": "小强巡街、情侣同行以及停下舞动的速度",
+              "min": 0.2,
+              "max": 2.2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "props",
+              "label": "路灯与道具",
+              "hint": "街角暖光铁艺路灯、吸管橙汁盒与红茶杯的布置密度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.9,
+              "format": "percent"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",

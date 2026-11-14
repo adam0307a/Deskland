@@ -89,6 +89,7 @@
     rift: 'rift.html',
     strike: 'strike.html',
     pocket: 'pocket.html',
+    roach: 'roach.html',
   };
 
   function pollSettings() {

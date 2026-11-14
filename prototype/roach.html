@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deskland · 小强剧场（原型）</title>
+<!--
+  Deskland · 小强剧场（Roach Town · Hamam Böceği Sokağı；纯 WebGL2，2D）
+  灵感来自今年爆火的拟人化小强搞笑短视频系列：
+  - 桌面图标周围（s < 0）：温暖的学校/咖啡馆石板人行道台地（方砖拼接 + 花岗岩路缘）
+  - 街头巷道（s > 0）：伊斯坦布尔贝伊奥卢复古鹅卵石街道、微弱有轨电车轨与街灯暖光水洼倒影
+  - 角色天团：皮马甲吸橙汁小强、校服领带小强、安全帽工厂小强、格纹病号服、粉色羽毛舞后、红裙情侣档与路灯道具
+-->
+<style>
+  :root { --taskbar: 48px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1c1f29; }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #desktop { position: fixed; left: 0; top: 0; right: 0; bottom: var(--taskbar); }
+
+  .icon {
+    position: absolute; width: 76px; padding: 4px 2px 5px;
+    display: flex; flex-direction: column; align-items: center;
+    border: 1px solid transparent; border-radius: 4px;
+    user-select: none; touch-action: none; cursor: default;
+  }
+  .icon:hover { background: rgba(255,190,108,.16); border-color: rgba(255,204,132,.38); }
+  .icon.sel { background: rgba(235,148,54,.32); border-color: rgba(255,214,148,.82); }
+  .icon.drag { opacity: .88; z-index: 10; transform: scale(1.04); }
+  .icon.settle { transition: left .22s cubic-bezier(.2,.8,.3,1), top .22s cubic-bezier(.2,.8,.3,1); }
+  .icon.born { animation: born .45s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes born { from { opacity: 0; transform: scale(.6); } }
+  .glyph { width: 48px; height: 48px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)) drop-shadow(3px 6px 5px rgba(18,12,8,.55)); pointer-events: none; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .label {
+    margin-top: 3px; max-width: 72px; font-size: 12px; line-height: 15px; color: #fbf8ee; text-align: center;
+    text-shadow: 0 0 3px rgba(0,0,0,.95), 0 1px 3px rgba(0,0,0,.95);
+    word-break: break-all; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    pointer-events: none;
+  }
+
+  #taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--taskbar);
+    background: rgba(20,22,28,.76); backdrop-filter: blur(28px) saturate(1.4); -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    border-top: 1px solid rgba(255,196,110,.22);
+    display: flex; align-items: center; justify-content: center; z-index: 40;
+  }
+  #taskbar .apps { display: flex; gap: 4px; }
+  #taskbar .app { width: 40px; height: 40px; border-radius: 4px; display: grid; place-items: center; }
+  #taskbar .app:hover { background: rgba(255,255,255,.08); }
+  #taskbar .app svg { width: 24px; height: 24px; }
+  #clock { position: absolute; right: 14px; color: #f6efe2; font-size: 12px; line-height: 16px; text-align: right; }
+
+  #panel {
+    position: fixed; top: 14px; right: 14px; width: 284px; max-height: calc(100vh - var(--taskbar) - 28px); overflow: auto;
+    background: rgba(22,24,31,.85); backdrop-filter: blur(18px) saturate(1.25); -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    color: #f4eee4; border: 1px solid rgba(255,196,110,.28); border-radius: 12px;
+    font-size: 12px; line-height: 1.4; box-shadow: 0 12px 32px rgba(0,0,0,.48); z-index: 50;
+  }
+  #panel.hidden { display: none; }
+  body.wall #panel, body.wall #taskbar, body.wall #desktop { display: none; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.preview #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(252,245,232,.88); box-shadow: 3px 6px 8px rgba(16,14,12,.45); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(252,245,232,.76); }
+  #panel header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+  #panel header b { font-size: 14px; letter-spacing: .06em; color: #ffc578; }
+  #panel header span { margin-left: 8px; opacity: .65; }
+  #panel.collapsed .body { display: none; }
+  .ibtn { background: none; border: 0; color: inherit; opacity: .65; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .ibtn:hover { opacity: 1; }
+  #panel .body { padding: 0 14px 14px; }
+  .sec { margin-top: 12px; }
+  .sec > .t { opacity: .62; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(255,255,255,.06); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { background: none; border: 0; color: inherit; padding: 5px 0; border-radius: 5px; cursor: pointer; font: inherit; opacity: .75; white-space: nowrap; }
+  .seg button:hover { opacity: 1; }
+  .seg button.on { background: rgba(255,172,72,.28); opacity: 1; color: #ffe2b8; }
+  .slider { margin-top: 9px; }
+  .slider .row { display: flex; justify-content: space-between; }
+  .slider .row span:last-child { opacity: .65; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: #f29f46; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggles input { accent-color: #f29f46; margin: 0; }
+  .btns { display: flex; gap: 6px; }
+  .btns button {
+    flex: 1; font: inherit; color: inherit; cursor: pointer; padding: 7px 0; border-radius: 7px;
+    background: rgba(255,255,255,.09); border: 1px solid rgba(255,196,110,.24);
+  }
+  .btns button:hover { background: rgba(255,172,72,.18); }
+  #stats { margin-top: 12px; padding: 8px 10px; border-radius: 7px; background: rgba(0,0,0,.3); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; line-height: 1.6; color: #ebe6dd; }
+  #stats .live { color: #ffba69; }
+  .hint { margin-top: 10px; opacity: .55; font-size: 11px; line-height: 1.6; }
+  #nogl { position: fixed; inset: 0; display: none; place-items: center; color: #fff; font-size: 16px; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="desktop"></div>
+
+<div id="taskbar">
+  <div class="apps">
+    <div class="app"><svg viewBox="0 0 24 24" fill="#6cc4ff"><rect x="3" y="3" width="8.2" height="8.2" rx="1"/><rect x="12.8" y="3" width="8.2" height="8.2" rx="1"/><rect x="3" y="12.8" width="8.2" height="8.2" rx="1"/><rect x="12.8" y="12.8" width="8.2" height="8.2" rx="1"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><path fill="#f5b93b" d="M3 6a2 2 0 0 1 2-2h4.2l1.8 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path fill="#ffd66c" d="M3 9h18v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#319ae8"/><path fill="#5ee6a0" d="M12 3a9 9 0 0 1 8.4 5.8c-2.5-.9-5.8-.5-8.4 1.6-2.4 2-5.4 2.1-8.5.7A9 9 0 0 1 12 3z"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" fill="#2d3448"/><path fill="#ffc578" d="M7 9.5l3 2.5-3 2.5m4.5 0h5.5" stroke="#ffc578" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div id="clock"></div>
+</div>
+
+<aside id="panel">
+  <header>
+    <div><b>小强剧场</b><span>街头</span></div>
+    <button class="ibtn" id="collapse" title="收起">–</button>
+  </header>
+  <div class="body">
+    <div class="sec"><div class="t">图标摆法</div>
+      <div class="seg">
+        <button data-v="mine">我的</button>
+        <button data-v="col">左边两列</button>
+        <button data-v="ring">四周一圈</button>
+        <button data-v="scatter">散落</button>
+      </div>
+    </div>
+    <div class="sec"><div class="t">街景与居民</div><div id="sliders"></div></div>
+    <div class="sec"><div class="t">显示与性能</div>
+      <div class="toggles">
+        <label><input type="checkbox" data-key="adaptive">跟着图标长</label>
+        <label><input type="checkbox" data-key="cap30">限 30 帧</label>
+        <label><input type="checkbox" data-key="debug">显示线框</label>
+      </div>
+    </div>
+    <div class="sec"><div class="t">操作</div>
+      <div class="btns">
+        <button id="btnSeed">换一条街</button>
+        <button id="btnAdd">+ 加一个图标</button>
+      </div>
+    </div>
+    <div id="stats"></div>
+    <div class="hint">拖拽桌面图标时人行道砖块同步重建；点“换一条街”更换街道砖缝、小强站位与路灯布局。按 H 隐藏面板。</div>
+  </div>
+</aside>
+
+<div id="nogl">需要 WebGL 2 才能渲染</div>
+
+<script>
+'use strict';
+
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has('wallpaper');
+const PREVIEW = QS.has('preview');
+
+const P = {
+  sigma: 78, warp: 24, glow: 0.78,
+  crowd: 12, speed: 1.0, props: 0.9, vibe: 0,
+  adaptive: 1, cap30: true, debug: false,
+};
+if (PREVIEW) { P.cap30 = false; }
+const DEFAULTS = Object.assign({}, P);
+const DISPLAY_KEYS = ['adaptive'];
+const SLIDERS = [
+  { key: 'sigma', label: '人行道范围', min: 40,  max: 200, step: 1,    fmt: v => Math.round(v) + ' px', act: 'field' },
+  { key: 'warp',  label: '砖缝起伏',   min: 0,   max: 80,  step: 1,    fmt: v => Math.round(v),         act: 'field' },
+  { key: 'glow',  label: '街灯暖光',   min: 0,   max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'crowd', label: '小强人数',   min: 0,   max: 22,  step: 1,    fmt: v => Math.round(v) + ' 只',  act: 'crowd' },
+  { key: 'speed', label: '漫步节奏',   min: 0.2, max: 2.2, step: 0.05, fmt: v => v.toFixed(2) + 'x' },
+  { key: 'props', label: '路灯与道具', min: 0,   max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%', act: 'crowd' },
+  { key: 'vibe',  label: '晴天校园',   min: 0,   max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%' },
+];
+
+const DESK = {
+  presets: {
+    mine:    ['文档','照片','截图','工作','学习','项目','Steam','笔记','音乐','设计','备用'],
+    col:     ['此电脑','回收站','控制面板','浏览器','邮件','日历','笔记','图片','音乐','文档','下载'],
+    ring:    ['文件夹 A','文件夹 B','计划.xlsx','草稿.txt','相册','设计','代码','备用','工具箱','归档'],
+    scatter: ['一','二','三','四','五','六','七','八','九','十'],
+  },
+  extra: ['新文件夹','小强日记.txt','橙汁配方','舞台表.pdf','厂区日志','截图 04','备忘录'],
+  glyphs: {
+    folder: `<svg viewBox="0 0 48 48"><path fill="#d8902a" d="M4 13a3 3 0 0 1 3-3h10l3 4h21a3 3 0 0 1 3 3v21a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path fill="#f7c84d" d="M4 18h40v20a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z"/><path fill="#fff" opacity=".32" d="M6 19h36v1.2H6z"/></svg>`,
+    doc:    `<svg viewBox="0 0 48 48"><path fill="#f3f5f8" d="M10 6h18l10 10v24a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/><path fill="#cfd6e0" d="M28 6v10h10z"/><path fill="#8e9aad" d="M14 23h20v2H14zm0 6h20v2H14zm0 6h13v2H14z"/></svg>`,
+    pic:    `<svg viewBox="0 0 48 48"><rect x="6" y="9" width="36" height="30" rx="3" fill="#e9edf4"/><rect x="9" y="12" width="30" height="24" fill="#67b3e6"/><circle cx="17" cy="19" r="3.2" fill="#ffe27a"/><path fill="#457855" d="M9 36l9-11 7 8 5-6 9 9z"/></svg>`,
+    app:    `<svg viewBox="0 0 48 48"><rect x="8" y="8" width="32" height="32" rx="8" fill="#d97728"/><path fill="#ffeed8" d="M18 16h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H18a2 2 0 0 1-2-2V18a2 2 0 0 1 2-2zm4 5v6l6-3z"/></svg>`,
+    bin:    `<svg viewBox="0 0 48 48"><path fill="#cbd4df" d="M13 15h22l-2.4 25a2 2 0 0 1-2 1.8H17.4a2 2 0 0 1-2-1.8z"/><path fill="#8b96a6" d="M11 12h26v3H11zm7-4h12v4H18z"/><path fill="#7c8797" d="M19 20h2v16h-2zm8 0h2v16h-2z"/></svg>`,
+    pc:     `<svg viewBox="0 0 48 48"><rect x="6" y="9" width="36" height="24" rx="2" fill="#3a4559"/><rect x="8" y="11" width="32" height="20" fill="#61b5e8"/><path fill="#9aa7b8" d="M20 33h8v4h5v3H15v-3h5z"/></svg>`,
+  },
+};
+
+const STORE = 'deskland_roach_v1';
+function saveState() {
+  if (WALL || PREVIEW) return;
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      seed, layoutKind, P,
+      icons: icons.map(ic => ({ n: ic.name, k: ic.kind, x: ic.x, y: ic.y })),
+    }));
+  } catch (e) {}
+}
+function loadState() {
+  if (WALL || PREVIEW) return null;
+  try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { return null; }
+}
+const SAVED = loadState();
+let seed = (SAVED && SAVED.seed) || 41297;
+if (SAVED && SAVED.P) Object.assign(P, SAVED.P);
+
+const CELL_W = 86, CELL_H = 98, PAD_X = 14, PAD_Y = 14, ICON_W = 76, ICON_H = 82;
+let W = innerWidth, H = innerHeight, TB = 48, DW = W, DH = H - TB;
+const desktop = document.getElementById('desktop');
+let grid = { cols: 1, rows: 1, ox: PAD_X, oy: PAD_Y }, icons = [], layoutKind = (SAVED && SAVED.layoutKind) || 'mine';
+let selected = null, extraIdx = 0;
+
+function computeGrid() {
+  TB = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--taskbar')) || 48;
+  DW = W; DH = Math.max(200, H - TB);
+  grid.cols = Math.max(1, Math.floor((DW - PAD_X * 2) / CELL_W));
+  grid.rows = Math.max(1, Math.floor((DH - PAD_Y * 2) / CELL_H));
+  grid.ox = Math.floor((DW - grid.cols * CELL_W) / 2);
+  grid.oy = Math.floor((DH - grid.rows * CELL_H) / 2);
+}
+const cellPos = (c, r) => ({
+  x: grid.ox + c * CELL_W + ((CELL_W - ICON_W) >> 1),
+  y: grid.oy + r * CELL_H + ((CELL_H - ICON_H) >> 1),
+});
+const nearestCell = (x, y) => {
+  const c = Math.max(0, Math.min(grid.cols - 1, Math.round((x - grid.ox - (CELL_W - ICON_W) / 2) / CELL_W)));
+  const r = Math.max(0, Math.min(grid.rows - 1, Math.round((y - grid.oy - (CELL_H - ICON_H) / 2) / CELL_H)));
+  return { c, r };
+};
+const occupied = (x, y, skip) => icons.some(ic => ic !== skip && Math.abs(ic.x - x) < ICON_W * 0.7 && Math.abs(ic.y - y) < ICON_H * 0.7);
+const kindOf = n => /电脑|计算机|Computer/.test(n) ? 'pc'
+  : /回收|Trash/.test(n) ? 'bin'
+  : /\.(txt|md|pdf|xlsx|docx)$/i.test(n) ? 'doc'
+  : /照片|截图|相册|Photos|Screens/.test(n) ? 'pic'
+  : /Chrome|Edge|Steam|浏览器|邮件|日历|Mail/.test(n) ? 'app' : 'folder';
+
+function addIcon(spec, pos, born) {
+  const name = typeof spec === 'string' ? spec : spec.n;
+  const kind = (typeof spec === 'object' && spec.k) || kindOf(name);
+  const el = document.createElement('div');
+  el.className = 'icon' + (born ? ' born' : '');
+  el.innerHTML = `<div class="glyph">${DESK.glyphs[kind] || DESK.glyphs.folder}</div><div class="label">${name}</div>`;
+  const ic = { el, name, kind, x: pos.x, y: pos.y, w: ICON_W, h: ICON_H };
+  setPos(ic, pos.x, pos.y);
+  wireIcon(ic);
+  desktop.appendChild(el);
+  icons.push(ic);
+  return ic;
+}
+function setPos(ic, x, y) { ic.x = x; ic.y = y; ic.el.style.left = x + 'px'; ic.el.style.top = y + 'px'; }
+function select(ic) {
+  if (selected && selected !== ic) selected.el.classList.remove('sel');
+  selected = ic;
+  if (ic) ic.el.classList.add('sel');
+}
+function wireIcon(ic) {
+  let drag = null;
+  ic.el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); select(ic);
+    ic.el.setPointerCapture(e.pointerId);
+    ic.el.classList.remove('settle'); ic.el.classList.add('drag');
+    drag = { sx: e.clientX, sy: e.clientY, ox: ic.x, oy: ic.y };
+  });
+  ic.el.addEventListener('pointermove', e => {
+    if (!drag) return;
+    setPos(ic, Math.max(4, Math.min(DW - ICON_W - 4, drag.ox + e.clientX - drag.sx)),
+               Math.max(4, Math.min(DH - ICON_H - 4, drag.oy + e.clientY - drag.sy)));
+  });
+  const end = () => {
+    if (!drag) return;
+    drag = null; ic.el.classList.remove('drag');
+    if (Math.hypot(ic.x - ic.ox, ic.y - ic.oy) > 4) {
+      const { c, r } = nearestCell(ic.x, ic.y);
+      const p = cellPos(c, r);
+      if (!occupied(p.x, p.y, ic)) {
+        ic.el.classList.add('settle'); setPos(ic, p.x, p.y);
+        setTimeout(() => ic.el.classList.remove('settle'), 240);
+      }
+      commit();
+    }
+  };
+  ic.el.addEventListener('pointerup', end);
+  ic.el.addEventListener('pointercancel', end);
+}
+
+let layoutCapacity = 0;
+function applyLayout(kind) {
+  layoutKind = kind;
+  desktop.innerHTML = ''; icons = []; selected = null;
+  computeGrid();
+  const C = grid.cols, R = grid.rows, names = DESK.presets[kind] || DESK.presets.mine;
+  layoutCapacity = C * R;
+  const cells = [];
+  if (kind === 'mine' && SAVED && SAVED.icons && SAVED.icons.length) {
+    for (const s of SAVED.icons) addIcon(s, { x: Math.min(s.x, DW - ICON_W), y: Math.min(s.y, DH - ICON_H) }, false);
+    commit(true);
+    return;
+  }
+  if (kind === 'mine') {
+    for (let i = 0; i < Math.min(5, R); i++) cells.push([0, i]);
+    if (C >= 2) for (let i = 0; i < Math.min(3, R); i++) cells.push([1, i]);
+    const mid = Math.floor(C * 0.56);
+    if (R >= 4 && C >= 6) {
+      cells.push([mid, Math.floor(R * 0.28)]);
+      cells.push([mid + 1, Math.floor(R * 0.28)]);
+      cells.push([mid, Math.floor(R * 0.28) + 1]);
+    }
+  } else if (kind === 'col') {
+    for (let c = 0; c < Math.min(2, C); c++)
+      for (let r = 0; r < R && cells.length < names.length; r++) cells.push([c, r]);
+  } else if (kind === 'ring') {
+    for (let c = 0; c < C; c += 2) cells.push([c, 0]);
+    for (let r = 1; r < R - 1; r += 2) cells.push([C - 1, r]);
+    for (let c = C - 1; c >= 0; c -= 2) if (R > 1) cells.push([c, R - 1]);
+    for (let r = R - 2; r >= 1; r -= 2) if (C > 1) cells.push([0, r]);
+  } else {
+    const used = new Set();
+    let x = (seed ^ 0x9e3779b9) >>> 0;
+    const rng = () => ((x = (Math.imul(x ^ (x >>> 15), 0x85ebca6b)) >>> 0) / 4294967296);
+    for (let i = 0; i < names.length * 4 && cells.length < names.length; i++) {
+      const c = Math.floor(rng() * C), r = Math.floor(rng() * R), k = c + ',' + r;
+      if (!used.has(k)) { used.add(k); cells.push([c, r]); }
+    }
+  }
+  cells.slice(0, names.length).forEach(([c, r], i) => addIcon(names[i], cellPos(c, r), false));
+  commit(true);
+}
+
+/* ======================================================================
+   CPU 噪声与街区空地场（s < 0 图标下石板人行道台地，s > 0 鹅卵石街头）
+   ====================================================================== */
+const NR = 256, noise = new Float32Array(NR * NR), noiseRGBA = new Uint8Array(NR * NR * 4);
+const hash2 = (x, y, s) => {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(s, 1442695041);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+function buildNoise() {
+  const g = new Float32Array(NR * NR);
+  for (let i = 0; i < NR * NR; i++) g[i] = hash2(i & (NR - 1), i >> 8, seed);
+  const n1 = (x, y, per) => {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const x0 = ((ix % per) + per) % per, x1 = (x0 + 1) % per;
+    const y0 = ((iy % per) + per) % per, y1 = (y0 + 1) % per;
+    const a = g[(y0 << 8) | x0], b = g[(y0 << 8) | x1], c = g[(y1 << 8) | x0], d = g[(y1 << 8) | x1];
+    return (a + (b - a) * ux) * (1 - uy) + (c + (d - c) * ux) * uy;
+  };
+  for (let y = 0; y < NR; y++) for (let x = 0; x < NR; x++) {
+    let f = 0, amp = 0.5, fr = 1;
+    for (let o = 0; o < 4; o++) { const per = 8 * fr; f += amp * n1(x * per / NR, y * per / NR, per); amp *= 0.5; fr *= 2; }
+    const idx = y * NR + x;
+    noise[idx] = f;
+    noiseRGBA[idx * 4] = Math.round(f * 255);
+    noiseRGBA[idx * 4 + 1] = Math.round(g[idx] * 255);
+  }
+}
+buildNoise();
+const sampleNoise = (x, y) => {
+  const fx = ((x % NR) + NR) % NR, fy = ((y % NR) + NR) % NR;
+  return noise[((fy | 0) << 8) | (fx | 0)];
+};
+
+const STEP = 4;
+let Gw = 0, Gh = 0;
+let FA = null, FB = null;
+const ftex = [null, null];
+let fromI = 0, toI = 1, curMix = 1, morphT0 = 0, morphDur = 280;
+let fieldMs = 0;
+
+function computeField(out) {
+  const t0 = performance.now();
+  const s = P.sigma, w = P.warp;
+  const maxD = s + 64, maxD2 = maxD * maxD;
+  const boxes = P.adaptive ? icons.map(ic => [ic.x - 4, ic.y - 4, ic.x + ic.w + 4, ic.y + ic.h + 4]) : [];
+  for (let gy = 0; gy < Gh; gy++) {
+    const py = gy * STEP + STEP * 0.5;
+    for (let gx = 0; gx < Gw; gx++) {
+      const px = gx * STEP + STEP * 0.5;
+      let md2 = 1e9;
+      for (let i = 0; i < boxes.length; i++) {
+        const b = boxes[i];
+        const dx = px < b[0] ? b[0] - px : (px > b[2] ? px - b[2] : 0);
+        const dy = py < b[1] ? b[1] - py : (py > b[3] ? py - b[3] : 0);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < md2) md2 = d2;
+      }
+      let d;
+      if (!boxes.length) d = 120;
+      else if (md2 === 0) {
+        let inside = 1e9;
+        for (let i = 0; i < boxes.length; i++) {
+          const b = boxes[i];
+          if (px >= b[0] && px <= b[2] && py >= b[1] && py <= b[3]) {
+            inside = Math.min(inside, px - b[0], b[2] - px, py - b[1], b[3] - py);
+          }
+        }
+        d = -inside;
+      } else d = Math.sqrt(md2);
+      const n = (sampleNoise(px * 0.24, py * 0.24) - 0.5) * 2 * w;
+      const val = Math.max(-1, Math.min(1, (d + n - s * 0.72) / (s * 0.72)));
+      out[gy * Gw + gx] = Math.round((val * 0.5 + 0.5) * 65535);
+    }
+  }
+  fieldMs = performance.now() - t0;
+}
+
+function sampleField(buf, px, py) {
+  if (!buf || !Gw || !Gh) return 1;
+  const gx = Math.max(0, Math.min(Gw - 1, Math.round(px / STEP)));
+  const gy = Math.max(0, Math.min(Gh - 1, Math.round(py / STEP)));
+  return (buf[gy * Gw + gx] / 65535) * 2 - 1;
+}
+
+function uploadField(slot, data) {
+  gl.bindTexture(gl.TEXTURE_2D, ftex[slot]);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16UI, Gw, Gh, 0, gl.RED_INTEGER, gl.UNSIGNED_SHORT, data);
+}
+
+function commit(snap) {
+  if (!Gw || !Gh) return;
+  if (snap) {
+    computeField(FB);
+    FA.set(FB);
+    uploadField(0, FA);
+    uploadField(1, FB);
+    fromI = 0; toI = 1; curMix = 1;
+    if (typeof rebuildRoachProps === 'function') rebuildRoachProps();
+    if (typeof syncRoachProps === 'function') syncRoachProps();
+  } else {
+    for (let i = 0; i < FA.length; i++) FA[i] = Math.round(FA[i] * (1 - curMix) + FB[i] * curMix);
+    fromI = toI;
+    toI = 1 - toI;
+    uploadField(fromI, FA);
+    computeField(FB);
+    uploadField(toI, FB);
+    curMix = 0;
+    morphT0 = performance.now();
+    if (typeof syncRoachProps === 'function') syncRoachProps();
+  }
+  saveState();
+}
+
+function refresh() {
+  if (!FB) return;
+  computeField(FB);
+  uploadField(toI, FB);
+  FA.set(FB);
+  uploadField(fromI, FA);
+  curMix = 1;
+  if (typeof syncRoachProps === 'function') syncRoachProps();
+  saveState();
+}
+
+/* ======================================================================
+   WebGL2 街道鹅卵石 & 图标石板台地着色器
+   ====================================================================== */
+const cv = document.getElementById('art');
+const gl = cv.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
+if (!gl) { document.getElementById('nogl').style.display = 'grid'; throw new Error('WebGL2 missing'); }
+
+function makeProg(vsSrc, fsSrc) {
+  const sh = (t, src) => {
+    const s = gl.createShader(t);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const U = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) {
+    const info = gl.getActiveUniform(p, i);
+    U[info.name] = gl.getUniformLocation(p, info.name);
+  }
+  return { p, U };
+}
+
+const VS = `#version 300 es
+out vec2 vUV;
+void main() {
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  vUV = vec2(p.x, 1.0 - p.y);
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+uniform sampler2D uNoise;
+uniform highp usampler2D uFA;
+uniform highp usampler2D uFB;
+uniform vec2 uRes, uGrid;
+uniform float uScale, uSeed, uStep, uMix, uTime;
+uniform float uGlow, uVibe, uDebug;
+in vec2 vUV;
+out vec4 O;
+
+float fld(vec2 px) {
+  vec2 g = clamp(px / uStep - 0.5, vec2(0.0), uGrid - 1.0);
+  vec2 f = fract(g);
+  ivec2 i0 = ivec2(floor(g));
+  ivec2 i1 = min(i0 + 1, ivec2(uGrid) - 1);
+  float a00 = float(texelFetch(uFA, i0, 0).r);
+  float a10 = float(texelFetch(uFA, ivec2(i1.x, i0.y), 0).r);
+  float a01 = float(texelFetch(uFA, ivec2(i0.x, i1.y), 0).r);
+  float a11 = float(texelFetch(uFA, i1, 0).r);
+  float va = mix(mix(a00, a10, f.x), mix(a01, a11, f.x), f.y);
+  float b00 = float(texelFetch(uFB, i0, 0).r);
+  float b10 = float(texelFetch(uFB, ivec2(i1.x, i0.y), 0).r);
+  float b01 = float(texelFetch(uFB, ivec2(i0.x, i1.y), 0).r);
+  float b11 = float(texelFetch(uFB, i1, 0).r);
+  float vb = mix(mix(b00, b10, f.x), mix(b01, b11, f.x), f.y);
+  return (mix(va, vb, uMix) / 65535.0) * 2.0 - 1.0;
+}
+
+float n2(vec2 p) { return texture(uNoise, p / 256.0).r; }
+float h12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+void main() {
+  vec2 px = vUV * uRes;
+  float s = fld(px);
+  float gx = fld(px + vec2(3.0, 0.0)) - fld(px - vec2(3.0, 0.0));
+  float gy = fld(px + vec2(0.0, 3.0)) - fld(px - vec2(0.0, 3.0));
+  vec2 grad = vec2(gx, gy);
+
+  // Subtle street horizon perspective gradient
+  float skyFade = clamp(1.0 - vUV.y, 0.0, 1.0);
+  float texA = n2(px * 0.55 + uSeed * 13.0);
+  float texB = n2(px * 2.1 - uSeed * 7.0);
+
+  // --- Cobblestone pattern (running-bond Arnavut kaldirimi) ---
+  vec2 cSize = vec2(34.0, 22.0);
+  float rowIdx = floor(px.y / cSize.y);
+  vec2 cUV = px / cSize;
+  cUV.x += mod(rowIdx, 2.0) * 0.5;
+  vec2 cId = floor(cUV);
+  vec2 cF = fract(cUV);
+  float stoneRnd = h12(cId + uSeed);
+  vec2 dEdge = min(cF, 1.0 - cF);
+  float stoneBevel = smoothstep(0.04, 0.18, min(dEdge.x, dEdge.y));
+  float mortar = 1.0 - stoneBevel;
+
+  // Dusk boulevard cobblestone vs Sunny schoolyard asphalt/concrete
+  vec3 duskStone = mix(vec3(0.14, 0.16, 0.21), vec3(0.22, 0.23, 0.28), stoneRnd) * (0.85 + 0.3 * texB);
+  vec3 sunnyStone = mix(vec3(0.62, 0.59, 0.54), vec3(0.71, 0.67, 0.60), stoneRnd) * (0.9 + 0.18 * texB);
+  vec3 streetBase = mix(duskStone, sunnyStone, uVibe);
+  vec3 mortarCol = mix(vec3(0.07, 0.08, 0.11), vec3(0.45, 0.43, 0.39), uVibe);
+  vec3 streetCol = mix(streetBase, mortarCol, mortar * 0.72);
+
+  // Subtle Beyoglu tramway double steel rails near middle-bottom horizontal band
+  float railBand = px.y - uRes.y * 0.68;
+  float r1 = smoothstep(3.2, 0.8, abs(railBand - 24.0));
+  float r2 = smoothstep(3.2, 0.8, abs(railBand + 24.0));
+  float rail = max(r1, r2) * smoothstep(0.02, 0.15, s);
+  streetCol = mix(streetCol, mix(vec3(0.42, 0.44, 0.50), vec3(0.55, 0.56, 0.58), uVibe), rail * 0.62);
+
+  // Rain puddles reflecting amber streetlights on open cobblestone lanes (stronger in Dusk mode)
+  float puddleNoise = n2(px * 0.22 + uSeed * 19.0) * 0.65 + n2(px * 0.62 - uSeed * 11.0) * 0.35;
+  float puddleMask = smoothstep(0.60, 0.68, puddleNoise) * smoothstep(0.08, 0.24, s);
+  float lampBand = 0.5 + 0.5 * sin(px.x * 0.011 + 1.2) * cos(px.y * 0.009 - 0.5);
+  float lampPulse = 0.90 + 0.10 * sin(uTime * 1.9 + px.x * 0.008);
+  vec3 amberReflect = mix(vec3(0.96, 0.64, 0.26), vec3(0.84, 0.91, 0.98), uVibe) * (0.35 + 0.65 * uGlow) * lampPulse;
+  float ripple = sin(px.x * 0.14 + px.y * 0.20 - uTime * 2.2) * 0.5 + 0.5;
+  streetCol = mix(streetCol, streetCol * 0.35 + amberReflect * (0.28 + 0.32 * lampBand + 0.14 * ripple), puddleMask * (1.0 - 0.60 * uVibe));
+
+  // Subtle warm streetlight glow falloff along open cobblestone
+  streetCol += vec3(0.16, 0.09, 0.03) * lampBand * (0.3 + 0.7 * uGlow) * (1.0 - 0.85 * uVibe);
+
+  // --- Sidewalk Cafe / Schoolyard Patio Tile Islands (s < 0) ---
+  vec2 pUV = px / 44.0;
+  vec2 pId = floor(pUV);
+  vec2 pF = fract(pUV);
+  float pRnd = h12(pId + uSeed * 3.1);
+  float pEdge = smoothstep(0.02, 0.08, min(min(pF.x, 1.0 - pF.x), min(pF.y, 1.0 - pF.y)));
+  vec3 duskPatio = mix(vec3(0.56, 0.42, 0.29), vec3(0.68, 0.52, 0.36), pRnd);
+  vec3 sunnyPatio = mix(vec3(0.82, 0.74, 0.61), vec3(0.90, 0.82, 0.68), pRnd);
+  vec3 patioCol = mix(duskPatio, sunnyPatio, uVibe) * (0.88 + 0.24 * texB);
+  patioCol = mix(patioCol * 0.72, patioCol, pEdge);
+
+  // Warm cafe terrace cast on patio centers
+  patioCol += vec3(0.14, 0.08, 0.02) * uGlow * (1.0 - uVibe);
+
+  // Curbstone rim transition around s = 0
+  float curbDrop = smoothstep(0.08, -0.02, s) * (1.0 - smoothstep(-0.02, -0.10, s));
+  float aa = 0.022;
+  float isPatio = 1.0 - smoothstep(-aa, aa, s);
+  vec3 col = mix(streetCol, patioCol, isPatio);
+
+  // Raised granite curbstone bevel & drop shadow
+  float shadowBand = smoothstep(0.0, 0.11, s) * (1.0 - smoothstep(0.0, 0.11, s) * 0.0);
+  float outerShadow = smoothstep(0.10, 0.0, s) * step(0.0, s);
+  col *= 1.0 - outerShadow * 0.42;
+
+  float curbBevel = smoothstep(-0.06, -0.015, s) * (1.0 - smoothstep(-0.015, 0.02, s));
+  vec3 curbCol = mix(vec3(0.52, 0.47, 0.41), vec3(0.76, 0.72, 0.66), uVibe);
+  // Subtle directional light on top-left edge of curb
+  float sunDot = dot(normalize(grad + vec2(1e-5)), normalize(vec2(-0.6, -0.8)));
+  curbCol *= 0.85 + 0.25 * clamp(sunDot, -1.0, 1.0);
+  col = mix(col, curbCol, curbBevel * 0.82);
+
+  // Gentle top dusk atmosphere vignette
+  col *= 0.88 + 0.14 * skyFade;
+
+  if (uDebug > 0.5) {
+    float line = 1.0 - smoothstep(0.0, 0.03, abs(s));
+    col = mix(col, vec3(1.0, 0.55, 0.1), line * 0.85);
+  }
+  O = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const PR = makeProg(VS, FS);
+const bgVAO = gl.createVertexArray();
+const noiseTex = gl.createTexture();
+function buildNoiseTex() {
+  gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, NR, NR, 0, gl.RGBA, gl.UNSIGNED_BYTE, noiseRGBA);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+}
+for (let i = 0; i < 2; i++) {
+  ftex[i] = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, ftex[i]);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+function resize() {
+  W = innerWidth; H = innerHeight;
+  const s = WALL ? (devicePixelRatio || 1) : Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.max(1, Math.round(W * s));
+  cv.height = Math.max(1, Math.round(H * s));
+  cv._scale = s;
+  Gw = Math.max(8, Math.ceil(W / STEP));
+  Gh = Math.max(8, Math.ceil(H / STEP));
+  FA = new Uint16Array(Gw * Gh);
+  FB = new Uint16Array(Gw * Gh);
+}
+
+/* ======================================================================
+   主循环
+   ====================================================================== */
+const T0 = performance.now();
+let lastT = 0, fpsEMA = 0, frameN = 0, frameMs = 0;
+const px = new Uint8Array(4);
+let paused = false;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { lastT = 0; return; }
+  if (P.cap30 && now - lastT < 31) return;
+  const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
+  if (lastT) fpsEMA = fpsEMA ? fpsEMA * 0.9 + (1 / dt) * 0.1 : 1 / dt;
+  lastT = now;
+  const e = Math.min((now - morphT0) / morphDur, 1);
+  curMix = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+  const timeSec = (now - T0) / 1000;
+  if (typeof stepRoachProps === 'function') stepRoachProps(dt, timeSec);
+  draw(now);
+  if (++frameN % 10 === 0) updateStats();
+}
+
+function draw(now) {
+  const measure = frameN % 20 === 0, t0 = performance.now();
+  const timeSec = (now - T0) / 1000;
+
+  gl.useProgram(PR.p);
+  gl.bindVertexArray(bgVAO);
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ftex[fromI]);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, ftex[toI]);
+  const U = PR.U;
+  gl.uniform1i(U.uNoise, 0); gl.uniform1i(U.uFA, 1); gl.uniform1i(U.uFB, 2);
+  gl.uniform2f(U.uRes, cv.width / cv._scale, cv.height / cv._scale);
+  gl.uniform2f(U.uGrid, Gw, Gh);
+  gl.uniform1f(U.uScale, cv._scale);
+  gl.uniform1f(U.uSeed, (seed % 997) * 0.37);
+  gl.uniform1f(U.uStep, STEP);
+  gl.uniform1f(U.uMix, curMix);
+  gl.uniform1f(U.uTime, timeSec);
+  gl.uniform1f(U.uGlow, P.glow);
+  gl.uniform1f(U.uVibe, P.vibe);
+  gl.uniform1f(U.uDebug, P.debug ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  if (typeof drawRoachProps === 'function') drawRoachProps(timeSec);
+
+  if (measure) { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); frameMs = performance.now() - t0; }
+}
+
+/* ======================================================================
+   面板
+   ====================================================================== */
+const statsEl = document.getElementById('stats');
+const GPU = (() => {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  return name.replace(/^ANGLE \([^,]+,\s*/, '').replace(/\s*\(0x[0-9a-f]+\).*$/i, '')
+    .replace(/\s*(Direct3D|vs_|OpenGL).*$/, '').replace(/\(R\)|\(TM\)/g, '').trim();
+})();
+function updateStats() {
+  const cnt = typeof roaches !== 'undefined' ? roaches.length : 0;
+  statsEl.innerHTML =
+    `<span class="live">● 漫步中 · ${fpsEMA.toFixed(0)} fps</span><br>GPU ${GPU}<br>` +
+    `单帧 ${frameMs.toFixed(1)} ms · 空地场 ${fieldMs.toFixed(0)} ms<br>` +
+    `画布 ${cv.width}×${cv.height} · 居民 ${cnt} 只`;
+}
+function syncPanel() {
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
+  document.querySelectorAll('.toggles input').forEach(inp => { inp.checked = !!P[inp.dataset.key]; });
+}
+const slidersEl = document.getElementById('sliders');
+for (const s of SLIDERS) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slider';
+  wrap.innerHTML = `<div class="row"><span>${s.label}</span><span></span></div><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${P[s.key]}">`;
+  const out = wrap.querySelector('.row span:last-child'), inp = wrap.querySelector('input');
+  out.textContent = s.fmt(P[s.key]);
+  inp.addEventListener('input', () => {
+    P[s.key] = +inp.value; out.textContent = s.fmt(P[s.key]);
+    if (s.act === 'field') refresh();
+    else if (s.act === 'crowd' && typeof syncRoachProps === 'function') syncRoachProps();
+  });
+  slidersEl.appendChild(wrap);
+}
+document.querySelector('.seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  applyLayout(b.dataset.v); syncPanel();
+});
+document.querySelectorAll('.toggles input').forEach(inp => inp.addEventListener('change', () => {
+  const k = inp.dataset.key;
+  if (k === 'adaptive') { P.adaptive = inp.checked ? 1 : 0; commit(); }
+  else P[k] = inp.checked;
+}));
+document.getElementById('collapse').addEventListener('click', () => {
+  const p = document.getElementById('panel');
+  p.classList.toggle('collapsed');
+  document.getElementById('collapse').textContent = p.classList.contains('collapsed') ? '+' : '–';
+});
+let iconsSeen = !(WALL || PREVIEW);
+function reseed(v) {
+  seed = v; buildNoise(); buildNoiseTex();
+  if (typeof rebuildRoachProps === 'function') rebuildRoachProps();
+  if (!iconsSeen) return;
+  commit(true);
+}
+document.getElementById('btnSeed').addEventListener('click', () => reseed((Math.random() * 1e6) | 0));
+document.getElementById('btnAdd').addEventListener('click', () => {
+  const f = DESK.extra[extraIdx++ % DESK.extra.length];
+  let pos = null;
+  for (let t = 0; t < 300 && !pos; t++) {
+    const c = cellPos(Math.floor(Math.random() * grid.cols), Math.floor(Math.random() * grid.rows));
+    if (!occupied(c.x, c.y, null)) pos = c;
+  }
+  if (!pos) return;
+  const ic = addIcon(f, pos, true);
+  select(ic);
+  commit();
+});
+desktop.addEventListener('pointerdown', () => select(null));
+addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+    const ic = selected; select(null); ic.el.remove(); icons = icons.filter(x => x !== ic); commit();
+  } else if (e.key === 'h' || e.key === 'H') document.getElementById('panel').classList.toggle('hidden');
+});
+let resizeT = 0;
+addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (WALL || PREVIEW) { resize(); refresh(); return; }
+    resize(); computeGrid();
+    if (grid.cols * grid.rows > layoutCapacity && layoutCapacity < 40) { applyLayout(layoutKind); syncPanel(); return; }
+    for (const ic of icons) setPos(ic, Math.min(ic.x, Math.max(0, DW - ic.w)), Math.min(ic.y, Math.max(0, DH - ic.h)));
+    refresh();
+  }, 100);
+});
+function tickClock() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  document.getElementById('clock').innerHTML = `${z(d.getHours())}:${z(d.getMinutes())}<br>${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* ---------- 启动 ---------- */
+window.__dbg = {
+  P, applyLayout,
+  bench() {
+    const ts = [];
+    for (let i = 0; i < 10; i++) { const a = performance.now(); draw(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); ts.push(performance.now() - a); }
+    ts.sort((a, b) => a - b);
+    return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height };
+  },
+};
+resize();
+buildNoiseTex();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+
+/* ======================================================================
+   托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
+   ====================================================================== */
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
+  let field = false, crowdChanged = false, adaptiveChanged = false;
+  for (const k in v) {
+    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k)) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    if (DISPLAY_KEYS.includes(k) && v[k] !== 0 && v[k] !== 1) continue;
+    P[k] = v[k];
+    if (k === 'adaptive') adaptiveChanged = true;
+    if (k === 'sigma' || k === 'warp') field = true;
+    if (k === 'crowd' || k === 'props') crowdChanged = true;
+  }
+  if (adaptiveChanged && FB) commit();
+  else if (field && FB) refresh();
+  if (crowdChanged && FB && typeof syncRoachProps === 'function') syncRoachProps();
+}
+
+function drawGhosts() {
+  const box = document.getElementById('ghosts');
+  box.innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+
+function startHostedMode() {
+  document.body.classList.add('wall');
+  if (PREVIEW) {
+    document.body.classList.add('preview');
+    const g = document.createElement('div'); g.id = 'ghosts'; document.body.appendChild(g);
+  }
+  icons = [];
+  commit(true);
+  let first = true;
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
+    if (PREVIEW) drawGhosts();
+    iconsSeen = true;
+    commit(first);
+    first = false;
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+</script>
+<script src="roach-props.js"></script>
+<script src="share.js"></script>
+</body>
+</html>
