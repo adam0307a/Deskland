@@ -650,6 +650,11 @@
           "label": "Drift & breeze",
           "hint": "How fast canopies sway, river ripples flow, and wisps wander"
         },
+        "heroes": {
+          "label": "Rift champions",
+          "hint": "Chibi Rift champions and Poro wandering between stone sanctuaries and riverbanks; set to 0 to hide",
+          "unit": ""
+        },
         "wards": {
           "label": "Ward lanterns",
           "hint": "Brass-and-crystal rune lanterns standing along icon edges; set to 0 to hide",

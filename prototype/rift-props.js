@@ -273,6 +273,408 @@ function riftPaintWispCell(ctx, ox, oy, variant) {
   ctx.restore();
 }
 
+function riftPaintHeroBase(ctx, cx, by, glowRgb) {
+  // Ground shadow + faint heroic aura under feet
+  ctx.fillStyle = 'rgba(6, 14, 14, 0.45)';
+  ctx.beginPath();
+  ctx.ellipse(cx, by + 2, 22, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (glowRgb) {
+    const g = ctx.createRadialGradient(cx, by - 2, 2, cx, by - 2, 28);
+    g.addColorStop(0, `rgba(${glowRgb}, 0.42)`);
+    g.addColorStop(1, `rgba(${glowRgb}, 0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, by - 2, 28, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function riftPaintChibiHead(ctx, cx, hy, skinCol, hairCol, eyeCol) {
+  // Rounded stylized chibi face with dark ink outline
+  ctx.fillStyle = skinCol;
+  ctx.strokeStyle = '#181e24';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.arc(cx, hy, 13.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Soft cheek blush
+  ctx.fillStyle = 'rgba(244, 130, 135, 0.42)';
+  ctx.beginPath();
+  ctx.ellipse(cx - 7.5, hy + 3.5, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 7.5, hy + 3.5, 3, 1.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Expressive eyes (looking slightly forward-right for flip readability)
+  ctx.fillStyle = eyeCol || '#1a2636';
+  ctx.beginPath();
+  ctx.ellipse(cx - 3.6, hy + 1.2, 2.0, 2.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 5.2, hy + 1.2, 2.0, 2.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx - 3.1, hy + 0.3, 0.85, 0, Math.PI * 2);
+  ctx.arc(cx + 5.7, hy + 0.3, 0.85, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Hair cap bangs
+  ctx.fillStyle = hairCol;
+  ctx.beginPath();
+  ctx.arc(cx, hy - 3.5, 14.2, Math.PI * 0.98, Math.PI * 2.04);
+  ctx.quadraticCurveTo(cx + 8, hy - 3, cx + 2, hy - 7);
+  ctx.quadraticCurveTo(cx - 5, hy - 2, cx - 14, hy - 3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function riftPaintHeroCell(ctx, ox, oy, kind) {
+  ctx.save();
+  ctx.translate(ox, oy);
+  const cx = 64, by = 108;
+
+  if (kind === 0) {
+    // Col 3: Wind Ronin (Yasuo-inspired) - ponytail, blue sash, katana + gale arc
+    riftPaintHeroBase(ctx, cx, by, '90, 225, 220');
+
+    // Swirling wind arc behind
+    ctx.strokeStyle = 'rgba(130, 245, 240, 0.65)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx - 2, by - 36, 32, Math.PI * 0.72, Math.PI * 1.48);
+    ctx.stroke();
+
+    // Flowing dark ponytail behind head
+    ctx.fillStyle = '#1e2736';
+    ctx.strokeStyle = '#11161d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, by - 58);
+    ctx.quadraticCurveTo(cx - 30, by - 64, cx - 34, by - 42);
+    ctx.quadraticCurveTo(cx - 21, by - 46, cx - 10, by - 50);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Flowing sky-blue scarf & tunic
+    ctx.fillStyle = '#263448';
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, by - 40);
+    ctx.lineTo(cx + 12, by - 40);
+    ctx.lineTo(cx + 16, by - 8);
+    ctx.lineTo(cx - 14, by - 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Armored shoulder pauldron + sash
+    ctx.fillStyle = '#8b99a8';
+    ctx.beginPath();
+    ctx.ellipse(cx - 12, by - 36, 8, 6, -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#38b6ff';
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, by - 34);
+    ctx.quadraticCurveTo(cx - 32, by - 22, cx - 26, by - 12);
+    ctx.lineTo(cx - 10, by - 25);
+    ctx.closePath();
+    ctx.fill();
+
+    // Steel katana held forward
+    ctx.strokeStyle = '#d9eef7';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(cx + 8, by - 26);
+    ctx.lineTo(cx + 38, by - 46);
+    ctx.stroke();
+    ctx.strokeStyle = '#d4a64a';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + 6, by - 23);
+    ctx.lineTo(cx + 12, by - 30);
+    ctx.stroke();
+
+    riftPaintChibiHead(ctx, cx, by - 52, '#f4cbb2', '#1e2736', '#25394f');
+    // Spiky hair tuft
+    ctx.fillStyle = '#1e2736';
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, by - 64);
+    ctx.lineTo(cx - 2, by - 75);
+    ctx.lineTo(cx + 5, by - 65);
+    ctx.lineTo(cx + 12, by - 71);
+    ctx.lineTo(cx + 13, by - 60);
+    ctx.closePath();
+    ctx.fill();
+  } else if (kind === 1) {
+    // Col 4: Nine-Tail Fox Mage (Ahri-inspired) - fluffy tails, fox ears, cyan Spirit Orb
+    riftPaintHeroBase(ctx, cx, by, '72, 238, 255');
+
+    // Lush fan of fluffy tails
+    const tailOffsets = [[-22, -34, -0.7], [-14, -42, -0.35], [-2, -45, 0], [10, -40, 0.35], [-26, -22, -1.0]];
+    for (const [tx, ty, rot] of tailOffsets) {
+      ctx.save();
+      ctx.translate(cx + tx, by + ty);
+      ctx.rotate(rot);
+      ctx.fillStyle = '#fff5ea';
+      ctx.strokeStyle = '#332124';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 9, 17, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd480';
+      ctx.beginPath();
+      ctx.ellipse(0, -10, 5.5, 6.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Crimson & ivory Ionian robe
+    ctx.fillStyle = '#c82d46';
+    ctx.strokeStyle = '#241418';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, by - 38);
+    ctx.lineTo(cx + 10, by - 38);
+    ctx.lineTo(cx + 17, by - 6);
+    ctx.lineTo(cx - 15, by - 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Cream skirt & gold trim
+    ctx.fillStyle = '#fff6ec';
+    ctx.beginPath();
+    ctx.moveTo(cx - 9, by - 22);
+    ctx.lineTo(cx + 11, by - 22);
+    ctx.lineTo(cx + 15, by - 7);
+    ctx.lineTo(cx - 13, by - 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#dfae4f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, by - 22);
+    ctx.lineTo(cx + 11, by - 22);
+    ctx.stroke();
+
+    riftPaintChibiHead(ctx, cx, by - 51, '#fde0d2', '#3a2220', '#d88c28');
+
+    // Tall fox ears
+    ctx.fillStyle = '#2d1a18';
+    ctx.strokeStyle = '#181010';
+    ctx.lineWidth = 1.8;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + dir * 4, by - 62);
+      ctx.lineTo(cx + dir * 13, by - 79);
+      ctx.lineTo(cx + dir * 15, by - 58);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#f8a5a8';
+      ctx.beginPath();
+      ctx.moveTo(cx + dir * 7, by - 62);
+      ctx.lineTo(cx + dir * 12, by - 73);
+      ctx.lineTo(cx + dir * 13, by - 60);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#2d1a18';
+    }
+
+    // Glowing cyan Spirit Orb in right hand
+    const og = ctx.createRadialGradient(cx + 25, by - 26, 2, cx + 25, by - 26, 15);
+    og.addColorStop(0, '#ffffff');
+    og.addColorStop(0.38, '#5bf5ff');
+    og.addColorStop(1, 'rgba(40, 210, 255, 0)');
+    ctx.fillStyle = og;
+    ctx.beginPath();
+    ctx.arc(cx + 25, by - 26, 15, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === 2) {
+    // Col 5: Frost Archer (Ashe-inspired) - sapphire cape, white hair, glowing frost bow
+    riftPaintHeroBase(ctx, cx, by, '110, 215, 255');
+
+    // Deep royal-blue cloak
+    ctx.fillStyle = '#1c447c';
+    ctx.strokeStyle = '#10223d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, by - 42);
+    ctx.lineTo(cx + 12, by - 42);
+    ctx.lineTo(cx + 19, by - 6);
+    ctx.lineTo(cx - 21, by - 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Gold chest crest
+    ctx.fillStyle = '#e5be5c';
+    ctx.beginPath();
+    ctx.moveTo(cx, by - 36);
+    ctx.lineTo(cx + 7, by - 28);
+    ctx.lineTo(cx, by - 20);
+    ctx.lineTo(cx - 7, by - 28);
+    ctx.closePath();
+    ctx.fill();
+
+    // White braided locks & hood rim
+    ctx.fillStyle = '#eef6fc';
+    ctx.strokeStyle = '#4e6b88';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(cx - 12, by - 42, 4.5, 11, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    riftPaintChibiHead(ctx, cx, by - 51, '#fbe3d8', '#eef6fc', '#2b9be8');
+
+    // Frost hood & gold-ice crown
+    ctx.strokeStyle = '#e5be5c';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.arc(cx, by - 52, 15.5, Math.PI * 0.9, Math.PI * 2.1);
+    ctx.stroke();
+    ctx.fillStyle = '#6feaff';
+    ctx.beginPath();
+    ctx.moveTo(cx, by - 73);
+    ctx.lineTo(cx + 4, by - 64);
+    ctx.lineTo(cx - 4, by - 64);
+    ctx.closePath();
+    ctx.fill();
+
+    // Luminous Crystalline Frost Bow
+    ctx.strokeStyle = '#7bf5ff';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(cx + 16, by - 28, 18, -Math.PI * 0.45, Math.PI * 0.45);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx + 18, by - 45);
+    ctx.lineTo(cx + 14, by - 28);
+    ctx.lineTo(cx + 18, by - 11);
+    ctx.stroke();
+  } else if (kind === 3) {
+    // Col 6: Starlight Mage (Lux-inspired) - blonde hair, Demacian ivory/gold armor, radiant staff
+    riftPaintHeroBase(ctx, cx, by, '255, 224, 128');
+
+    // Azure cape & ivory-gold armor dress
+    ctx.fillStyle = '#255fb0';
+    ctx.strokeStyle = '#172844';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 14, by - 40);
+    ctx.lineTo(cx + 14, by - 40);
+    ctx.lineTo(cx + 19, by - 8);
+    ctx.lineTo(cx - 19, by - 8);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#f2f4f8';
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, by - 40);
+    ctx.lineTo(cx + 10, by - 40);
+    ctx.lineTo(cx + 13, by - 11);
+    ctx.lineTo(cx - 13, by - 11);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Golden Demacian shoulder trim
+    ctx.fillStyle = '#eac258';
+    ctx.fillRect(cx - 13, by - 40, 26, 6);
+
+    riftPaintChibiHead(ctx, cx, by - 52, '#fde2d0', '#f7cf56', '#3388e8');
+
+    // Blonde side locks & circlet
+    ctx.fillStyle = '#f7cf56';
+    ctx.beginPath();
+    ctx.ellipse(cx - 12, by - 44, 4, 10, 0.15, 0, Math.PI * 2);
+    ctx.ellipse(cx + 12, by - 44, 4, 10, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Radiant golden prism staff
+    ctx.strokeStyle = '#e5b84b';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.moveTo(cx + 22, by - 4);
+    ctx.lineTo(cx + 26, by - 66);
+    ctx.stroke();
+    const sg = ctx.createRadialGradient(cx + 26, by - 70, 2, cx + 26, by - 70, 16);
+    sg.addColorStop(0, '#ffffff');
+    sg.addColorStop(0.35, '#fff09c');
+    sg.addColorStop(1, 'rgba(255, 220, 110, 0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.arc(cx + 26, by - 70, 16, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Col 7: Fluffy Rift Poro - iconic cute horned snow puffball with pink tongue
+    riftPaintHeroBase(ctx, cx, by, null);
+    const py = by - 26;
+
+    // Fluffy scalloped cloud silhouette
+    ctx.fillStyle = '#fafcff';
+    ctx.strokeStyle = '#536270';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(cx, py, 24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Soft underbelly shading
+    ctx.fillStyle = '#dce6f2';
+    ctx.beginPath();
+    ctx.ellipse(cx, py + 11, 18, 9, 0, 0, Math.PI);
+    ctx.fill();
+
+    // Curled brown horns
+    ctx.fillStyle = '#9c6e4b';
+    ctx.strokeStyle = '#472f1e';
+    ctx.lineWidth = 1.8;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(cx + dir * 16, py - 18, 7, 5, dir * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Cute wide eyes
+    ctx.fillStyle = '#1d2228';
+    ctx.beginPath();
+    ctx.arc(cx - 8, py - 4, 3.3, 0, Math.PI * 2);
+    ctx.arc(cx + 9, py - 4, 3.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx - 9, py - 5.2, 1.2, 0, Math.PI * 2);
+    ctx.arc(cx + 8, py - 5.2, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Happy giant pink Poro tongue sticking out!
+    ctx.fillStyle = '#ff7fa3';
+    ctx.strokeStyle = '#b54666';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(cx + 1, py + 11, 7.5, 9.5, 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 1, py + 4);
+    ctx.lineTo(cx + 1, py + 14);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function initRiftAtlas() {
   if (!gl) return;
   if (!riftAtlasTex) {
@@ -287,8 +689,9 @@ function initRiftAtlas() {
     riftPaintWardCell(ctx, 6 * RIFT_CELL, 0, 0);
     riftPaintWardCell(ctx, 7 * RIFT_CELL, 0, 1);
 
-    // Row 1: 3 arcane wisp sprites (cols 0..2)
+    // Row 1: 3 arcane wisp sprites (cols 0..2) + 5 LoL-inspired champions & Poro (cols 3..7)
     for (let i = 0; i < 3; i++) riftPaintWispCell(ctx, i * RIFT_CELL, RIFT_CELL, i);
+    for (let i = 0; i < 5; i++) riftPaintHeroCell(ctx, (3 + i) * RIFT_CELL, RIFT_CELL, i);
 
     riftAtlasTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, riftAtlasTex);
@@ -390,6 +793,7 @@ function riftRiverDistPx(x, y) {
 const trees = [];
 const wards = [];
 const wisps = [];
+const heroes = [];
 let riftBufA = new Float32Array(0);
 let riftBufB = new Float32Array(0);
 
@@ -514,6 +918,51 @@ function syncRiftWardsAndWisps(reset) {
       size: 24 + 14 * riftHash(i, 25, 3),
     });
   }
+
+  // Roaming Rift champions + Poro (cols 3..7 on row 1)
+  // Order: Fox Mage (4), Wind Ronin (3), Fluffy Poro (7), Frost Archer (5), Starlight Mage (6)
+  const HERO_COLS = [4, 3, 7, 5, 6];
+  const wantHeroes = Math.max(0, Math.min(5, Math.round(typeof P.heroes === 'number' ? P.heroes : 5)));
+  if (reset || heroes.length > wantHeroes) heroes.length = Math.min(heroes.length, wantHeroes);
+  while (heroes.length < wantHeroes) {
+    const idx = heroes.length;
+    const col = HERO_COLS[idx % HERO_COLS.length];
+    const start = riftPickHeroTarget(idx, idx * 17);
+    const dest = riftPickHeroTarget(idx, idx * 17 + 1);
+    heroes.push({
+      idx,
+      col,
+      isPoro: col === 7,
+      x: start.x,
+      y: start.y,
+      tx: dest.x,
+      ty: dest.y,
+      flip: dest.x >= start.x ? 1 : -1,
+      wait: 0.8 + riftHash(idx, 31, 4) * 2.4,
+      stepCount: idx * 17 + 2,
+      walkT: riftHash(idx, 32, 9) * 10,
+      phase: riftHash(idx, 33, 2) * Math.PI * 2,
+    });
+  }
+}
+
+function riftPickHeroTarget(idx, step) {
+  // Prefer open spots on carved stone sanctuaries near icons or riverbank clearings
+  if (typeof icons !== 'undefined' && icons.length && riftHash(idx, step, 41) < 0.78) {
+    const ic = icons[Math.floor(riftHash(idx, step, 42) * icons.length) % icons.length];
+    const ang = riftHash(idx, step, 43) * Math.PI * 2;
+    const rad = 42 + riftHash(idx, step, 44) * 24;
+    const px = Math.min(Math.max(40, ic.x + ic.w * 0.5 + Math.cos(ang) * rad), W - 40);
+    const py = Math.min(Math.max(56, ic.y + ic.h * 0.55 + Math.sin(ang) * rad), H - 56);
+    if (riftRiverDistPx(px, py) > 36) return { x: px, y: py };
+  }
+  const rx = W * (0.12 + 0.76 * riftHash(idx, step, 45));
+  const u = rx / Math.max(1, W);
+  const sOff = (seed % 997) * 0.37;
+  const riverY = H * (0.56 - 0.18 * (u - 0.5) + 0.095 * Math.sin(u * 4.6 + sOff * 0.7));
+  const side = riftHash(idx, step, 46) < 0.5 ? -1 : 1;
+  const ry = Math.min(Math.max(60, riverY + side * (56 + riftHash(idx, step, 47) * 32)), H - 62);
+  return { x: rx, y: ry };
 }
 
 function stepRiftProps(dt, timeSec) {
@@ -529,6 +978,35 @@ function stepRiftProps(dt, timeSec) {
   for (const sp of wisps) {
     sp.x = sp.bx + Math.sin(driftT * sp.spd + sp.phase) * sp.rx;
     sp.y = sp.by + Math.cos(driftT * sp.spd * 0.82 + sp.phase * 1.3) * sp.ry;
+  }
+
+  const moveSpdBase = 26 * (0.5 + 0.5 * P.wind);
+  for (const h of heroes) {
+    if (h.wait > 0) {
+      h.wait -= dt;
+      h.walkT = 0;
+      if (h.wait <= 0) {
+        const next = riftPickHeroTarget(h.idx, h.stepCount++);
+        h.tx = next.x;
+        h.ty = next.y;
+        if (Math.abs(h.tx - h.x) > 2) h.flip = h.tx >= h.x ? 1 : -1;
+      }
+    } else {
+      const dx = h.tx - h.x;
+      const dy = h.ty - h.y;
+      const dist = Math.hypot(dx, dy);
+      const step = (h.isPoro ? moveSpdBase * 1.25 : moveSpdBase) * dt;
+      if (dist <= step + 1) {
+        h.x = h.tx;
+        h.y = h.ty;
+        h.wait = 2.0 + riftHash(h.idx, h.stepCount, 51) * 3.0;
+        h.walkT = 0;
+      } else {
+        h.x += (dx / dist) * step;
+        h.y += (dy / dist) * step;
+        h.walkT += dt * (h.isPoro ? 9.5 : 6.8);
+      }
+    }
   }
 }
 
@@ -569,6 +1047,25 @@ function drawRiftProps(timeSec) {
       row: 0,
       alpha: Math.min(1, ease * pulse),
       flip: 1,
+    });
+  }
+
+  for (const h of heroes) {
+    const walking = h.wait <= 0;
+    const hop = walking
+      ? Math.abs(Math.sin(h.walkT)) * (h.isPoro ? 5.5 : 3.2)
+      : Math.sin(timeSec * 2.8 + h.phase) * 1.4;
+    const tilt = walking ? Math.sin(h.walkT) * 0.055 : 0;
+    items.push({
+      sortY: h.y + 8,
+      x: h.x,
+      y: h.y - hop,
+      size: h.isPoro ? 44 : 66,
+      rot: tilt,
+      col: h.col,
+      row: 1,
+      alpha: 1,
+      flip: h.flip,
     });
   }
 

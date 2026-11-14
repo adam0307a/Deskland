@@ -154,18 +154,19 @@ const QS = new URLSearchParams(location.search);
 const WALL = QS.has('wallpaper');
 const PREVIEW = QS.has('preview');
 const P = {
-  sigma: 82, warp: 24, glow: 0.78, wind: 1, wards: 4, wisps: 8,
+  sigma: 82, warp: 24, glow: 0.78, wind: 1, wards: 4, wisps: 8, heroes: 5,
   quality: 2, debug: false, snap: true, cap30: true, adaptive: 1,
 };
 const DEFAULTS = Object.assign({}, P);
 const DISPLAY_KEYS = ['adaptive'];
 const SLIDERS = [
-  { key: 'sigma', label: '符文台大小', min: 40,  max: 200, step: 1,    fmt: v => v + ' px', act: 'field' },
-  { key: 'warp',  label: '崖岸曲折',   min: 0,   max: 80,  step: 1,    fmt: v => String(v), act: 'field' },
-  { key: 'glow',  label: '符文辉光',   min: 0,   max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%' },
-  { key: 'wind',  label: '灵风流速',   min: 0,   max: 3,   step: 0.05, fmt: v => '×' + v.toFixed(2) },
-  { key: 'wards', label: '守卫灯柱',   min: 0,   max: 8,   step: 1,    fmt: v => v + ' 座', act: 'props' },
-  { key: 'wisps', label: '奥术灵光',   min: 0,   max: 16,  step: 1,    fmt: v => v + ' 缕', act: 'props' },
+  { key: 'sigma',  label: '符文台大小', min: 40,  max: 200, step: 1,    fmt: v => v + ' px', act: 'field' },
+  { key: 'warp',   label: '崖岸曲折',   min: 0,   max: 80,  step: 1,    fmt: v => String(v), act: 'field' },
+  { key: 'glow',   label: '符文辉光',   min: 0,   max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'wind',   label: '灵风流速',   min: 0,   max: 3,   step: 0.05, fmt: v => '×' + v.toFixed(2) },
+  { key: 'heroes', label: '英雄伙伴',   min: 0,   max: 5,   step: 1,    fmt: v => v + ' 位', act: 'props' },
+  { key: 'wards',  label: '守卫灯柱',   min: 0,   max: 8,   step: 1,    fmt: v => v + ' 座', act: 'props' },
+  { key: 'wisps',  label: '奥术灵光',   min: 0,   max: 16,  step: 1,    fmt: v => v + ' 缕', act: 'props' },
 ];
 
 /* ======================================================================
@@ -855,7 +856,7 @@ function applySettings(v) {
     P[k] = v[k];
     if (k === 'adaptive') adaptiveChanged = true;
     if (k === 'sigma' || k === 'warp') field = true;
-    if (k === 'wards' || k === 'wisps') propsChanged = true;
+    if (k === 'wards' || k === 'wisps' || k === 'heroes') propsChanged = true;
   }
   if (adaptiveChanged && FB) commit();
   else if (field && FB) refresh();
