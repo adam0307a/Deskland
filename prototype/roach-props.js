@@ -285,6 +285,24 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.fillStyle = '#94a3b8';
     ctx.fillRect(39, -15, 5, 1.8);
     ctx.fillRect(39, -11, 5, 1.8);
+  } else if (kind === 16) {
+    // Crisp white dress shirt + black waistcoat/suit + bow tie + silver name tag
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath(); ctx.ellipse(0, 3, 14.5, 15.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#181a1f';
+    ctx.beginPath();
+    ctx.moveTo(-4, -9); ctx.lineTo(-15.5, -5); ctx.lineTo(-15, 22); ctx.lineTo(-1.5, 22); ctx.closePath();
+    ctx.moveTo(4, -9); ctx.lineTo(15.5, -5); ctx.lineTo(15, 22); ctx.lineTo(1.5, 22); ctx.closePath();
+    ctx.fill();
+    // Black bow tie
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(0, -6); ctx.lineTo(-6.5, -9.5); ctx.lineTo(-6.5, -2.5); ctx.closePath();
+    ctx.moveTo(0, -6); ctx.lineTo(6.5, -9.5); ctx.lineTo(6.5, -2.5); ctx.closePath();
+    ctx.fill();
+    // Silver name tag on left lapel
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillRect(4.5, 1, 7.5, 3.2);
   }
 
   // Arms
@@ -299,6 +317,10 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
   } else if (kind === 12) {
     ctx.lineTo(-18, 5);
     ctx.lineTo(-4, 12);
+  } else if (kind === 16) {
+    // Raised hand holding walkie-talkie up toward mouth
+    ctx.lineTo(-22, -2);
+    ctx.lineTo(-14, -14);
   } else if (kind === 0) {
     ctx.lineTo(-20, 6);
     ctx.lineTo(-16, 18);
@@ -347,6 +369,25 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.beginPath();
     ctx.moveTo(28, -14); ctx.lineTo(28, 12);
     ctx.stroke();
+  } else if (kind === 16) {
+    // Black walkie-talkie (telsiz) with long whip antenna next to mouth
+    ctx.save();
+    ctx.translate(-14, -14);
+    ctx.rotate(-0.22);
+    ctx.fillStyle = '#111827';
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.1;
+    rRoundRect(ctx, -4.5, -7, 9, 14, 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(-3, -4, 6, 4);
+    // Whip antenna
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(-3, -21); ctx.stroke();
+    // Little green LED light
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath(); ctx.arc(2.5, -5.2, 1.1, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   }
 
   // Extra insect middle arms peeking softly
@@ -530,6 +571,15 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
       ctx.beginPath();
       ctx.moveTo(-0.3, headY - 2); ctx.lineTo(0.3, headY - 2);
       ctx.stroke();
+    } else if (kind === 16) {
+      // Half-lidded stoic/tired eyes matching the viral monochrome manager look
+      ctx.fillStyle = '#8b4a26';
+      ctx.strokeStyle = '#3c1b0c';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.ellipse(-5.6, headY - 4.4, 5.2, 2.7, 0.08, Math.PI, Math.PI * 2);
+      ctx.ellipse(5.6, headY - 4.4, 5.2, 2.7, -0.08, Math.PI, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
     }
   }
 
@@ -899,10 +949,15 @@ function rPaintTextBubble(ctx, ox, oy, text, bg, border, fg) {
   ctx.save();
   ctx.translate(ox + 64, oy + 64);
 
+  const lines = String(text).split('\n');
+  const multi = lines.length > 1;
+  const topY = multi ? -32 : -24;
+  const boxH = multi ? 44 : 36;
+
   ctx.fillStyle = bg;
   ctx.strokeStyle = border;
   ctx.lineWidth = 2.4;
-  rRoundRect(ctx, -60, -24, 120, 36, 12);
+  rRoundRect(ctx, -61, topY, 122, boxH, 12);
   ctx.fill();
   ctx.stroke();
 
@@ -917,12 +972,19 @@ function rPaintTextBubble(ctx, ox, oy, text, bg, border, fg) {
   ctx.fillStyle = fg;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = text.length > 12
-    ? '900 11.5px "Segoe UI", "DejaVu Sans", sans-serif'
-    : text.length > 9
-      ? '900 13px "Segoe UI", "DejaVu Sans", sans-serif'
-      : '900 15px "Segoe UI", "DejaVu Sans", sans-serif';
-  ctx.fillText(text, 0, -6, 108);
+  if (multi) {
+    ctx.font = '900 10.5px "Segoe UI", "DejaVu Sans", sans-serif';
+    const midY = topY + boxH * 0.5;
+    ctx.fillText(lines[0], 0, midY - 7.5, 112);
+    ctx.fillText(lines[1], 0, midY + 7.5, 112);
+  } else {
+    ctx.font = text.length > 12
+      ? '900 11.5px "Segoe UI", "DejaVu Sans", sans-serif'
+      : text.length > 9
+        ? '900 13px "Segoe UI", "DejaVu Sans", sans-serif'
+        : '900 15px "Segoe UI", "DejaVu Sans", sans-serif';
+    ctx.fillText(text, 0, -6, 110);
+  }
 
   ctx.restore();
 }
@@ -970,11 +1032,13 @@ function buildRoachAtlas() {
   rPaintWallOutlet(ctx, 6 * ROACH_CELL, 2 * ROACH_CELL);
   rPaintZapSpark(ctx, 7 * ROACH_CELL, 2 * ROACH_CELL);
 
-  // Row 3: soft shadow & Turkish meme speech bubbles
+  // Row 3: soft shadow, Turkish meme speech bubbles, plus walkie-talkie suit boss (col 4)
   rPaintSoftShadow(ctx, 0 * ROACH_CELL, 3 * ROACH_CELL);
   rPaintTextBubble(ctx, 1 * ROACH_CELL, 3 * ROACH_CELL, 'LÜLÜLÜLÜ!', '#fff7ed', '#9a3412', '#b91c1c');
   rPaintTextBubble(ctx, 2 * ROACH_CELL, 3 * ROACH_CELL, 'DUKTUR DUKTUR!', '#ecfeff', '#0e7490', '#0f172a');
   rPaintTextBubble(ctx, 3 * ROACH_CELL, 3 * ROACH_CELL, '⚡ ŞARJ %99', '#fefce8', '#0284c7', '#0369a1');
+  rPaintCarapaceRoach(ctx, 4 * ROACH_CELL, 3 * ROACH_CELL, 16); // radio_boss (telsizli memur)
+  rPaintTextBubble(ctx, 5 * ROACH_CELL, 3 * ROACH_CELL, 'Kurban olduğum\nşuraları bi aydınlat hele', '#fffbeb', '#b45309', '#1e293b');
 
   return c;
 }
@@ -1055,6 +1119,7 @@ let trees = streetProps; // share.js settle alias
 let roaches = [];
 let bubbles = [];
 let bubbleTimer = 0;
+let bubbleCooldown = 0;
 let roachIntroDone = false;
 
 function rHash(a, b, k) {
@@ -1072,11 +1137,12 @@ function rWalkableGradient(px, py) {
 }
 
 function spawnRoachMember(i, total) {
-  // Cast priority: doctor (11), crazy straitjacket (12), crazy gown (13), wall charger (15), plus street stars
-  const castOrder = [11, 12, 13, 15, 0, 5, 8, 9, 1, 2, 4, 6, 12, 15, 3, 7, 10, 11];
-  const kind = i < castOrder.length ? castOrder[i] : (i % 16 === 14 ? 12 : (i % 16));
-  const col = kind < 8 ? kind : kind - 8;
-  const row = kind < 8 ? 0 : 1;
+  // Cast priority: walkie-talkie suit boss (16), doctor (11), crazy jacket/gown (12/13), wall charger (15)
+  const castOrder = [16, 11, 12, 13, 15, 0, 5, 8, 9, 1, 2, 4, 6, 12, 15, 3, 7, 10, 11];
+  const raw = i < castOrder.length ? castOrder[i] : (i % 17);
+  const kind = raw === 14 ? 12 : raw;
+  const col = kind === 16 ? 4 : (kind < 8 ? kind : kind - 8);
+  const row = kind === 16 ? 3 : (kind < 8 ? 0 : 1);
 
   let sx = W * (0.1 + 0.8 * rHash(i, 11, 1));
   let sy = H * (0.12 + 0.76 * rHash(i, 23, 2));
@@ -1110,6 +1176,7 @@ function spawnRoachMember(i, total) {
 function rebuildRoachProps() {
   roaches = [];
   bubbles = [];
+  bubbleCooldown = 0;
   roachIntroDone = false;
   const count = Math.max(0, Math.round(P.crowd == null ? 12 : P.crowd));
   for (let i = 0; i < count; i++) roaches.push(spawnRoachMember(i, count));
@@ -1220,13 +1287,16 @@ function syncRoachProps() {
 }
 
 function rPushBubble(x, y, col, row, dur) {
-  if (bubbles.length >= 22) return;
-  bubbles.push({ x, y, age: 0, dur: dur || 1.7, col, row: row == null ? 2 : row });
+  // Desktop-friendly sparse chatter: max 2 bubbles on screen and 10-16s gap between lines
+  if (bubbleCooldown > 0 || bubbles.length >= 2) return;
+  bubbleCooldown = 10 + Math.random() * 6;
+  bubbles.push({ x, y, age: 0, dur: dur || 2.1, col, row: row == null ? 2 : row });
 }
 
 function stepRoachProps(dt, timeSec) {
   if (!FB) return;
   const spdMul = Math.max(0.15, P.speed == null ? 1.0 : P.speed);
+  if (bubbleCooldown > 0) bubbleCooldown -= dt;
 
   let him = null, her = null;
   const outlets = [];
@@ -1242,30 +1312,19 @@ function stepRoachProps(dt, timeSec) {
     if (r.kind === 12 || r.kind === 13) crazies.push(r);
   }
 
-  // Opening clinic tableau once outlets & beds exist: charger plugged in + live speech bubbles
-  if (!roachIntroDone && roaches.length && (outlets.length || beds.length)) {
+  // Calm single opening line from walkie-talkie manager (then sparse 10-16s intervals)
+  if (!roachIntroDone && roaches.length) {
     roachIntroDone = true;
-    const charger = roaches.find(r => r.kind === 15);
-    if (charger && outlets.length) {
-      const o = outlets[Math.min(1, outlets.length - 1)];
-      charger.x = o.x + 22;
-      charger.y = o.y + 8;
-      charger.targetOutlet = o;
-      charger.chargeTimer = 3.2;
-      rPushBubble(charger.x, charger.y - charger.size * 0.56, 3, 3, 2.4);
-    }
-    const doc = roaches.find(r => r.kind === 11);
-    if (doc) rPushBubble(doc.x, doc.y - doc.size * 0.54, 2, 3, 2.6);
-    for (const b of beds) rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.6);
-    for (const c of crazies) rPushBubble(c.x, c.y - c.size * 0.54, 1, 3, 2.6);
+    const radio = roaches.find(r => r.kind === 16);
+    if (radio) rPushBubble(radio.x, radio.y - radio.size * 0.56, 5, 3, 2.8);
   }
 
-  // Stationary bed patients shout "LÜLÜLÜLÜ!" periodically
+  // Stationary bed patients shout "LÜLÜLÜLÜ!" rarely
   for (const b of beds) {
     b.shoutTimer -= dt * spdMul;
     if (b.shoutTimer <= 0) {
-      b.shoutTimer = 2.6 + Math.random() * 2.0;
-      rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.3);
+      b.shoutTimer = 14 + Math.random() * 14;
+      rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.4);
     }
   }
 
@@ -1330,17 +1389,21 @@ function stepRoachProps(dt, timeSec) {
 
     r.moveTimer -= dt;
     if (r.moveTimer <= 0) {
-      if (Math.random() < 0.52) {
+      if (Math.random() < 0.44) {
         r.stopTimer = (r.kind === 12 || r.kind === 13) ? (1.1 + Math.random() * 1.4) : (1.5 + Math.random() * 2.1);
-        r.moveTimer = 2.2 + Math.random() * 3.4;
-        if (r.kind === 11) {
-          rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.0);
-        } else if (r.kind === 12 || r.kind === 13) {
-          const textCol = Math.random() < 0.72 ? 1 : 2; // mostly "LÜLÜLÜLÜ!", sometimes "DUKTUR DUKTUR!"
-          rPushBubble(r.x, r.y - r.size * 0.54, textCol, 3, 2.0);
-        } else if (Math.random() < 0.65) {
-          const sym = r.kind === 5 ? 4 : (r.kind === 9 || r.kind === 8 ? 3 : 5);
-          rPushBubble(r.x, r.y - r.size * 0.48, sym, 2, 1.5);
+        r.moveTimer = 3.0 + Math.random() * 4.0;
+        if (Math.random() < 0.25) {
+          if (r.kind === 16) {
+            rPushBubble(r.x, r.y - r.size * 0.54, 5, 3, 2.5);
+          } else if (r.kind === 11) {
+            rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.2);
+          } else if (r.kind === 12 || r.kind === 13) {
+            const textCol = Math.random() < 0.72 ? 1 : 2;
+            rPushBubble(r.x, r.y - r.size * 0.54, textCol, 3, 2.2);
+          } else {
+            const sym = r.kind === 5 ? 4 : (r.kind === 9 || r.kind === 8 ? 3 : 5);
+            rPushBubble(r.x, r.y - r.size * 0.48, sym, 2, 1.7);
+          }
         }
         continue;
       } else {
@@ -1394,20 +1457,22 @@ function stepRoachProps(dt, timeSec) {
     r.x = nx; r.y = ny;
   }
 
-  // Ambient speech & reaction bubbles
+  // Ambient speech & reaction bubbles (sparse, gated by global bubbleCooldown)
   bubbleTimer += dt * spdMul;
-  if (bubbleTimer > 0.72 && roaches.length) {
+  if (bubbleTimer > 4.5 && roaches.length) {
     bubbleTimer = 0;
     const star = roaches[Math.floor(Math.random() * roaches.length)];
-    if (star.kind === 11) {
+    if (star.kind === 16) {
+      rPushBubble(star.x, star.y - star.size * 0.54, 5, 3, 2.6);
+    } else if (star.kind === 11) {
       rPushBubble(star.x, star.y - star.size * 0.52, 2, 3, 2.3);
     } else if (star.kind === 12 || star.kind === 13) {
       rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.72 ? 1 : 2, 3, 2.3);
     } else if (star.kind === 15 && star.chargeTimer > 0) {
-      rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.0);
+      rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.1);
     } else {
       const col = (star.kind === 8 || star.kind === 9) ? 3 : (star.kind === 5 ? 4 : 5);
-      rPushBubble(star.x + (Math.random() - 0.5) * 14, star.y - star.size * 0.45, col, 2, 1.5);
+      rPushBubble(star.x + (Math.random() - 0.5) * 14, star.y - star.size * 0.45, col, 2, 1.7);
     }
   }
   for (let i = bubbles.length - 1; i >= 0; i--) {
@@ -1509,10 +1574,11 @@ function drawRoachProps(timeSec) {
     const t = b.age / b.dur;
     const pop = Math.min(1, t * 4);
     const isText = b.row === 3;
+    const baseSize = isText ? (b.col === 5 ? 114 : 96) : 26;
     items.push({
       x: b.x + Math.sin(t * 6) * (isText ? 2.5 : 5),
       y: b.y,
-      size: (isText ? 96 : 26) * (0.74 + 0.30 * pop),
+      size: baseSize * (0.74 + 0.30 * pop),
       rot: Math.sin(t * 5) * (isText ? 0.04 : 0.12),
       col: b.col,
       row: b.row == null ? 2 : b.row,
