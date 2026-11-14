@@ -83,6 +83,7 @@
     beach: 'flat.html',
     meadow: 'meadow.html',
     aurora: 'aurora.html',
+    glade: 'glade.html',
   };
 
   function pollSettings() {

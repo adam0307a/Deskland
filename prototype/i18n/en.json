@@ -592,6 +592,38 @@
           "hint": "How densely gentle snowflakes drift across the scene"
         }
       }
+    },
+    "glade": {
+      "name": "Woodland Glade",
+      "desc": "Gouache trees sway gently and part into sunlit meadow clearings around your icons, with tiny birds perched in the canopy",
+      "groups": [
+        "Clearing",
+        "Woodland",
+        "Wildlife"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Clearing size",
+          "hint": "How wide the sunlit meadow clears around your icons"
+        },
+        "warp": {
+          "label": "Edge curve",
+          "hint": "How much the woodland edge twists and winds"
+        },
+        "density": {
+          "label": "Tree density",
+          "hint": "How densely painted trees cover the woodland"
+        },
+        "wind": {
+          "label": "Wind sway",
+          "hint": "How strongly the treetops and perched birds sway in the breeze"
+        },
+        "birds": {
+          "label": "Woodland birds",
+          "hint": "Tiny birds perching on treetops and flitting across the woods; set to 0 to hide",
+          "unit": ""
+        }
+      }
     }
   }
 }

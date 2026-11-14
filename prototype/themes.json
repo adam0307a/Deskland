@@ -281,6 +281,82 @@
       ]
     },
     {
+      "id": "glade",
+      "adaptive": true,
+      "name": "林间空地",
+      "desc": "水彩森林随图标灵动让路，阳光草地与林间栖鸟相映成趣",
+      "page": "glade.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 38% 58%, rgba(232,243,168,0.92) 0%, rgba(164,209,104,0.85) 34%, rgba(92,150,74,0.9) 62%, transparent 80%), radial-gradient(circle at 76% 24%, rgba(44,104,58,0.92) 0%, transparent 48%), linear-gradient(155deg, #214e30 0%, #3a7745 45%, #6ba655 100%)",
+      "groups": [
+        {
+          "name": "空地",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "空地大小",
+              "hint": "图标周围阳光草地空开的范围",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 78,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "林缘曲折",
+              "hint": "林缘轮廓起伏变化的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 28
+            }
+          ]
+        },
+        {
+          "name": "树林",
+          "params": [
+            {
+              "key": "density",
+              "label": "树木密度",
+              "hint": "森林覆盖的树木疏密程度",
+              "min": 0.2,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "wind",
+              "label": "微风摇曳",
+              "hint": "树冠与林间小鸟随风摆动的幅度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "生灵",
+          "params": [
+            {
+              "key": "birds",
+              "label": "林间小鸟",
+              "hint": "停驻在树梢或穿行林间的小鸟数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 10,
+              "step": 1,
+              "default": 4,
+              "unit": "只"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",
