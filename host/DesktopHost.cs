@@ -1326,16 +1326,22 @@ class WallpaperForm : Form
         EnsureZOrder();
         if (web.CoreWebView2 == null) return;
         bool visible;
-        List<Native.RECT> rects = reader.Read(out visible);
-        if (rects == null) return;
+        List<DesktopIcon> items = reader.Read(out visible);
+        if (items == null) return;
         var sb = new StringBuilder();
         sb.Append("{\"t\":\"icons\",\"vis\":").Append(visible ? "true" : "false").Append(",\"r\":[");
-        for (int i = 0; i < rects.Count; i++)
+        for (int i = 0; i < items.Count; i++)
         {
-            Native.RECT r = rects[i];
+            Native.RECT r = items[i].Rect;
             if (i > 0) sb.Append(',');
             sb.Append('[').Append(r.Left - screen.X).Append(',').Append(r.Top - screen.Y).Append(',')
               .Append(r.Right - screen.X).Append(',').Append(r.Bottom - screen.Y).Append(']');
+        }
+        sb.Append("],\"n\":[");
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (i > 0) sb.Append(',');
+            sb.Append(Json.Stringify(items[i].Name ?? ""));
         }
         sb.Append("]}");
         string json = sb.ToString();
@@ -1343,7 +1349,7 @@ class WallpaperForm : Form
         lastIcons = json;
         if (IconsChanged != null) IconsChanged(json);
         Post(json);
-        Log.Write(string.Format("图标变化：{0} 个，可见={1}", rects.Count, visible));
+        Log.Write(string.Format("图标变化：{0} 个，可见={1}", items.Count, visible));
     }
 
     // ---------------------------------------------------------------- 最大化 / 全屏时暂停
@@ -1401,9 +1407,19 @@ class WallpaperForm : Form
     }
 }
 
-// 通过桌面 ListView 的跨进程消息读取图标矩形（图标 + 文字，物理像素，屏幕坐标）
+struct DesktopIcon
+{
+    public Native.RECT Rect;
+    public string Name;
+}
+
+// 通过桌面 ListView 的跨进程消息读取图标矩形与名称（图标 + 文字，物理像素，屏幕坐标）
 class IconReader : IDisposable
 {
+    const int AllocBytes = 1024;
+    const int TextOffset = 128;
+    const int MaxTextChars = 260;
+
     IntPtr listView, proc, mem;
 
     static IntPtr FindListView()
@@ -1432,20 +1448,46 @@ class IconReader : IDisposable
         Native.GetWindowThreadProcessId(listView, out pid);
         proc = Native.OpenProcess(0x0008 | 0x0010 | 0x0020, false, pid);   // VM_OPERATION | VM_READ | VM_WRITE
         if (proc == IntPtr.Zero) return false;
-        mem = Native.VirtualAllocEx(proc, IntPtr.Zero, new IntPtr(64), 0x1000 | 0x2000, 0x04);
+        mem = Native.VirtualAllocEx(proc, IntPtr.Zero, new IntPtr(AllocBytes), 0x1000 | 0x2000, 0x04);
         return mem != IntPtr.Zero;
     }
 
-    public List<Native.RECT> Read(out bool visible)
+    string ReadItemText(int index, IntPtr textPtr, byte[] buf)
+    {
+        var lv = new Native.LVITEMW();
+        lv.mask = 0x0001;                                // LVIF_TEXT
+        lv.iItem = index;
+        lv.iSubItem = 0;
+        lv.pszText = textPtr;
+        lv.cchTextMax = MaxTextChars;
+        IntPtr n;
+        if (!Native.WriteProcessMemory(proc, mem, ref lv, Marshal.SizeOf(typeof(Native.LVITEMW)), out n)) return "";
+        int len = (int)Native.SendMessage(listView, 0x1073 /* LVM_GETITEMTEXTW */, new IntPtr(index), mem);
+        if (len <= 0) return "";
+        if (len >= MaxTextChars) len = MaxTextChars - 1;
+        int bytes = len * 2;
+        if (!Native.ReadProcessMemory(proc, textPtr, buf, bytes, out n)) return "";
+        int got = Math.Min(bytes, (int)n);
+        int end = got - (got % 2);
+        for (int j = 0; j + 1 < end; j += 2)
+        {
+            if (buf[j] == 0 && buf[j + 1] == 0) { end = j; break; }
+        }
+        return end <= 0 ? "" : Encoding.Unicode.GetString(buf, 0, end);
+    }
+
+    public List<DesktopIcon> Read(out bool visible)
     {
         visible = false;
         if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return null; }
         visible = Native.IsWindowVisible(listView);
-        var result = new List<Native.RECT>();
+        var result = new List<DesktopIcon>();
         if (!visible) return result;                   // 用户隐藏了桌面图标 → 全是海
         int count = (int)Native.SendMessage(listView, 0x1004 /* LVM_GETITEMCOUNT */, IntPtr.Zero, IntPtr.Zero);
         var origin = new Native.POINT();
         Native.ClientToScreen(listView, ref origin);
+        IntPtr textPtr = new IntPtr(mem.ToInt64() + TextOffset);
+        var textBuf = new byte[MaxTextChars * 2];
         for (int i = 0; i < count; i++)
         {
             var r = new Native.RECT();                 // Left = LVIR_BOUNDS（0）：图标 + 文字的整体范围
@@ -1454,7 +1496,10 @@ class IconReader : IDisposable
             Native.SendMessage(listView, 0x100E /* LVM_GETITEMRECT */, new IntPtr(i), mem);
             if (!Native.ReadProcessMemory(proc, mem, out r, 16, out n)) { Close(); return null; }
             r.Left += origin.X; r.Right += origin.X; r.Top += origin.Y; r.Bottom += origin.Y;
-            result.Add(r);
+            var item = new DesktopIcon();
+            item.Rect = r;
+            item.Name = ReadItemText(i, textPtr, textBuf);
+            result.Add(item);
         }
         return result;
     }
@@ -1493,6 +1538,20 @@ static class Native
 
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] public struct LVITEMW
+    {
+        public uint mask;
+        public int iItem, iSubItem;
+        public uint state, stateMask;
+        public IntPtr pszText;
+        public int cchTextMax, iImage;
+        public IntPtr lParam;
+        public int iGroupId;
+        public uint cColumns;
+        public IntPtr puColumns;
+        public IntPtr piColFmt;
+        public int iGroup;
+    }
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
     [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr value);
@@ -1523,7 +1582,9 @@ static class Native
     [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, IntPtr size, uint type, uint protect);
     [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, IntPtr size, uint type);
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref RECT buf, int size, out IntPtr written);
+    [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref LVITEMW buf, int size, out IntPtr written);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, out RECT buf, int size, out IntPtr read);
+    [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, [Out] byte[] buf, int size, out IntPtr read);
 }
 
 // Deskland Preview has its own data and instance identity; isolated profiles support installation QA.

@@ -36,28 +36,37 @@ $WebView2Bootstrapper = [IO.Path]::GetFullPath($WebView2Bootstrapper)
 
 # A fixed source list prevents other editions or private working files entering this package.
 $sources = @('.gitattributes', '.gitignore', 'AGENTS.md', 'LICENSE', 'NOTICE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md',
-    'host\DesktopHost.cs', 'host\DesklandPreview.ico', 'host\README.md', 'host\app.manifest', 'host\build.ps1', 'host\inspect.ps1',
+    'host\DesktopHost.cs', 'host\Themes.cs', 'host\DesklandPreview.ico', 'host\README.md', 'host\app.manifest', 'host\build.ps1', 'host\inspect.ps1',
     'tools\build-installer.ps1', 'tools\installer.nsi', 'tools\version.json')
-$themeFiles = @('flat.html', 'meadow.html', 'settings.html', 'thumbs-data.js', 'share.js', 'serve.mjs', 'themes.json', 'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js',
+$themeFiles = @('flat.html', 'meadow.html', 'aurora.html', 'glade.html', 'rift.html', 'strike.html', 'pocket.html',
+    'settings.html', 'thumbs-data.js', 'share.js', 'serve.mjs', 'themes.json',
+    'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js', 'aurora-pines.js', 'glade-trees.js', 'rift-props.js', 'strike-props.js', 'pocket-props.js',
     'i18n\en.json', 'i18n\zh-CN.json', 'thumbs\beach.webp', 'thumbs\meadow.webp',
     'assets\beach-coconut-palm-v2.png', 'assets\beach-coconut-palm-curved.png', 'assets\beach-coconut-palm-airy.png', 'assets\beach-coconut-palm-windswept.png', 'assets\beach-coconut-palm-arch.png',
     'assets\meadow-black-kitten.png', 'assets\meadow-kite-boy-level-face.png', 'assets\meadow-kite-boy-diagonal-run.png')
 $themes = (Get-Content -LiteralPath (Join-Path $root 'prototype\themes.json') -Raw -Encoding UTF8 | ConvertFrom-Json).themes
 $ready = @($themes | Where-Object { $_.status -eq 'ready' })
 $locked = @($themes | Where-Object { $_.locked -eq $true })
-if ($themes.Count -ne 13 -or $ready.Count -ne 2 -or $locked.Count -ne 11 -or (($ready.id | Sort-Object) -join ',' -ne 'beach,meadow')) {
-    throw 'Expected two usable themes and eleven locked preview cards'
+if ($ready.Count -lt 2 -or $locked.Count -lt 1) {
+    throw 'Expected at least two usable themes and locked preview cards'
+}
+foreach ($theme in $ready) {
+    if (-not $theme.page) { throw 'Ready theme missing page: ' + $theme.id }
+    if ($themeFiles -notcontains $theme.page) { $themeFiles += $theme.page }
 }
 foreach ($theme in $locked) {
     if ($theme.page -or $theme.groups) { throw 'Locked themes must not contain page source or settings' }
 }
 foreach ($theme in $themes) {
     $match = [regex]::Match([string]$theme.thumb, 'url\(thumbs/([^\)?]+)')
-    if (-not $match.Success) { throw 'Missing thumbnail URL: ' + $theme.id }
-    $thumbName = [uri]::UnescapeDataString($match.Groups[1].Value)
-    if ($thumbName -notmatch '^[^\\/]+\.webp$') { throw 'Unexpected thumbnail path: ' + $thumbName }
-    $thumbFile = 'thumbs\' + $thumbName
-    if ($themeFiles -notcontains $thumbFile) { $themeFiles += $thumbFile }
+    if ($match.Success) {
+        $thumbName = [uri]::UnescapeDataString($match.Groups[1].Value)
+        if ($thumbName -notmatch '^[^\\/]+\.webp$') { throw 'Unexpected thumbnail path: ' + $thumbName }
+        $thumbFile = 'thumbs\' + $thumbName
+        if ($themeFiles -notcontains $thumbFile) { $themeFiles += $thumbFile }
+    } elseif (-not ([string]$theme.thumb)) {
+        throw 'Missing thumbnail: ' + $theme.id
+    }
 }
 $sources += $themeFiles | ForEach-Object { 'prototype\' + $_ }
 $sourceStage = Join-Path $payload 'source-stage'
