@@ -76,6 +76,7 @@ class Rect:
     y: int
     w: int
     h: int
+    label: str = ""
 
     def as_array(self) -> list[int]:
         return [self.x, self.y, self.x + self.w, self.y + self.h]
@@ -157,8 +158,9 @@ class IconAdapter:
             key = (rect.x, rect.y)
             if key not in used:
                 used.add(key)
-                return rect
-        return grid_rect(index, self.scale, self.screen_w, self.screen_h)
+                return Rect(rect.x, rect.y, rect.w, rect.h, path.name)
+        rect = grid_rect(index, self.scale, self.screen_w, self.screen_h)
+        return Rect(rect.x, rect.y, rect.w, rect.h, path.name)
 
     def read(self) -> tuple[bool, list[Rect]]:
         return True, []
@@ -181,6 +183,7 @@ class GioMetadataAdapter(IconAdapter):
             else:
                 rect = _rect_from_position(*pos, self.scale, physical=self._physical)
                 used.add((rect.x, rect.y))
+                rect = Rect(rect.x, rect.y, rect.w, rect.h, path.name)
             rects.append(rect)
         return True, rects
 
@@ -265,6 +268,7 @@ class XfceAdapter(IconAdapter):
             else:
                 rect = _rect_from_cell(*pos, self.scale)
                 used.add((rect.x, rect.y))
+                rect = Rect(rect.x, rect.y, rect.w, rect.h, path.name)
             rects.append(rect)
         return True, rects
 
@@ -399,7 +403,7 @@ class PlasmaAdapter(IconAdapter):
             else:
                 rect = _rect_from_position(*pos, self.scale, physical=self._physical)
             used.add((rect.x, rect.y))
-            rects.append(rect)
+            rects.append(Rect(rect.x, rect.y, rect.w, rect.h, path.name))
         return True, rects
 
     def _rect_from_plasma_cell(self, col: float, row: float) -> Rect:

@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deskland · 战线包围（原型）</title>
+<!--
+  Deskland · 战线包围主题（大战略态势图；纯 WebGL2，2D）
+  画风：Age of History / HOI4 军事态势地图：羊皮等高线地形 + 省界纹理 + 红白交锋战线与内向包抄箭头，
+  自动识别桌面文件夹/图标语言：中文外按土耳其语/德语/英语智能切换对应国家军团师级编制与徽章。
+  - 图标周围（CPU 距离场）：s < 0 为被包围敌占口袋区（斜线占领阴影），s > 0 为外围友军战略版图
+  - 土耳其 / 德意志 / 英伦师级编制卡、进攻箭头与炮火特效：预烘焙进 Canvas2D 图集，WebGL2 实例化绘制
+-->
+<style>
+  :root { --taskbar: 48px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2d3028; }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #desktop { position: fixed; left: 0; top: 0; right: 0; bottom: var(--taskbar); }
+
+  .icon {
+    position: absolute; width: 76px; padding: 4px 2px 5px;
+    display: flex; flex-direction: column; align-items: center;
+    border: 1px solid transparent; border-radius: 4px;
+    user-select: none; touch-action: none; cursor: default;
+  }
+  .icon:hover { background: rgba(235,84,64,.16); border-color: rgba(255,148,118,.38); }
+  .icon.sel { background: rgba(188,42,36,.36); border-color: rgba(255,168,128,.82); }
+  .icon.drag { opacity: .88; z-index: 10; transform: scale(1.04); }
+  .icon.settle { transition: left .22s cubic-bezier(.2,.8,.3,1), top .22s cubic-bezier(.2,.8,.3,1); }
+  .icon.born { animation: born .45s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes born { from { opacity: 0; transform: scale(.6); } }
+  .glyph { width: 48px; height: 48px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.45)) drop-shadow(3px 6px 5px rgba(18,12,8,.55)); pointer-events: none; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .label {
+    margin-top: 3px; max-width: 72px; font-size: 12px; line-height: 15px; color: #fbf8ee; text-align: center;
+    text-shadow: 0 0 3px rgba(0,0,0,.95), 0 1px 3px rgba(0,0,0,.95);
+    word-break: break-all; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    pointer-events: none;
+  }
+
+  #taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--taskbar);
+    background: rgba(24,26,22,.76); backdrop-filter: blur(28px) saturate(1.4); -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    border-top: 1px solid rgba(212,172,96,.24);
+    display: flex; align-items: center; justify-content: center; z-index: 40;
+  }
+  #taskbar .apps { display: flex; gap: 4px; }
+  #taskbar .app { width: 40px; height: 40px; border-radius: 4px; display: grid; place-items: center; }
+  #taskbar .app:hover { background: rgba(255,255,255,.08); }
+  #taskbar .app svg { width: 24px; height: 24px; }
+  #clock { position: absolute; right: 14px; color: #eef2e8; font-size: 12px; line-height: 16px; text-align: right; }
+
+  #panel {
+    position: fixed; top: 14px; right: 14px; width: 284px; max-height: calc(100vh - var(--taskbar) - 28px); overflow: auto;
+    background: rgba(22,25,21,.84); backdrop-filter: blur(18px) saturate(1.25); -webkit-backdrop-filter: blur(18px) saturate(1.25);
+    color: #eef2e6; border: 1px solid rgba(212,172,96,.32); border-radius: 12px;
+    font-size: 12px; line-height: 1.4; box-shadow: 0 12px 32px rgba(0,0,0,.44); z-index: 50;
+  }
+  #panel.hidden { display: none; }
+  body.wall #panel, body.wall #taskbar, body.wall #desktop { display: none; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.preview #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(250,246,236,.88); box-shadow: 3px 6px 8px rgba(16,18,14,.45); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(250,246,236,.76); }
+  #panel header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+  #panel header b { font-size: 14px; letter-spacing: .06em; color: #f0c96e; }
+  #panel header span { margin-left: 8px; opacity: .65; }
+  #panel.collapsed .body { display: none; }
+  .ibtn { background: none; border: 0; color: inherit; opacity: .65; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .ibtn:hover { opacity: 1; }
+  #panel .body { padding: 0 14px 14px; }
+  .sec { margin-top: 12px; }
+  .sec > .t { opacity: .62; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(255,255,255,.06); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { background: none; border: 0; color: inherit; padding: 5px 0; border-radius: 5px; cursor: pointer; font: inherit; opacity: .75; white-space: nowrap; }
+  .seg button:hover { opacity: 1; }
+  .seg button.on { background: rgba(235,84,64,.26); opacity: 1; color: #ffd4c4; }
+  .slider { margin-top: 9px; }
+  .slider .row { display: flex; justify-content: space-between; }
+  .slider .row span:last-child { opacity: .65; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: #eb5e42; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggles input { accent-color: #eb5e42; margin: 0; }
+  .btns { display: flex; gap: 6px; }
+  .btns button {
+    flex: 1; font: inherit; color: inherit; cursor: pointer; padding: 7px 0; border-radius: 7px;
+    background: rgba(255,255,255,.09); border: 1px solid rgba(212,172,96,.24);
+  }
+  .btns button:hover { background: rgba(235,84,64,.18); }
+  #stats { margin-top: 12px; padding: 8px 10px; border-radius: 7px; background: rgba(0,0,0,.3); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; line-height: 1.6; color: #e2eadc; }
+  #stats .live { color: #ff7e5f; }
+  .hint { margin-top: 10px; opacity: .55; font-size: 11px; line-height: 1.6; }
+  #nogl { position: fixed; inset: 0; display: none; place-items: center; color: #fff; font-size: 16px; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="desktop"></div>
+
+<div id="taskbar">
+  <div class="apps">
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="2" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#fff" stroke-width="2"/><path d="M15 15l5 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v1H2z" fill="#e09b1d"/><path d="M2 9h20v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#ffc83d"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1b8fd6"/><path d="M6 13c1-5 11-6 12 0-3-2-8-2-9 2 0 2 2 3 4 3-4 1-7-1-7-5z" fill="#6fe37a" opacity=".9"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2.5" fill="#2b2b2b" stroke="#777"/><path d="M6 9l3 3-3 3M11 15h6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+  </div>
+  <div id="clock"></div>
+</div>
+
+<aside id="panel">
+  <header>
+    <div><b>Deskland</b><span>战线包围 · 原型</span></div>
+    <div><button class="ibtn" id="collapse" title="折叠">–</button></div>
+  </header>
+  <div class="body">
+    <div class="sec"><div class="t">桌面布局</div>
+      <div class="seg">
+        <button data-v="mine">仿你的桌面</button><button data-v="arranged">自动排列</button><button data-v="messy">杂乱</button><button data-v="minimal">极简</button>
+      </div>
+    </div>
+    <div class="sec" id="sliders"></div>
+    <div class="sec toggles">
+      <label><input type="checkbox" data-key="debug">显示包围边界</label>
+      <label><input type="checkbox" data-key="snap">对齐网格</label>
+      <label><input type="checkbox" data-key="cap30">限帧 30fps</label>
+    </div>
+    <div class="sec btns">
+      <button id="btnAdd">＋ 新建目标</button>
+      <button id="btnSeed">重绘战区</button>
+    </div>
+    <div id="stats"></div>
+    <div class="hint">文件夹按语言自动匹配：土耳其语→土耳其师、德语→德意志师、英语→英伦师（或通过“包围军团”手动指定）<br>Del 删除 · H 隐藏面板</div>
+  </div>
+</aside>
+<div id="nogl">需要 WebGL2 支持。</div>
+
+<script>
+'use strict';
+
+/* ======================================================================
+   参数（与 themes.json 默认值严格同步）
+   ====================================================================== */
+const P = {
+  sigma: 78, warp: 22, arrows: 0.78,
+  divisions: 12, faction: 0, pace: 1.0,
+  skirmish: 0.65, supply: 0.55,
+  adaptive: 1, debug: false, snap: true, quality: 2, cap30: true,
+};
+const DEFAULTS = Object.assign({}, P);
+const DISPLAY_KEYS = ['adaptive'];
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has('wallpaper'), PREVIEW = QS.has('preview');
+if (PREVIEW) { P.quality = 1; P.cap30 = false; }
+
+const FACTION_NAMES = ['自动识别', '土耳其', '德意志', '英伦'];
+const SLIDERS = [
+  { key: 'sigma',     label: '包围圈大小', min: 40,  max: 200, step: 1,    act: 'field',  fmt: v => v + ' px' },
+  { key: 'warp',      label: '战线曲折',   min: 0,   max: 80,  step: 1,    act: 'field',  fmt: v => String(v) },
+  { key: 'arrows',    label: '突击箭头',   min: 0,   max: 1,   step: 0.01, act: 'draw',   fmt: v => Math.round(v * 100) + '%' },
+  { key: 'divisions', label: '包围师数量', min: 0,   max: 24,  step: 1,    act: 'forces', fmt: v => v + ' 师' },
+  { key: 'faction',   label: '包围军团',   min: 0,   max: 3,   step: 1,    act: 'forces', fmt: v => FACTION_NAMES[Math.round(v)] || String(v) },
+  { key: 'pace',      label: '行军节奏',   min: 0,   max: 3,   step: 0.05, act: 'draw',   fmt: v => v.toFixed(2) + 'x' },
+  { key: 'skirmish',  label: '炮火交锋',   min: 0,   max: 1,   step: 0.01, act: 'draw',   fmt: v => Math.round(v * 100) + '%' },
+  { key: 'supply',    label: '地图细节',   min: 0,   max: 1,   step: 0.01, act: 'draw',   fmt: v => Math.round(v * 100) + '%' },
+];
+
+const TASKBAR = 48, CELL_W = 86, CELL_H = 104, GRID_X0 = 14, GRID_Y0 = 10;
+const STEP = 5;
+const MORPH_MS = 1300;
+
+/* ======================================================================
+   桌面图标 SVG（仅原型演示使用：混合土耳其/德语/英语经典文件夹命名）
+   ====================================================================== */
+const SVG = {
+  folder: '<path d="M4 11c0-2 1-3 3-3h10l3 4h21c2 0 3 1 3 3v22c0 2-1 3-3 3H7c-2 0-3-1-3-3z" fill="#e69a1a"/><path d="M4 15h40v21c0 2-1 3-3 3H7c-2 0-3-1-3-3z" fill="#ffd046"/><path d="M4 15h40v2H4z" fill="#ffe785" opacity=".6"/>',
+  bin: '<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2f6fa"/><stop offset="1" stop-color="#9aa7b6"/></linearGradient></defs><path d="M14 14h20l-2 27H16z" fill="url(#bg)" stroke="#6c7886" stroke-width="1.3"/><path d="M11 12h26v3H11z" rx="1" fill="#c7d0da" stroke="#6c7886" stroke-width="1.2"/><path d="M19 9h10v3H19z" fill="#9aa7b6"/><path d="M20 19v16M24 19v16M28 19v16" stroke="#7d8a98" stroke-width="1.5" stroke-linecap="round"/>',
+  pdf: '<path d="M9 5h22l8 8v30H9z" fill="#fff" stroke="#cbd2da"/><path d="M31 5v8h8" fill="#e5e9ee"/><rect x="11" y="23" width="26" height="14" rx="2" fill="#e23b2c"/><text x="24" y="34" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="10" fill="#fff">PDF</text>',
+  docx: '<path d="M9 5h22l8 8v30H9z" fill="#fff" stroke="#cbd2da"/><path d="M31 5v8h8" fill="#e5e9ee"/><rect x="11" y="23" width="26" height="14" rx="2" fill="#2368c4"/><text x="24" y="34" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="10" fill="#fff">W</text>',
+  xlsx: '<path d="M9 5h22l8 8v30H9z" fill="#fff" stroke="#cbd2da"/><path d="M31 5v8h8" fill="#e5e9ee"/><rect x="11" y="23" width="26" height="14" rx="2" fill="#1d8549"/><text x="24" y="34" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="10" fill="#fff">X</text>',
+  png: '<rect x="6" y="8" width="36" height="32" rx="3" fill="#2b4560" stroke="#dfe6ee" stroke-width="1.5"/><circle cx="16" cy="18" r="3.5" fill="#ffd464"/><path d="M8 36l9-10 7 7 5-5 11 8z" fill="#5cc49a"/>',
+  shot: '<rect x="6" y="8" width="36" height="32" rx="3" fill="#e4eaf2" stroke="#b9c3d0" stroke-width="1.3"/><rect x="11" y="13" width="26" height="22" rx="2" fill="#4f9de0"/><circle cx="19" cy="21" r="2.6" fill="#fff"/><path d="M12 34l8-8 6 5 4-3 6 6z" fill="#2d6398"/>',
+  zip: '<path d="M10 6h28v36H10z" rx="3" fill="#f3c64f" stroke="#c39218"/><path d="M22 6h4v20h-4z" fill="#a87c16"/><rect x="19" y="22" width="10" height="8" rx="1.5" fill="#fff" stroke="#a87c16"/>',
+  txt: '<path d="M9 5h22l8 8v30H9z" fill="#fff" stroke="#cbd2da"/><path d="M31 5v8h8" fill="#e5e9ee"/><path d="M14 20h20M14 26h20M14 32h13" stroke="#8a96a3" stroke-width="2" stroke-linecap="round"/>',
+  cad: '<path d="M9 5h22l8 8v30H9z" fill="#f8fafc" stroke="#bcc7d4"/><path d="M31 5v8h8" fill="#e2e8f0"/><circle cx="24" cy="27" r="7" fill="none" stroke="#3670a8" stroke-width="1.6"/><path d="M14 27h20M24 17v20" stroke="#7ea6cc" stroke-width="1.2"/>',
+  pc: '<rect x="5" y="8" width="38" height="26" rx="2" fill="#1f8fe0" stroke="#bfe3ff" stroke-width="1.5"/><path d="M5 30h38" stroke="#0d5fa8" stroke-width="3"/><path d="M19 34l-2 6h14l-2-6z" fill="#9aa7b4"/>',
+};
+const APP_COLORS = ['#e8553e','#2f7de1','#18a058','#8b5cf6','#f59e0b','#0ea5a4','#db2777','#334155','#16a34a','#2563eb'];
+function appSVG(name) {
+  let h = 0; for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return `<rect x="5" y="5" width="38" height="38" rx="9" fill="${APP_COLORS[h % APP_COLORS.length]}"/><path d="M5 14a9 9 0 0 1 9-9h20a9 9 0 0 1 9 9v6H5z" fill="#fff" opacity=".14"/>` +
+    `<text x="24" y="31.5" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,Arial" font-weight="700" font-size="18" fill="#fff">${[...name][0]}</text>`;
+}
+const glyphOf = (name, type) => type === 'app' ? appSVG(name) : SVG[type];
+
+const FILES = [
+  ['Çöp Kutusu','bin'], ['Belgelerim','folder'], ['Projeler','folder'], ['Übersicht.docx','docx'],
+  ['Bericht_Plan.pdf','pdf'], ['Büro_Entwürfe','folder'], ['Screenshots','folder'], ['Projects','folder'],
+  ['İndirilenler','folder'], ['Yedekleme.zip','zip'], ['Notlarım.txt','txt'], ['Backup','folder'],
+  ['Dokumente','folder'], ['Archive.zip','zip'], ['Resimler','folder'], ['Straßen_Karte.png','png'],
+  ['Rechnung.pdf','pdf'], ['Resume.docx','docx'], ['Hesaplar.xlsx','xlsx'], ['Festung_Mod.zip','zip'],
+];
+const EXTRA = [
+  ['Yeni Klasör','folder'], ['Ordner_Neu','folder'], ['New Folder','folder'], ['Çalışmalar','folder'],
+  ['Bericht_2026.pdf','pdf'], ['Report_Final.docx','docx'],
+];
+function demoTheaterLayout() {
+  return [
+    [0, 1, 'Belgelerim', 'folder'], [0, 2, 'Projeler', 'folder'], [1, 1, 'İndirilenler', 'folder'], [1, 2, 'Çalışmalar', 'folder'],
+    [7, 1, 'Büro_Entwürfe', 'folder'], [8, 1, 'Übersicht', 'folder'], [8, 2, 'Bericht.pdf', 'pdf'], [9, 1, 'Dokumente', 'folder'],
+    [13, 4, 'Projects', 'folder'], [14, 4, 'Screenshots', 'folder'], [14, 5, 'Backups', 'folder'], [15, 4, 'Reports.docx', 'docx'],
+  ];
+}
+
+/* ======================================================================
+   CPU 噪声 + 可平铺噪声纹理
+   ====================================================================== */
+let seed = (Math.random() * 1e6) | 0;
+function hash2(x, y, k = 0) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed + k, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, k = 0) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, k), b = hash2(ix + 1, iy, k), c = hash2(ix, iy + 1, k), d = hash2(ix + 1, iy + 1, k);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y, k = 0) {
+  let a = 0.5, s = 0;
+  for (let i = 0; i < 4; i++) { s += a * vnoise(x, y, k + i * 7); x = x * 2.03 + 17.1; y = y * 2.03 + 17.1; a *= 0.5; }
+  return s;
+}
+function tileNoise(x, y, px, py, k) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const m = (v, p) => ((v % p) + p) % p;
+  const x0 = m(ix, px), x1 = m(ix + 1, px), y0 = m(iy, py), y1 = m(iy + 1, py);
+  const a = hash2(x0, y0, k), b = hash2(x1, y0, k), c = hash2(x0, y1, k), d = hash2(x1, y1, k);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function tileFbm(u, v, periods, k) {
+  let s = 0, w = 0.5, tw = 0;
+  for (let i = 0; i < periods.length; i++) { s += w * tileNoise(u * periods[i], v * periods[i], periods[i], periods[i], k + i * 13); tw += w; w *= 0.5; }
+  return s / tw;
+}
+function makeNoiseImage() {
+  const S = 256, d = new Uint8Array(S * S * 4);
+  const chans = [[8, 16, 32, 64], [8, 16, 32, 64], [8, 16, 32], [16, 32, 64, 128]];
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const u = x / S, v = y / S, i = (y * S + x) * 4;
+    for (let c = 0; c < 4; c++) {
+      const n = tileFbm(u, v, chans[c], 100 + c * 50);
+      d[i + c] = Math.min(Math.max((n - 0.5) * 1.9 + 0.5, 0), 1) * 255;
+    }
+  }
+  return { S, d };
+}
+
+/* ======================================================================
+   空地场（CPU）：s < 0 被包围口袋区，s > 0 战略地图外围
+   ====================================================================== */
+let W = innerWidth, H = innerHeight, Gw = 1, Gh = 1, NZ = null;
+function buildNoise() {
+  const N = Gw * Gh;
+  NZ = { wx: new Float32Array(N), wy: new Float32Array(N) };
+  for (let gy = 0; gy < Gh; gy++) for (let gx = 0; gx < Gw; gx++) {
+    const x = gx * STEP, y = gy * STEP, i = gy * Gw + gx;
+    NZ.wx[i] = (fbm(x / 170, y / 170, 11) - 0.5) * 2;
+    NZ.wy[i] = (fbm(x / 170, y / 170, 29) - 0.5) * 2;
+  }
+}
+let fieldMs = 0;
+function computeField(rects) {
+  const t0 = performance.now();
+  const N = Gw * Gh, s = new Float32Array(N);
+  const sig = P.sigma, k = sig * 0.4, w = P.warp;
+  const maxD = sig * 1.9 + w + k * 3;
+  if (!rects.length) { s.fill(999); fieldMs = performance.now() - t0; return { s }; }
+
+  for (let gy = 0; gy < Gh; gy++) {
+    const py = gy * STEP;
+    for (let gx = 0; gx < Gw; gx++) {
+      const px = gx * STEP, i = gy * Gw + gx;
+      const sx = px + NZ.wx[i] * w, sy = py + NZ.wy[i] * w;
+      let sum = 0, dmin = 1e9;
+      for (let j = 0; j < rects.length; j++) {
+        const r = rects[j];
+        const d = Math.hypot(Math.max(Math.abs(sx - r.cx) - r.hw, 0), Math.max(Math.abs(sy - r.cy) - r.hh, 0));
+        if (d < dmin) dmin = d;
+        if (d < maxD) sum += Math.exp(-(d - sig) / k);
+      }
+      s[i] = sum > 0 ? -k * Math.log(sum) : Math.max(dmin - sig, 60);
+    }
+  }
+  fieldMs = performance.now() - t0;
+  return { s };
+}
+function sampleArr(arr, x, y) {
+  const fx = Math.min(Math.max(x / STEP, 0), Gw - 1.001), fy = Math.min(Math.max(y / STEP, 0), Gh - 1.001);
+  const x0 = fx | 0, y0 = fy | 0, tx = fx - x0, ty = fy - y0, i = y0 * Gw + x0;
+  return (arr[i] * (1 - tx) + arr[i + 1] * tx) * (1 - ty) + (arr[i + Gw] * (1 - tx) + arr[i + Gw + 1] * tx) * ty;
+}
+
+/* ======================================================================
+   WebGL2 着色器（HOI4 / Age of History 羊皮等高线战区图 + 包围口袋阴影 + 动态突击箭头）
+   ====================================================================== */
+const VS = `#version 300 es
+void main() {
+  gl_Position = vec4(vec2((gl_VertexID & 1) << 2, (gl_VertexID & 2) << 1) - 1.0, 0.0, 1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+uniform sampler2D uNoise, uFA, uFB;
+uniform vec2 uRes, uGrid;
+uniform float uScale, uSeed, uStep, uMix, uTime, uArrows, uPace, uSupply, uDebug;
+out vec4 o;
+
+const vec3 MAP_LOW     = vec3(0.450, 0.495, 0.365);
+const vec3 MAP_MID     = vec3(0.595, 0.585, 0.435);
+const vec3 MAP_HIGH    = vec3(0.710, 0.655, 0.505);
+const vec3 POCKET_DARK = vec3(0.320, 0.215, 0.195);
+const vec3 FRONTLINE_R = vec3(0.860, 0.210, 0.180);
+const vec3 ALLY_GLOW   = vec3(0.240, 0.720, 0.920);
+const vec3 GOLD_ARROW  = vec3(0.950, 0.760, 0.320);
+
+float hash2(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float ss(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
+vec4 N(vec2 p, float scale) { return texture(uNoise, p / scale + uSeed * 0.013); }
+float fieldS(sampler2D t, vec2 p) { return texture(t, (p / uStep + 0.5) / uGrid).r; }
+float curS(vec2 p) { return mix(fieldS(uFA, p), fieldS(uFB, p), uMix); }
+
+vec3 paintStrategyMap(vec2 p, vec2 uv) {
+  float h1 = N(p, 1500.0).r;
+  float h2 = N(p + 231.0, 560.0).g;
+  float elev = h1 * 0.68 + h2 * 0.32;
+
+  vec3 col = mix(MAP_LOW, MAP_MID, ss(0.26, 0.62, elev));
+  col = mix(col, MAP_HIGH, ss(0.58, 0.88, elev));
+
+  // Vintage cartographic elevation contour lines (topographic map feel)
+  float iso = abs(fract(elev * 9.0) - 0.5);
+  float contour = 1.0 - ss(0.02, 0.09, iso);
+  col = mix(col, col * 0.78, contour * (0.28 + 0.42 * uSupply));
+
+  // Province border grid + tactical coordinate lines
+  float provNoise = N(p * 0.85 + 91.0, 420.0).b;
+  float provEdge = 1.0 - ss(0.0, 0.028, abs(provNoise - 0.5));
+  col = mix(col, vec3(0.24, 0.22, 0.18), provEdge * 0.55);
+
+  vec2 gridUv = fract(p / 120.0);
+  float gLine = 1.0 - ss(0.0, 0.016, min(gridUv.x, gridUv.y));
+  col = mix(col, vec3(0.35, 0.34, 0.28), gLine * 0.26 * uSupply);
+
+  // Serpentine tactical supply river crossing the theater map
+  float riverY = 0.52 + 0.14 * sin(uv.x * 5.2 + uSeed * 0.8) - 0.08 * (uv.x - 0.5);
+  float rDist = abs(uv.y - riverY) * uRes.y;
+  float rMask = 1.0 - ss(8.0, 14.0, rDist);
+  col = mix(col, vec3(0.22, 0.42, 0.52), rMask * 0.72);
+
+  return col;
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uRes.y * uScale - gl_FragCoord.y) / uScale;
+  vec2 uv = p / uRes;
+  float s = curS(p);
+
+  vec3 mapCol = paintStrategyMap(p, uv);
+
+  // Encircled pocket interior (s < 0): crimson occupation cross-hatch shading
+  float inside = 1.0 - ss(-2.5, 2.5, s);
+  float hatchCoord = (p.x + p.y) * 0.16;
+  float hatch = step(0.55, fract(hatchCoord));
+  vec3 pocketCol = mix(mapCol * 0.62, POCKET_DARK, 0.68);
+  pocketCol = mix(pocketCol, vec3(0.62, 0.16, 0.14), hatch * 0.36);
+
+  vec3 col = mix(mapCol, pocketCol, inside);
+
+  // Dual HOI4/AoH Frontline perimeter right at s = 0
+  float enemyDefense = 1.0 - ss(0.0, 3.2, abs(s + 2.2));
+  float allyFront = 1.0 - ss(0.0, 3.2, abs(s - 2.6));
+  col = mix(col, FRONTLINE_R, enemyDefense * 0.92);
+  col = mix(col, ALLY_GLOW, allyFront * (0.45 + 0.55 * uArrows));
+
+  // Animated inward offensive thrust chevrons pulsing along pocket belt s in [6..26]
+  float arrowBelt = ss(4.0, 9.0, s) * (1.0 - ss(20.0, 28.0, s));
+  if (arrowBelt > 0.01 && uArrows > 0.02) {
+    vec2 grad = vec2(curS(p + vec2(5.0, 0.0)) - curS(p - vec2(5.0, 0.0)),
+                     curS(p + vec2(0.0, 5.0)) - curS(p - vec2(0.0, 5.0)));
+    float flow = sin(s * 0.42 + uTime * (1.2 + uPace * 2.4));
+    float tang = sin((p.x - p.y + length(grad) * 2.0) * 0.11);
+    float chevron = ss(0.35, 0.88, flow) * ss(-0.1, 0.6, tang);
+    col = mix(col, GOLD_ARROW, chevron * arrowBelt * uArrows * 0.72);
+  }
+
+  // Subtle vintage parchment edge vignette & paper grain
+  float vig = ss(0.45, 1.05, length(uv - vec2(0.5)) * 1.25);
+  col *= 1.0 - vig * 0.24;
+  col *= 1.0 + (hash2(floor(p * (0.85 * max(uScale, 1.0)))) - 0.5) * 0.024;
+
+  if (uDebug > 0.5) col = mix(col, vec3(1.0, 0.3, 0.2), 1.0 - ss(0.0, 1.6, abs(s)));
+  o = vec4(col, 1.0);
+}`;
+
+/* ======================================================================
+   WebGL 初始化与纹理
+   ====================================================================== */
+const cv = document.getElementById('art');
+const gl = cv.getContext('webgl2', { antialias: false });
+if (!gl) document.getElementById('nogl').style.display = 'grid';
+
+function program(vsSrc, fsSrc) {
+  const mk = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); throw new Error('shader'); }
+    return s;
+  };
+  const p = gl.createProgram();
+  gl.attachShader(p, mk(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  const U = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const nm = gl.getActiveUniform(p, i).name.replace(/\[0\]$/, ''); U[nm] = gl.getUniformLocation(p, nm); }
+  return { p, U };
+}
+
+const PR = program(VS, FS);
+const bgVAO = gl.createVertexArray();
+
+let noiseTex = null;
+function buildNoiseTex() {
+  if (noiseTex) gl.deleteTexture(noiseTex);
+  const { S, d } = makeNoiseImage();
+  noiseTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+}
+
+const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
+function toHalf(v) {
+  f32[0] = v; const x = u32[0];
+  const sign = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 112, m = x & 0x7fffff;
+  if (e <= 0) return sign;
+  if (e >= 31) return sign | 0x7c00;
+  return sign | (e << 10) | (m >>> 13);
+}
+
+const ftex = [null, null];
+let fromI = 0, toI = 0, morphT0 = -1e9, morphDur = MORPH_MS, FA = null, FB = null;
+function allocField() {
+  for (let i = 0; i < 2; i++) {
+    if (ftex[i]) gl.deleteTexture(ftex[i]);
+    ftex[i] = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, ftex[i]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, Gw, Gh, 0, gl.RED, gl.HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+}
+function uploadField(i, Fd) {
+  const d = new Uint16Array(Gw * Gh);
+  for (let k = 0; k < d.length; k++) d[k] = toHalf(Fd.s[k]);
+  gl.bindTexture(gl.TEXTURE_2D, ftex[i]);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, Gw, Gh, gl.RED, gl.HALF_FLOAT, d);
+}
+
+const iconRects = () => icons.map(ic => ({ cx: ic.x + ic.w / 2, cy: ic.y + ic.h / 2, hw: ic.w / 2 - 4, hh: ic.h / 2 - 2 }));
+let curMix = 1;
+const landS = (x, y) => FB ? sampleArr(FB.s, x, y) : 999;
+
+function commit(fromEmpty = false) {
+  const nf = computeField(P.adaptive ? iconRects() : []);
+  const target = 1 - toI;
+  if (fromEmpty) { FA = computeField([]); uploadField(toI, FA); }
+  else FA = FB;
+  FB = nf;
+  uploadField(target, FB);
+  fromI = toI; toI = target;
+  morphT0 = performance.now();
+  morphDur = fromEmpty ? 1800 : MORPH_MS;
+  if (typeof forts !== 'undefined' && !forts.length && typeof rebuildPocketProps === 'function') rebuildPocketProps();
+  if (typeof updatePocketTargets === 'function') updatePocketTargets(fromEmpty);
+}
+function refresh() {
+  FA = FB = computeField(P.adaptive ? iconRects() : []);
+  uploadField(toI, FB);
+  fromI = toI; morphT0 = -1e9;
+  if (typeof updatePocketTargets === 'function') updatePocketTargets(true);
+}
+
+/* ======================================================================
+   桌面图标（DOM，仅预览/独立演示模式使用）
+   ====================================================================== */
+const desktop = document.getElementById('desktop');
+let icons = [], layoutKind = 'mine', selected = null, drag = null, extraIdx = 0, layoutCapacity = 0;
+const grid = { cols: 1, rows: 1 };
+let DW = innerWidth, DH = innerHeight - TASKBAR;
+function computeGrid() {
+  DW = innerWidth; DH = innerHeight - TASKBAR;
+  grid.cols = Math.max(1, Math.floor((DW - GRID_X0) / CELL_W));
+  grid.rows = Math.max(1, Math.floor((DH - GRID_Y0) / CELL_H));
+}
+const cellPos = (c, r) => ({ x: GRID_X0 + c * CELL_W, y: GRID_Y0 + r * CELL_H });
+const occupied = (x, y, self) => icons.some(ic => ic !== self && Math.abs(ic.x - x) < CELL_W / 2 && Math.abs(ic.y - y) < CELL_H / 2);
+function nearestFreeCell(cx, cy, self) {
+  let best = null, bd = Infinity;
+  for (let c = 0; c < grid.cols; c++) for (let r = 0; r < grid.rows; r++) {
+    const pos = cellPos(c, r);
+    if (occupied(pos.x, pos.y, self)) continue;
+    const dd = Math.hypot(pos.x + CELL_W / 2 - cx, pos.y + CELL_H / 2 - cy);
+    if (dd < bd) { bd = dd; best = pos; }
+  }
+  return best;
+}
+function addIcon([name, type], pos, born = false) {
+  const el = document.createElement('div');
+  el.className = 'icon' + (born ? ' born' : '');
+  el.innerHTML = `<div class="glyph"><svg viewBox="0 0 48 48">${glyphOf(name, type)}</svg></div><div class="label">${name}</div>`;
+  el.style.left = pos.x + 'px'; el.style.top = pos.y + 'px';
+  desktop.appendChild(el);
+  const ic = { name, type, x: pos.x, y: pos.y, w: el.offsetWidth, h: el.offsetHeight, el };
+  icons.push(ic); bindDrag(ic);
+  return ic;
+}
+function setPos(ic, x, y) { ic.x = x; ic.y = y; ic.el.style.left = x + 'px'; ic.el.style.top = y + 'px'; }
+function select(ic) {
+  if (selected) selected.el.classList.remove('sel');
+  selected = ic;
+  if (ic) ic.el.classList.add('sel');
+}
+function bindDrag(ic) {
+  const el = ic.el;
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); select(ic);
+    el.setPointerCapture(e.pointerId); el.classList.remove('settle');
+    drag = { ic, sx: e.clientX, sy: e.clientY, ox: ic.x, oy: ic.y, moved: false };
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag || drag.ic !== ic) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true; el.classList.add('drag');
+    el.style.left = drag.ox + dx + 'px'; el.style.top = drag.oy + dy + 'px';
+  });
+  const end = (e, cancel) => {
+    if (!drag || drag.ic !== ic) return;
+    const d = drag; drag = null;
+    el.classList.remove('drag');
+    if (!d.moved) return;
+    let nx = cancel ? d.ox : d.ox + (e.clientX - d.sx), ny = cancel ? d.oy : d.oy + (e.clientY - d.sy);
+    nx = Math.min(Math.max(nx, 0), DW - ic.w); ny = Math.min(Math.max(ny, 0), DH - ic.h);
+    if (P.snap && !cancel) { const c = nearestFreeCell(nx + ic.w / 2, ny + ic.h / 2, ic); if (c) { nx = c.x; ny = c.y; } }
+    if (Math.hypot(nx - d.ox, ny - d.oy) < 0.5) { setPos(ic, nx, ny); return; }
+    el.classList.add('settle'); setPos(ic, nx, ny);
+    commit();
+  };
+  el.addEventListener('pointerup', e => end(e, false));
+  el.addEventListener('pointercancel', e => end(e, true));
+}
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function applyLayout(kind) {
+  layoutKind = kind;
+  icons.forEach(ic => ic.el.remove()); icons = []; selected = null;
+  computeGrid(); layoutCapacity = grid.cols * grid.rows;
+  if (kind === 'mine') {
+    for (const [c, r, n, t] of demoTheaterLayout()) {
+      addIcon([n, t], cellPos(Math.min(c, grid.cols - 1), Math.min(r, grid.rows - 1)));
+    }
+  } else if (kind === 'arranged') {
+    FILES.forEach((f, i) => { const c = Math.floor(i / grid.rows), r = i % grid.rows; if (c < grid.cols) addIcon(f, cellPos(c, r)); });
+  } else if (kind === 'messy') {
+    const rnd = mulberry32(20260928);
+    for (const f of FILES) for (let t = 0; t < 300; t++) {
+      const c = rnd() < 0.45 ? Math.floor(rnd() * Math.min(3, grid.cols)) : Math.floor(rnd() * grid.cols);
+      const pos = cellPos(c, Math.floor(rnd() * grid.rows));
+      if (!occupied(pos.x, pos.y, null)) { addIcon(f, pos); break; }
+    }
+  } else {
+    Array.from({ length: 6 }, (_, i) => [Math.min(1 + i * 2, grid.cols - 1), 2]).forEach(([c, r], i) => addIcon(FILES[i], cellPos(c, r)));
+  }
+  commit(true);
+}
+
+/* ======================================================================
+   尺寸 / 主循环
+   ====================================================================== */
+function resize() {
+  W = innerWidth; H = innerHeight;
+  const scale = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality);
+  const box = cv.getBoundingClientRect();
+  cv.width = Math.round((box.width || W) * scale);
+  cv.height = Math.round((box.height || H) * scale);
+  cv._scale = scale;
+  Gw = Math.ceil(W / STEP) + 2;
+  Gh = Math.ceil(H / STEP) + 2;
+  buildNoise();
+  allocField();
+  if (typeof rebuildPocketProps === 'function') rebuildPocketProps();
+}
+
+const T0 = performance.now();
+let lastT = 0, fpsEMA = 0, frameN = 0, frameMs = 0;
+const px = new Uint8Array(4);
+let paused = false;
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { lastT = 0; return; }
+  if (P.cap30 && now - lastT < 31) return;
+  const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
+  if (lastT) fpsEMA = fpsEMA ? fpsEMA * 0.9 + (1 / dt) * 0.1 : 1 / dt;
+  lastT = now;
+  const e = Math.min((now - morphT0) / morphDur, 1);
+  curMix = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+  const timeSec = (now - T0) / 1000;
+  if (typeof stepPocketProps === 'function') stepPocketProps(dt, timeSec);
+  draw(now);
+  if (++frameN % 10 === 0) updateStats();
+}
+
+function draw(now) {
+  const measure = frameN % 20 === 0, t0 = performance.now();
+  const timeSec = (now - T0) / 1000;
+
+  gl.useProgram(PR.p);
+  gl.bindVertexArray(bgVAO);
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ftex[fromI]);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, ftex[toI]);
+  const U = PR.U;
+  gl.uniform1i(U.uNoise, 0); gl.uniform1i(U.uFA, 1); gl.uniform1i(U.uFB, 2);
+  gl.uniform2f(U.uRes, cv.width / cv._scale, cv.height / cv._scale);
+  gl.uniform2f(U.uGrid, Gw, Gh);
+  gl.uniform1f(U.uScale, cv._scale);
+  gl.uniform1f(U.uSeed, (seed % 997) * 0.37);
+  gl.uniform1f(U.uStep, STEP);
+  gl.uniform1f(U.uMix, curMix);
+  gl.uniform1f(U.uTime, timeSec);
+  gl.uniform1f(U.uArrows, P.arrows);
+  gl.uniform1f(U.uPace, P.pace);
+  gl.uniform1f(U.uSupply, P.supply);
+  gl.uniform1f(U.uDebug, P.debug ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  if (typeof drawPocketProps === 'function') drawPocketProps(timeSec);
+
+  if (measure) { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); frameMs = performance.now() - t0; }
+}
+
+/* ======================================================================
+   面板
+   ====================================================================== */
+const statsEl = document.getElementById('stats');
+const GPU = (() => {
+  const ext = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  return name.replace(/^ANGLE \([^,]+,\s*/, '').replace(/\s*\(0x[0-9a-f]+\).*$/i, '')
+    .replace(/\s*(Direct3D|vs_|OpenGL).*$/, '').replace(/\(R\)|\(TM\)/g, '').trim();
+})();
+function updateStats() {
+  const divs = typeof divisions !== 'undefined' ? divisions.length : 0;
+  statsEl.innerHTML =
+    `<span class="live">● 推演中 · ${fpsEMA.toFixed(0)} fps</span><br>GPU ${GPU}<br>` +
+    `单帧 ${frameMs.toFixed(1)} ms · 空地场 ${fieldMs.toFixed(0)} ms<br>` +
+    `画布 ${cv.width}×${cv.height} · 师级编制 ${divs}`;
+}
+function syncPanel() {
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
+  document.querySelectorAll('.toggles input').forEach(inp => { inp.checked = P[inp.dataset.key]; });
+}
+const slidersEl = document.getElementById('sliders');
+for (const s of SLIDERS) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slider';
+  wrap.innerHTML = `<div class="row"><span>${s.label}</span><span></span></div><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${P[s.key]}">`;
+  const out = wrap.querySelector('.row span:last-child'), inp = wrap.querySelector('input');
+  out.textContent = s.fmt(P[s.key]);
+  inp.addEventListener('input', () => {
+    P[s.key] = +inp.value; out.textContent = s.fmt(P[s.key]);
+    if (s.act === 'field') refresh();
+    else if (s.act === 'forces' && typeof syncPocketForces === 'function') syncPocketForces(false);
+  });
+  slidersEl.appendChild(wrap);
+}
+document.querySelector('.seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  applyLayout(b.dataset.v); syncPanel();
+});
+document.querySelectorAll('.toggles input').forEach(inp => inp.addEventListener('change', () => {
+  P[inp.dataset.key] = inp.checked;
+}));
+document.getElementById('collapse').addEventListener('click', () => {
+  const p = document.getElementById('panel');
+  p.classList.toggle('collapsed');
+  document.getElementById('collapse').textContent = p.classList.contains('collapsed') ? '+' : '–';
+});
+let iconsSeen = !(WALL || PREVIEW);
+function reseed(v) {
+  seed = v; buildNoise(); buildNoiseTex();
+  if (typeof rebuildPocketProps === 'function') rebuildPocketProps();
+  if (!iconsSeen) return;
+  commit(true);
+}
+document.getElementById('btnSeed').addEventListener('click', () => reseed((Math.random() * 1e6) | 0));
+document.getElementById('btnAdd').addEventListener('click', () => {
+  const f = EXTRA[extraIdx++ % EXTRA.length];
+  let pos = null;
+  for (let t = 0; t < 300 && !pos; t++) {
+    const c = cellPos(Math.floor(Math.random() * grid.cols), Math.floor(Math.random() * grid.rows));
+    if (!occupied(c.x, c.y, null)) pos = c;
+  }
+  if (!pos) return;
+  const ic = addIcon(f, pos, true);
+  select(ic);
+  commit();
+});
+desktop.addEventListener('pointerdown', () => select(null));
+addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+    const ic = selected; select(null); ic.el.remove(); icons = icons.filter(x => x !== ic); commit();
+  } else if (e.key === 'h' || e.key === 'H') document.getElementById('panel').classList.toggle('hidden');
+});
+let resizeT = 0;
+addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (WALL || PREVIEW) { resize(); refresh(); return; }
+    resize(); computeGrid();
+    if (grid.cols * grid.rows > layoutCapacity && layoutCapacity < 40) { applyLayout(layoutKind); syncPanel(); return; }
+    for (const ic of icons) setPos(ic, Math.min(ic.x, Math.max(0, DW - ic.w)), Math.min(ic.y, Math.max(0, DH - ic.h)));
+    refresh();
+  }, 100);
+});
+function tickClock() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  document.getElementById('clock').innerHTML = `${z(d.getHours())}:${z(d.getMinutes())}<br>${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* ---------- 启动 ---------- */
+window.__dbg = {
+  P, applyLayout,
+  detectNation(name) { return typeof detectFolderNation === 'function' ? detectFolderNation(name, 0) : -1; },
+  bench() {
+    const ts = [];
+    for (let i = 0; i < 10; i++) { const a = performance.now(); draw(performance.now()); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); ts.push(performance.now() - a); }
+    ts.sort((a, b) => a - b);
+    return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height, gpu: GPU };
+  },
+};
+resize();
+buildNoiseTex();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+
+/* ======================================================================
+   托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
+   ====================================================================== */
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
+  let field = false, forcesChanged = false, adaptiveChanged = false;
+  for (const k in v) {
+    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k)) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    if (DISPLAY_KEYS.includes(k) && v[k] !== 0 && v[k] !== 1) continue;
+    P[k] = v[k];
+    if (k === 'adaptive') adaptiveChanged = true;
+    if (k === 'sigma' || k === 'warp') field = true;
+    if (k === 'divisions' || k === 'faction') forcesChanged = true;
+  }
+  if (adaptiveChanged && FB) commit();
+  else if (field && FB) refresh();
+  if (forcesChanged && FB && typeof syncPocketForces === 'function') syncPocketForces(false);
+}
+
+function drawGhosts() {
+  const box = document.getElementById('ghosts');
+  box.innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+
+function startHostedMode() {
+  document.body.classList.add('wall');
+  if (PREVIEW) {
+    document.body.classList.add('preview');
+    const g = document.createElement('div'); g.id = 'ghosts'; document.body.appendChild(g);
+  }
+  icons = [];
+  commit(true);
+  let first = true;
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;
+    const names = Array.isArray(m.n) ? m.n : [];
+    icons = m.vis ? m.r.map(([l, t, r, b], i) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k, name: names[i] || '' })) : [];
+    if (PREVIEW) drawGhosts();
+    iconsSeen = true;
+    commit(first);
+    first = false;
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+</script>
+<script src="pocket-props.js"></script>
+<script src="share.js"></script>
+</body>
+</html>

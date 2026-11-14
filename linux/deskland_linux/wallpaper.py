@@ -403,11 +403,13 @@ class Wallpaper:
     def _read_icons(self) -> None:
         try:
             visible, rects = self.icon_adapter.read()
-            message = {
+            message: dict[str, Any] = {
                 "t": "icons",
                 "vis": bool(visible),
                 "r": [rect.as_array() for rect in rects],
             }
+            if any(rect.label for rect in rects):
+                message["n"] = [rect.label for rect in rects]
         except Exception as exc:  # adapter must never kill the timer
             self.log.exception("Simge okuma hatası", exc)
             message = None

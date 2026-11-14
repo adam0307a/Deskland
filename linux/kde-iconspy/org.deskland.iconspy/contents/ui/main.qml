@@ -144,8 +144,9 @@ PlasmoidItem {
         return null;
     }
 
-    function collectRects(top, gv) {
+    function collectIcons(top, gv) {
         var rects = [];
+        var names = [];
         var win = root.Window ? root.Window.window : null;
         var dpr = (win && win.devicePixelRatio > 0) ? win.devicePixelRatio : 1;
         var originX = 0;
@@ -174,8 +175,9 @@ PlasmoidItem {
             var r = Math.round((pos.x + w) * dpr);
             var b = Math.round((pos.y + h) * dpr);
             rects.push([l, t, r, b]);
+            names.push(typeof it.display === "string" ? it.display : "");
         }
-        return rects;
+        return { rects: rects, names: names };
     }
 
     Timer {
@@ -205,13 +207,13 @@ PlasmoidItem {
                 }
                 root.cachedGridView = gv;
                 if (!gv) {
-                    root.writeJson({ ts: Date.now(), vis: false, r: [] });
+                    root.writeJson({ ts: Date.now(), vis: false, r: [], n: [] });
                     return;
                 }
-                var rects = root.collectRects(top, gv);
-                root.writeJson({ ts: Date.now(), vis: true, r: rects });
+                var data = root.collectIcons(top, gv);
+                root.writeJson({ ts: Date.now(), vis: true, r: data.rects, n: data.names });
             } catch (e) {
-                root.writeJson({ ts: Date.now(), vis: false, r: [] });
+                root.writeJson({ ts: Date.now(), vis: false, r: [], n: [] });
             }
         }
     }

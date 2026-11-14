@@ -716,6 +716,50 @@
           "hint": "How densely wooden supply crates, oil drums, and sandbags populate open lanes"
         }
       }
+    },
+    "pocket": {
+      "name": "Frontline Pocket",
+      "desc": "A grand-strategy war map where icon clusters turn into encircled battle pockets surrounded by Turkish, German, or British NATO division counters automatically matched to folder languages",
+      "groups": [
+        "Frontline & Pocket",
+        "Divisions & Nations",
+        "Theater details"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Pocket radius",
+          "hint": "How wide the encircled combat pocket extends around your icons"
+        },
+        "warp": {
+          "label": "Frontline curve",
+          "hint": "How organically the encirclement border follows terrain ridges"
+        },
+        "arrows": {
+          "label": "Attack arrows",
+          "hint": "How brightly inward battle-plan chevrons and frontline highlights pulse"
+        },
+        "divisions": {
+          "label": "Division counters",
+          "hint": "Number of Age of History / HOI4 style division counters encircling pockets; set to 0 to hide",
+          "unit": ""
+        },
+        "faction": {
+          "label": "Encircling force",
+          "hint": "0 = Auto-detect folder language (Turkish/German/English); 1 = Turkish; 2 = German; 3 = British"
+        },
+        "pace": {
+          "label": "Campaign pace",
+          "hint": "How fast frontline thrusts animate and divisions march to close new pockets"
+        },
+        "skirmish": {
+          "label": "Artillery fire",
+          "hint": "How often frontline divisions fire artillery flashes and battle smoke inward"
+        },
+        "supply": {
+          "label": "Map & forts",
+          "hint": "Visibility of topographic contours, coordinate grids, and outer star-fort depots"
+        }
+      }
     }
   }
 }

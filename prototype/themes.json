@@ -569,6 +569,111 @@
       ]
     },
     {
+      "id": "pocket",
+      "adaptive": true,
+      "name": "战线包围",
+      "desc": "大战略沙盘地形图之上，桌面图标化作被重兵合围的战区口袋，依据文件夹语言自动派遣土耳其、德意志或英伦师级部队与突击箭头步步紧逼",
+      "page": "pocket.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 38% 52%, rgba(168,46,40,0.92) 0%, rgba(112,56,42,0.88) 32%, rgba(84,112,86,0.9) 62%, transparent 82%), radial-gradient(circle at 72% 36%, rgba(235,190,82,0.75) 0%, rgba(74,98,74,0.88) 38%, transparent 66%), linear-gradient(150deg, #3c4b39 0%, #5e6d52 48%, #7a7352 100%)",
+      "groups": [
+        {
+          "name": "战线与包围",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "包围圈大小",
+              "hint": "图标周围被合围战区口袋展开的范围",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 78,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "战线曲折",
+              "hint": "包围战线轮廓随地形蜿蜒起伏的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 22
+            },
+            {
+              "key": "arrows",
+              "label": "突击箭头",
+              "hint": "战线边沿动态内向突击箭头与前沿辉光亮度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "编制与兵力",
+          "params": [
+            {
+              "key": "divisions",
+              "label": "包围师数量",
+              "hint": "环绕图标包围圈布防的大战略师级编制牌数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 24,
+              "step": 1,
+              "default": 12,
+              "unit": "师"
+            },
+            {
+              "key": "faction",
+              "label": "包围军团",
+              "hint": "0 = 按文件夹语言自动切换（土耳其语/德语/英语）；1 = 土耳其部队；2 = 德意志部队；3 = 英伦部队",
+              "min": 0,
+              "max": 3,
+              "step": 1,
+              "default": 0
+            },
+            {
+              "key": "pace",
+              "label": "行军节奏",
+              "hint": "战线推进波纹与师级部队机动驻防的速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "战场局势",
+          "params": [
+            {
+              "key": "skirmish",
+              "label": "炮火交锋",
+              "hint": "前线部队向口袋内发射零星炮火与战地烟尘的频率",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "supply",
+              "label": "地图细节",
+              "hint": "等高线、经纬网格与后方星形要塞补给站点的显示强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.55,
+              "format": "percent"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",

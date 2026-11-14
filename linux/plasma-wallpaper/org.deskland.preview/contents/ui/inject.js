@@ -45,8 +45,10 @@
 
   /* ---------------- icons (from org.deskland.iconspy) ---------------- */
 
-  function deliverIcons(vis, rects) {
-    var msg = JSON.stringify({ t: 'icons', vis: !!vis, r: rects || [] });
+  function deliverIcons(vis, rects, names) {
+    var payload = { t: 'icons', vis: !!vis, r: rects || [] };
+    if (Array.isArray(names) && names.length) payload.n = names;
+    var msg = JSON.stringify(payload);
     window.__desklandLastIcons = msg;   /* debug aid */
     if (msg !== lastIcons) {
       lastIcons = msg;
@@ -68,11 +70,11 @@
       if (data && data.vis === true && Array.isArray(data.r) && typeof data.ts === 'number') {
         var age = Date.now() - data.ts;
         if (age <= ICONS_TTL_MS && age >= -5000) {
-          deliverIcons(true, data.r);
+          deliverIcons(true, data.r, Array.isArray(data.n) ? data.n : []);
           return;
         }
       }
-      deliverIcons(false, []);
+      deliverIcons(false, [], []);
     };
     try { xhr.send(); } catch (e) { deliverIcons(false, []); }
   }
@@ -86,6 +88,7 @@
     glade: 'glade.html',
     rift: 'rift.html',
     strike: 'strike.html',
+    pocket: 'pocket.html',
   };
 
   function pollSettings() {
