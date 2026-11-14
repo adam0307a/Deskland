@@ -671,6 +671,51 @@
           "unit": ""
         }
       }
+    },
+    "strike": {
+      "name": "Bombsite Dust",
+      "desc": "A sunlit desert bombsite: icons sit inside bullet-riddled concrete impact zones with brass shell casings, crates, patrolling chickens, and a soccer ball that kicks away whenever an icon moves onto it",
+      "groups": [
+        "Impact zone",
+        "Atmosphere",
+        "Props & easter eggs"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Impact radius",
+          "hint": "How wide the bullet-riddled concrete zone clears around your icons"
+        },
+        "warp": {
+          "label": "Rubble edge",
+          "hint": "How jaggedly the concrete clearing edge breaks into the courtyard sand"
+        },
+        "holes": {
+          "label": "Bullet density",
+          "hint": "How densely bullet craters, radial cracks, and spent brass shell casings cover icon zones"
+        },
+        "smoke": {
+          "label": "Dust & smoke",
+          "hint": "How visibly tactical smoke plumes and sunlit desert haze drift across the yard"
+        },
+        "wind": {
+          "label": "Breeze & pace",
+          "hint": "How fast tactical smoke drifts, sand blows, and chickens roam"
+        },
+        "ball": {
+          "label": "Soccer ball",
+          "hint": "Classic CS soccer ball that rolls and bounces into open space whenever an icon moves onto it; set to 0 to hide",
+          "unit": ""
+        },
+        "chickens": {
+          "label": "Roam chickens",
+          "hint": "Desert courtyard chickens pecking around and fluttering away from icons or the ball; set to 0 to hide",
+          "unit": ""
+        },
+        "crates": {
+          "label": "Cover crates",
+          "hint": "How densely wooden supply crates, oil drums, and sandbags populate open lanes"
+        }
+      }
     }
   }
 }

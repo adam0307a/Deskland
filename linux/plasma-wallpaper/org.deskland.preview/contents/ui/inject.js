@@ -85,6 +85,7 @@
     aurora: 'aurora.html',
     glade: 'glade.html',
     rift: 'rift.html',
+    strike: 'strike.html',
   };
 
   function pollSettings() {

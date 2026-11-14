@@ -463,6 +463,112 @@
       ]
     },
     {
+      "id": "strike",
+      "adaptive": true,
+      "name": "炙热沙城",
+      "desc": "烈日沙砖广场之上，图标四周展开布满弹孔裂纹与弹出弹壳的水泥战区，可把场内足球踢向空旷处，木箱与小鸡点缀其间",
+      "page": "strike.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 38% 54%, rgba(110,104,95,0.92) 0%, rgba(164,132,90,0.88) 38%, rgba(212,174,116,0.92) 72%, transparent 88%), radial-gradient(circle at 72% 36%, rgba(242,168,54,0.72) 0%, rgba(138,104,64,0.85) 36%, transparent 64%), linear-gradient(145deg, #685036 0%, #9c7a4c 48%, #c9a46d 100%)",
+      "groups": [
+        {
+          "name": "交火区",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "弹孔区大小",
+              "hint": "图标周围弹痕水泥战区空开的范围",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 82,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "边缘碎裂",
+              "hint": "战区碎石边缘起伏变化的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 20
+            },
+            {
+              "key": "holes",
+              "label": "弹孔密度",
+              "hint": "图标区域弹孔裂纹与地面散落黄铜弹壳的密集程度",
+              "min": 0,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "沙城氛围",
+          "params": [
+            {
+              "key": "smoke",
+              "label": "战术烟尘",
+              "hint": "广场边角飘散的战术烟雾与沙尘薄霭浓度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.45,
+              "format": "percent"
+            },
+            {
+              "key": "wind",
+              "label": "沙风流速",
+              "hint": "热浪沙尘、烟雾飘移与巡游小鸡走动的速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "道具与彩蛋",
+          "params": [
+            {
+              "key": "ball",
+              "label": "场内足球",
+              "hint": "图标落到足球上时会将球踢往空旷沙地，设为 0 可隐藏",
+              "min": 0,
+              "max": 3,
+              "step": 1,
+              "default": 1,
+              "unit": "颗"
+            },
+            {
+              "key": "chickens",
+              "label": "巡游小鸡",
+              "hint": "在广场踱步、受惊会扑棱躲开的沙漠小鸡数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 10,
+              "step": 1,
+              "default": 4,
+              "unit": "只"
+            },
+            {
+              "key": "crates",
+              "label": "木箱掩体",
+              "hint": "广场空地上堆放的战术木箱、油桶与沙袋密集程度",
+              "min": 0.2,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",
