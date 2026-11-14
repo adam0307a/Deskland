@@ -45,6 +45,12 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
   //   8 = couple_him   (dark leather/denim street jacket)
   //   9 = couple_her   (blonde updo bun + red slit dress + red heels)
   //  10 = lil_friend   (smaller white-tee sidekick)
+  //  11 = doctor       (white lab coat, stethoscope, clipboard, pens)
+  //  12 = crazy_jacket (padded-room white straitjacket + red fishing rod)
+  //  13 = crazy_gown   (light cyan dotted hospital patient gown)
+  //  15 = charging     (holding power plug cable, shocked spiky antennae & blue sparks)
+  //   9 = couple_her   (blonde updo bun + red slit dress + red heels)
+  //  10 = lil_friend   (smaller white-tee sidekick)
   ctx.save();
   ctx.translate(ox + 64, oy + 68);
 
@@ -214,17 +220,85 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.fillStyle = '#2d3540';
     ctx.fillRect(-7, 0, 14, 2);
     ctx.fillRect(-5, 4, 10, 2);
+  } else if (kind === 11) {
+    // Doctor white coat over grey collared shirt + pens + stethoscope
+    ctx.fillStyle = '#737d87';
+    ctx.beginPath(); ctx.ellipse(0, 3, 15, 16, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.strokeStyle = '#c0cad6';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-4, -9); ctx.lineTo(-16, -6); ctx.lineTo(-17, 25); ctx.lineTo(-3, 25); ctx.closePath();
+    ctx.moveTo(4, -9); ctx.lineTo(16, -6); ctx.lineTo(17, 25); ctx.lineTo(3, 25); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Pocket pens
+    ctx.fillStyle = '#244b96'; ctx.fillRect(8, 3, 2, 7);
+    ctx.fillStyle = '#c83232'; ctx.fillRect(11, 4, 2, 6);
+    // Stethoscope around neck
+    ctx.strokeStyle = '#252a32';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(0, -4, 9.5, 0.15, Math.PI - 0.15); ctx.stroke();
+    ctx.fillStyle = '#b9c6d4';
+    ctx.beginPath(); ctx.arc(0, 8, 3.2, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === 12) {
+    // White strapped straitjacket (deli gömleği)
+    ctx.fillStyle = '#f3f4f6';
+    ctx.strokeStyle = '#b8bfc9';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(0, 4, 16.5, 19, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // Crossed straitjacket straps & buckles
+    ctx.strokeStyle = '#cdd3dc';
+    ctx.lineWidth = 4.2;
+    ctx.beginPath();
+    ctx.moveTo(-14, -2); ctx.lineTo(13, 10);
+    ctx.moveTo(14, -2); ctx.lineTo(-13, 10);
+    ctx.stroke();
+    ctx.fillStyle = '#9aa3b0';
+    ctx.fillRect(-3, 2, 6, 4);
+  } else if (kind === 13) {
+    // Pale mint dotted hospital gown (hasta önlüğü)
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(0, 7, 16.5, 22, 0, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#dceef0';
+    ctx.fillRect(-20, -18, 40, 50);
+    ctx.fillStyle = '#7bb4c2';
+    for (let gy = -10; gy < 28; gy += 7) {
+      for (let gx = -12; gx <= 12; gx += 7) {
+        ctx.beginPath(); ctx.arc(gx + (gy % 14 === 0 ? 3 : 0), gy, 1.3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+    ctx.strokeStyle = '#9abdc5';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 7, 16.5, 22, 0, 0, Math.PI * 2); ctx.stroke();
+  } else if (kind === 15) {
+    // Electric blue aura + plug cord held out for charging
+    ctx.fillStyle = '#334155';
+    ctx.beginPath(); ctx.ellipse(0, 3, 14.5, 15.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5eead4';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(12, 8); ctx.bezierCurveTo(26, 4, 24, -10, 34, -12);
+    ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    rRoundRect(ctx, 32, -16, 7, 8, 1.5); ctx.fill();
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(39, -15, 5, 1.8);
+    ctx.fillRect(39, -11, 5, 1.8);
   }
 
   // Arms
   ctx.strokeStyle = '#6c3116';
   ctx.lineWidth = 3.2;
-  // Left arm (raised high for Diva)
+  // Left arm (raised high for Diva, folded for Straitjacket, clipboard for Doctor)
   ctx.beginPath();
   ctx.moveTo(-13, -3);
   if (armRaise) {
     ctx.lineTo(-23, -18);
     ctx.lineTo(-30, -34);
+  } else if (kind === 12) {
+    ctx.lineTo(-18, 5);
+    ctx.lineTo(-4, 12);
   } else if (kind === 0) {
     ctx.lineTo(-20, 6);
     ctx.lineTo(-16, 18);
@@ -237,9 +311,43 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
   // Right arm
   ctx.beginPath();
   ctx.moveTo(13, -3);
-  ctx.lineTo(22, 8);
-  ctx.lineTo(18, 20);
+  if (kind === 12) {
+    ctx.lineTo(18, 5);
+    ctx.lineTo(4, 12);
+  } else if (kind === 15) {
+    ctx.lineTo(24, 1);
+    ctx.lineTo(31, -8);
+  } else {
+    ctx.lineTo(22, 8);
+    ctx.lineTo(18, 20);
+  }
   ctx.stroke();
+
+  // Doctor clipboard (kind 11) or Straitjacket red fishing rod (kind 12)!
+  if (kind === 11) {
+    ctx.save();
+    ctx.translate(18, 14);
+    ctx.rotate(-0.2);
+    ctx.fillStyle = '#a47244';
+    rRoundRect(ctx, -7, -9, 14, 18, 2); ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(-5, -6, 10, 13);
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(-3.5, -3, 7, 1.5);
+    ctx.fillRect(-3.5, 1, 5.5, 1.5);
+    ctx.restore();
+  } else if (kind === 12) {
+    ctx.strokeStyle = '#c82630';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(4, 12); ctx.lineTo(28, -14);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(235, 244, 255, 0.8)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.moveTo(28, -14); ctx.lineTo(28, 12);
+    ctx.stroke();
+  }
 
   // Extra insect middle arms peeking softly
   ctx.lineWidth = 2.1;
@@ -297,15 +405,24 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
   ctx.fill();
   ctx.stroke();
 
-  // Long expressive antennae
-  ctx.strokeStyle = '#4c200b';
-  ctx.lineWidth = 1.7;
-  ctx.beginPath();
-  ctx.moveTo(-5, headY - 12);
-  ctx.quadraticCurveTo(-18, headY - 34, -30, headY - 26);
-  ctx.moveTo(5, headY - 12);
-  ctx.quadraticCurveTo(18, headY - 34, 30, headY - 26);
-  ctx.stroke();
+  // Long expressive antennae (zigzag electrified for charging_roach)
+  if (kind === 15) {
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-5, headY - 12); ctx.lineTo(-14, headY - 22); ctx.lineTo(-9, headY - 28); ctx.lineTo(-22, headY - 36);
+    ctx.moveTo(5, headY - 12); ctx.lineTo(14, headY - 22); ctx.lineTo(9, headY - 28); ctx.lineTo(22, headY - 36);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = '#4c200b';
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.moveTo(-5, headY - 12);
+    ctx.quadraticCurveTo(-18, headY - 34, -30, headY - 26);
+    ctx.moveTo(5, headY - 12);
+    ctx.quadraticCurveTo(18, headY - 34, 30, headY - 26);
+    ctx.stroke();
+  }
 
   // Eyes (cute cartoon sclera for most, huge glossy black eyes for Hospital Plaid)
   if (kind === 4) {
@@ -367,11 +484,80 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
         ctx.lineTo(6.2 + i * 2.5, headY - 10.2);
         ctx.stroke();
       }
+    } else if (kind === 12 || kind === 13) {
+      // Wide unhinged asymmetric crazy pupils + swirling brows
+      ctx.fillStyle = '#fbfaf5';
+      ctx.beginPath();
+      ctx.ellipse(-6.0, headY - 2, 5.4, 6.2, 0, 0, Math.PI * 2);
+      ctx.ellipse(6.0, headY - 1, 5.0, 5.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#140c08';
+      ctx.beginPath();
+      ctx.arc(-7.4, headY - 3.6, 1.7, 0, Math.PI * 2);
+      ctx.arc(4.3, headY + 0.6, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1f0d06'; ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-10, headY - 9); ctx.lineTo(-2, headY - 7);
+      ctx.moveTo(2, headY - 8); ctx.lineTo(10, headY - 10);
+      ctx.stroke();
+    } else if (kind === 15) {
+      // Shocked glowing cyan electric pupils
+      ctx.fillStyle = '#e0f8ff';
+      ctx.beginPath();
+      ctx.ellipse(-5.8, headY - 2, 5.2, 5.8, 0, 0, Math.PI * 2);
+      ctx.ellipse(5.8, headY - 2, 5.2, 5.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0ea5e9';
+      ctx.beginPath();
+      ctx.arc(-5.6, headY - 2, 2.3, 0, Math.PI * 2);
+      ctx.arc(5.6, headY - 2, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(-6.4, headY - 3, 0.9, 0, Math.PI * 2);
+      ctx.arc(4.8, headY - 3, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === 11) {
+      // Doctor's thin round glasses
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.arc(-5.6, headY - 2, 5.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(5.6, headY - 2, 5.4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-0.3, headY - 2); ctx.lineTo(0.3, headY - 2);
+      ctx.stroke();
     }
   }
 
   // Mouth expression
-  if (kind === 5) {
+  if (kind === 12 || kind === 13) {
+    // Wide shouting "LÜLÜLÜLÜ!" mouth + pink tongue
+    ctx.fillStyle = '#2b0d0a';
+    ctx.beginPath();
+    ctx.ellipse(0, headY + 6.8, 6.2, 4.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.ellipse(0, headY + 8.8, 3.8, 2.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-3.6, headY + 3.0, 7.2, 1.8);
+  } else if (kind === 15) {
+    // Buzzing jitter mouth from electric charge
+    ctx.strokeStyle = '#38160b';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-5, headY + 6.5);
+    ctx.lineTo(-2.5, headY + 4.8);
+    ctx.lineTo(0, headY + 7.5);
+    ctx.lineTo(2.5, headY + 4.8);
+    ctx.lineTo(5, headY + 6.5);
+    ctx.stroke();
+  } else if (kind === 5) {
     // Diva red lipstick smile
     ctx.fillStyle = '#c82034';
     ctx.beginPath();
@@ -379,7 +565,7 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(-3.6, headY + 6.2, 7.2, 1.8);
-  } else if (kind === 1 || kind === 4 || kind === 7) {
+  } else if (kind === 1 || kind === 4 || kind === 7 || kind === 11) {
     // Happy school / friendly grin
     ctx.fillStyle = '#38160b';
     ctx.beginPath();
@@ -542,6 +728,205 @@ function rPaintBubble(ctx, ox, oy, sym) {
   ctx.restore();
 }
 
+function rPaintBedRoach(ctx, ox, oy) {
+  // White iron hospital bed with straitjacket patient roach shouting on pillow
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  // Back & front metal headboard / footboard bars
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  // Headboard (left)
+  ctx.moveTo(-48, -22); ctx.lineTo(-48, 28);
+  ctx.moveTo(-48, -14); ctx.lineTo(-34, -14);
+  // Footboard (right)
+  ctx.moveTo(48, -10); ctx.lineTo(48, 28);
+  ctx.stroke();
+
+  // Mattress & white hospital sheets
+  ctx.fillStyle = '#e2e8f0';
+  rRoundRect(ctx, -47, 2, 94, 16, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Fluffy white pillow under patient head
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath();
+  ctx.ellipse(-30, -1, 14, 7.5, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // Roach head resting on pillow (facing up/right)
+  ctx.fillStyle = '#7b3e1a';
+  ctx.beginPath();
+  ctx.ellipse(-26, -7, 13, 10.5, -0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // Antennae sticking straight up wildly
+  ctx.strokeStyle = '#5a2910'; ctx.lineWidth = 1.7;
+  ctx.beginPath();
+  ctx.moveTo(-30, -16); ctx.quadraticCurveTo(-36, -34, -22, -40);
+  ctx.moveTo(-24, -16); ctx.quadraticCurveTo(-20, -34, -8, -36);
+  ctx.stroke();
+
+  // Crazy eyes + shouting open mouth
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(-28, -11, 3.8, 0, Math.PI * 2);
+  ctx.arc(-20, -10, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111827';
+  ctx.beginPath();
+  ctx.arc(-28.8, -11.8, 1.4, 0, Math.PI * 2);
+  ctx.arc(-19.2, -9.2, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#2b0d0a';
+  ctx.beginPath();
+  ctx.ellipse(-21, -4, 4.5, 3.2, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Patient body in tied straitjacket under light cyan blanket
+  ctx.fillStyle = '#f1f5f9';
+  rRoundRect(ctx, -16, -9, 36, 15, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.2; ctx.stroke();
+  // Jacket straps
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2.0;
+  ctx.beginPath();
+  ctx.moveTo(-6, -8); ctx.lineTo(4, 5);
+  ctx.moveTo(4, -8); ctx.lineTo(-6, 5);
+  ctx.stroke();
+  // Cyan blanket over legs
+  ctx.fillStyle = '#bae6fd';
+  rRoundRect(ctx, 8, -7, 36, 14, 5);
+  ctx.fill();
+  ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // Waving roach feet sticking up from blanket end
+  ctx.strokeStyle = '#5a2910'; ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(41, -3); ctx.lineTo(48, -11);
+  ctx.moveTo(41, 2); ctx.lineTo(47, -3);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function rPaintWallOutlet(ctx, ox, oy) {
+  // White EU wall power outlet mounted on plaster curb block
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  // Small concrete/plaster pedestal block on wall edge
+  ctx.fillStyle = '#cbd5e1';
+  rRoundRect(ctx, -28, -26, 56, 62, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2; ctx.stroke();
+
+  // White twin Schuko wall socket plate
+  ctx.fillStyle = '#f8fafc';
+  rRoundRect(ctx, -20, -18, 40, 46, 5);
+  ctx.fill();
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Circular recessed socket cavity
+  ctx.fillStyle = '#e2e8f0';
+  ctx.beginPath();
+  ctx.arc(0, 5, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.3; ctx.stroke();
+
+  // Twin prong holes + ground clips
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(-5.2, 5, 2.5, 0, Math.PI * 2);
+  ctx.arc(5.2, 5, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(-1.2, -7.5, 2.4, 3.2);
+  ctx.fillRect(-1.2, 14.3, 2.4, 3.2);
+
+  // Tiny green/amber LED indicator
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(0, -12, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function rPaintZapSpark(ctx, ox, oy) {
+  // Bright electric cyan/gold lightning discharge sprite
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, 44);
+  glow.addColorStop(0, 'rgba(56, 189, 248, 0.72)');
+  glow.addColorStop(0.55, 'rgba(56, 189, 248, 0.25)');
+  glow.addColorStop(1, 'rgba(56, 189, 248, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, 0, 44, 0, Math.PI * 2); ctx.fill();
+
+  // Jagged lightning arcs
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const rays = [[-26, -18, -10, -6, 0, 0], [28, -14, 12, -2, 0, 0], [-20, 22, -6, 10, 0, 0], [22, 20, 8, 8, 0, 0]];
+  for (const r of rays) {
+    ctx.beginPath();
+    ctx.moveTo(r[0], r[1]); ctx.lineTo(r[2], r[3]); ctx.lineTo(r[4], r[5]);
+    ctx.stroke();
+  }
+
+  // Central gold bolt
+  ctx.fillStyle = '#fef08a';
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(3, -18); ctx.lineTo(-9, 2); ctx.lineTo(-1, 2);
+  ctx.lineTo(-4, 18); ctx.lineTo(10, -3); ctx.lineTo(1, -3);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  ctx.restore();
+}
+
+function rPaintTextBubble(ctx, ox, oy, text, bg, border, fg) {
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 2.4;
+  rRoundRect(ctx, -60, -24, 120, 36, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  // Speech tail
+  ctx.beginPath();
+  ctx.moveTo(-10, 11); ctx.lineTo(-16, 25); ctx.lineTo(3, 11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillRect(-11, 8, 15, 5);
+
+  ctx.fillStyle = fg;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = text.length > 12
+    ? '900 11.5px "Segoe UI", "DejaVu Sans", sans-serif'
+    : text.length > 9
+      ? '900 13px "Segoe UI", "DejaVu Sans", sans-serif'
+      : '900 15px "Segoe UI", "DejaVu Sans", sans-serif';
+  ctx.fillText(text, 0, -6, 108);
+
+  ctx.restore();
+}
+
 function rPaintSoftShadow(ctx, ox, oy) {
   ctx.save();
   ctx.translate(ox + 64, oy + 64);
@@ -565,21 +950,31 @@ function buildRoachAtlas() {
   // Row 0: 8 cockroach meme leads
   for (let i = 0; i < 8; i++) rPaintCarapaceRoach(ctx, i * ROACH_CELL, 0, i);
 
-  // Row 1: couple & buddy + props
+  // Row 1: couple, buddy, doctor, crazy jacket/gown, bed patient, wall charger
   rPaintCarapaceRoach(ctx, 0 * ROACH_CELL, 1 * ROACH_CELL, 8);
   rPaintCarapaceRoach(ctx, 1 * ROACH_CELL, 1 * ROACH_CELL, 9);
   rPaintCarapaceRoach(ctx, 2 * ROACH_CELL, 1 * ROACH_CELL, 10);
+  rPaintCarapaceRoach(ctx, 3 * ROACH_CELL, 1 * ROACH_CELL, 11); // doctor
+  rPaintCarapaceRoach(ctx, 4 * ROACH_CELL, 1 * ROACH_CELL, 12); // crazy_jacket
+  rPaintCarapaceRoach(ctx, 5 * ROACH_CELL, 1 * ROACH_CELL, 13); // crazy_gown
+  rPaintBedRoach(ctx, 6 * ROACH_CELL, 1 * ROACH_CELL);          // bed_roach
+  rPaintCarapaceRoach(ctx, 7 * ROACH_CELL, 1 * ROACH_CELL, 15); // charging
 
-  // Row 2: streetlamp, juice box, tea glass, bubbles
+  // Row 2: streetlamp, juice box, tea glass, emoji bubbles, wall outlet, electric zap
   rPaintStreetLamp(ctx, 0 * ROACH_CELL, 2 * ROACH_CELL);
   rPaintJuiceProp(ctx, 1 * ROACH_CELL, 2 * ROACH_CELL);
   rPaintTeaGlass(ctx, 2 * ROACH_CELL, 2 * ROACH_CELL);
   rPaintBubble(ctx, 3 * ROACH_CELL, 2 * ROACH_CELL, 0);
   rPaintBubble(ctx, 4 * ROACH_CELL, 2 * ROACH_CELL, 1);
   rPaintBubble(ctx, 5 * ROACH_CELL, 2 * ROACH_CELL, 2);
+  rPaintWallOutlet(ctx, 6 * ROACH_CELL, 2 * ROACH_CELL);
+  rPaintZapSpark(ctx, 7 * ROACH_CELL, 2 * ROACH_CELL);
 
-  // Row 3: soft shadow
+  // Row 3: soft shadow & Turkish meme speech bubbles
   rPaintSoftShadow(ctx, 0 * ROACH_CELL, 3 * ROACH_CELL);
+  rPaintTextBubble(ctx, 1 * ROACH_CELL, 3 * ROACH_CELL, 'LÜLÜLÜLÜ!', '#fff7ed', '#9a3412', '#b91c1c');
+  rPaintTextBubble(ctx, 2 * ROACH_CELL, 3 * ROACH_CELL, 'DUKTUR DUKTUR!', '#ecfeff', '#0e7490', '#0f172a');
+  rPaintTextBubble(ctx, 3 * ROACH_CELL, 3 * ROACH_CELL, '⚡ ŞARJ %99', '#fefce8', '#0284c7', '#0369a1');
 
   return c;
 }
@@ -660,6 +1055,7 @@ let trees = streetProps; // share.js settle alias
 let roaches = [];
 let bubbles = [];
 let bubbleTimer = 0;
+let roachIntroDone = false;
 
 function rHash(a, b, k) {
   let h = Math.imul((a | 0) + 19, 374761393) ^ Math.imul((b | 0) + 41, 668265263) ^ Math.imul((seed | 0) + (k | 0) * 31, 2246822519);
@@ -676,23 +1072,24 @@ function rWalkableGradient(px, py) {
 }
 
 function spawnRoachMember(i, total) {
-  // Cast priority: iconic leads first, including coupled pair (8 & 9)
-  const castOrder = [0, 1, 2, 5, 8, 9, 4, 6, 3, 7, 10];
-  const kind = i < castOrder.length ? castOrder[i] : (i % 11);
+  // Cast priority: doctor (11), crazy straitjacket (12), crazy gown (13), wall charger (15), plus street stars
+  const castOrder = [11, 12, 13, 15, 0, 5, 8, 9, 1, 2, 4, 6, 12, 15, 3, 7, 10, 11];
+  const kind = i < castOrder.length ? castOrder[i] : (i % 16 === 14 ? 12 : (i % 16));
   const col = kind < 8 ? kind : kind - 8;
   const row = kind < 8 ? 0 : 1;
 
   let sx = W * (0.1 + 0.8 * rHash(i, 11, 1));
   let sy = H * (0.12 + 0.76 * rHash(i, 23, 2));
   if (FB) {
+    const maxXFrac = i < 6 ? 0.68 : 0.88;
     for (let t = 0; t < 50; t++) {
-      const tx = W * (0.06 + 0.88 * rHash(i, t * 7 + 3, 3));
+      const tx = W * (0.06 + (maxXFrac - 0.06) * rHash(i, t * 7 + 3, 3));
       const ty = H * (0.08 + 0.84 * rHash(i, t * 13 + 5, 4));
       if (sampleField(FB, tx, ty) > 0.06) { sx = tx; sy = ty; break; }
     }
   }
   const ang = rHash(i, 37, 5) * Math.PI * 2;
-  const speed = 26 + rHash(i, 43, 6) * 20;
+  const speed = (kind === 12 || kind === 13 ? 34 : 26) + rHash(i, 43, 6) * 20;
   return {
     id: i, kind, col, row,
     x: sx, y: sy,
@@ -701,7 +1098,10 @@ function spawnRoachMember(i, total) {
     baseSpeed: speed,
     phase: rHash(i, 59, 7) * 6.28,
     stopTimer: 0,
-    moveTimer: 2.2 + rHash(i, 67, 8) * 3.5,
+    chargeTimer: 0,
+    chargeCooldown: i < 4 ? 0.1 : 1.5,
+    targetOutlet: null,
+    moveTimer: 0.8 + rHash(i, 67, 8) * 2.2,
     facing: Math.cos(ang) >= 0 ? 1 : -1,
     size: kind === 10 ? 74 : (kind === 9 ? 94 : 90),
   };
@@ -710,6 +1110,7 @@ function spawnRoachMember(i, total) {
 function rebuildRoachProps() {
   roaches = [];
   bubbles = [];
+  roachIntroDone = false;
   const count = Math.max(0, Math.round(P.crowd == null ? 12 : P.crowd));
   for (let i = 0; i < count; i++) roaches.push(spawnRoachMember(i, count));
 
@@ -728,24 +1129,78 @@ function syncStreetProps() {
   streetProps.length = 0;
   if (!FB || (P.props || 0) <= 0.04) return;
 
-  // Place warm streetlamps & sidewalk props on open street points (s > 0.14)
-  const targetProps = Math.round(5 + 11 * (P.props || 0.9));
-  const minDist = 140;
+  const isTooClose = (px, py, minD) => {
+    for (const p of streetProps) {
+      if (Math.hypot(p.x - px, p.y - py) < minD) return true;
+    }
+    return false;
+  };
+
+  // 1. Hospital beds (2-3 stationary clinic beds with lying "LÜLÜLÜLÜ!" patients)
+  const targetBeds = (P.props || 0.9) > 0.55 ? 3 : 2;
+  let placedBeds = 0;
+  for (let attempt = 0; attempt < 220 && placedBeds < targetBeds; attempt++) {
+    const px = W * (0.14 + 0.72 * rHash(attempt, 401, 21));
+    const py = H * (0.18 + 0.64 * rHash(attempt, 503, 22));
+    if (sampleField(FB, px, py) < 0.16) continue;
+    if (isTooClose(px, py, 200)) continue;
+    streetProps.push({
+      type: 'bed',
+      x: px, y: py, col: 6, row: 1,
+      size: 110,
+      phase: rHash(attempt, 607, 23) * 6.28,
+      shoutTimer: 0.15 + placedBeds * 0.75,
+      born: performance.now(),
+    });
+    placedBeds++;
+  }
+
+  // 2. Wall power outlets along icon island walls (first) + screen border walls (fallback)
+  const targetOutlets = 3;
+  let placedOutlets = 0;
+  for (let attempt = 0; attempt < 320 && placedOutlets < targetOutlets; attempt++) {
+    const px = W * (0.06 + 0.88 * rHash(attempt, 701, 31));
+    const py = H * (0.09 + 0.80 * rHash(attempt, 809, 32));
+    const s = sampleField(FB, px, py);
+    if (s < 0.025 || s > 0.12) continue;
+    if (isTooClose(px, py, 160)) continue;
+    streetProps.push({
+      type: 'outlet',
+      x: px, y: py, col: 6, row: 2,
+      size: 48,
+      phase: rHash(attempt, 907, 33) * 6.28,
+      born: performance.now(),
+    });
+    placedOutlets++;
+  }
+  const wallAnchors = [
+    [54, H * 0.34], [W - 54, H * 0.42], [54, H * 0.68], [W - 54, H * 0.72],
+  ];
+  for (const [wx, wy] of wallAnchors) {
+    if (placedOutlets >= targetOutlets) break;
+    if (sampleField(FB, wx, wy) < 0.04 || isTooClose(wx, wy, 120)) continue;
+    streetProps.push({
+      type: 'outlet',
+      x: wx, y: wy, col: 6, row: 2,
+      size: 48,
+      phase: placedOutlets * 1.7,
+      born: performance.now(),
+    });
+    placedOutlets++;
+  }
+
+  // 3. Streetlamps, juice boxes & Turkish tea glasses on open cobblestone spots
+  const targetProps = Math.round(5 + 10 * (P.props || 0.9)) + placedBeds + placedOutlets;
   for (let attempt = 0; attempt < 260 && streetProps.length < targetProps; attempt++) {
     const px = W * (0.05 + 0.90 * rHash(attempt, 101, 11));
     const py = H * (0.07 + 0.84 * rHash(attempt, 211, 12));
-    const s = sampleField(FB, px, py);
-    if (s < 0.14 || s > 0.95) continue;
-    let close = false;
-    for (const p of streetProps) {
-      if (Math.hypot(p.x - px, p.y - py) < minDist) { close = true; break; }
-    }
-    if (close) continue;
+    if (sampleField(FB, px, py) < 0.14) continue;
+    if (isTooClose(px, py, 135)) continue;
 
     const r = rHash(attempt, 307, 13);
-    // Col 0 = streetlamp (most common), Col 1 = juice box, Col 2 = tea glass
     const col = r < 0.56 ? 0 : (r < 0.82 ? 1 : 2);
     streetProps.push({
+      type: 'prop',
       x: px, y: py, col, row: 2,
       size: col === 0 ? 112 : 42,
       phase: r * 6.28,
@@ -764,41 +1219,137 @@ function syncRoachProps() {
   }
 }
 
+function rPushBubble(x, y, col, row, dur) {
+  if (bubbles.length >= 22) return;
+  bubbles.push({ x, y, age: 0, dur: dur || 1.7, col, row: row == null ? 2 : row });
+}
+
 function stepRoachProps(dt, timeSec) {
   if (!FB) return;
   const spdMul = Math.max(0.15, P.speed == null ? 1.0 : P.speed);
 
   let him = null, her = null;
+  const outlets = [];
+  const beds = [];
+  const crazies = [];
+  for (const p of streetProps) {
+    if (p.type === 'outlet') outlets.push(p);
+    else if (p.type === 'bed') beds.push(p);
+  }
   for (const r of roaches) {
     if (r.kind === 8) him = r;
     if (r.kind === 9) her = r;
+    if (r.kind === 12 || r.kind === 13) crazies.push(r);
+  }
+
+  // Opening clinic tableau once outlets & beds exist: charger plugged in + live speech bubbles
+  if (!roachIntroDone && roaches.length && (outlets.length || beds.length)) {
+    roachIntroDone = true;
+    const charger = roaches.find(r => r.kind === 15);
+    if (charger && outlets.length) {
+      const o = outlets[Math.min(1, outlets.length - 1)];
+      charger.x = o.x + 22;
+      charger.y = o.y + 8;
+      charger.targetOutlet = o;
+      charger.chargeTimer = 3.2;
+      rPushBubble(charger.x, charger.y - charger.size * 0.56, 3, 3, 2.4);
+    }
+    const doc = roaches.find(r => r.kind === 11);
+    if (doc) rPushBubble(doc.x, doc.y - doc.size * 0.54, 2, 3, 2.6);
+    for (const b of beds) rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.6);
+    for (const c of crazies) rPushBubble(c.x, c.y - c.size * 0.54, 1, 3, 2.6);
+  }
+
+  // Stationary bed patients shout "LÜLÜLÜLÜ!" periodically
+  for (const b of beds) {
+    b.shoutTimer -= dt * spdMul;
+    if (b.shoutTimer <= 0) {
+      b.shoutTimer = 2.6 + Math.random() * 2.0;
+      rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.3);
+    }
   }
 
   for (const r of roaches) {
-    // Pause & pose/sip near sidewalk or dance
+    if (r.chargeCooldown > 0) r.chargeCooldown -= dt;
+
+    // Wall-outlet self-charging behavior for kind 15
+    if (r.kind === 15 && r.chargeTimer > 0) {
+      r.chargeTimer -= dt;
+      if (Math.random() < dt * 1.1) {
+        rPushBubble(r.x, r.y - r.size * 0.54, 3, 3, 1.9);
+      }
+      if (r.chargeTimer <= 0) {
+        r.chargeCooldown = 3.5 + Math.random() * 2.5;
+        r.targetOutlet = null;
+        r.moveTimer = 2.0;
+      }
+      continue;
+    }
+
     if (r.stopTimer > 0) {
       r.stopTimer -= dt;
       continue;
     }
 
+    // Charging roach steers toward nearest wall outlet when ready
+    if (r.kind === 15 && r.chargeCooldown <= 0 && outlets.length) {
+      if (!r.targetOutlet) {
+        let best = outlets[0], bestD = 1e9;
+        for (const o of outlets) {
+          const d = Math.hypot(o.x - r.x, o.y - r.y);
+          if (d < bestD) { bestD = d; best = o; }
+        }
+        r.targetOutlet = best;
+      }
+      const tx = r.targetOutlet.x + 22, ty = r.targetOutlet.y + 8;
+      const dx = tx - r.x, dy = ty - r.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 28) {
+        r.chargeTimer = 3.6 + Math.random() * 2.0;
+        rPushBubble(r.x, r.y - r.size * 0.54, 3, 3, 2.1);
+        continue;
+      }
+      r.vx += (dx / dist) * 150 * dt;
+      r.vy += (dy / dist) * 150 * dt;
+    }
+
+    // Doctor (kind 11) walks rounds to beds or crazy patients and says "DUKTUR DUKTUR!"
+    if (r.kind === 11 && r.moveTimer < 0.8) {
+      const target = beds.length && (!crazies.length || Math.random() < 0.55)
+        ? beds[r.id % beds.length]
+        : (crazies.length ? crazies[r.id % crazies.length] : null);
+      if (target) {
+        const dx = target.x - r.x, dy = target.y - r.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 38 && dist < 420) {
+          r.vx += (dx / dist) * 65 * dt;
+          r.vy += (dy / dist) * 65 * dt;
+        }
+      }
+    }
+
     r.moveTimer -= dt;
     if (r.moveTimer <= 0) {
-      // Diva (5), Juice guy (0), Student (1) love pausing to emote
-      if (Math.random() < 0.45) {
-        r.stopTimer = 1.4 + Math.random() * 2.2;
-        r.moveTimer = 2.6 + Math.random() * 3.8;
-        if (Math.random() < 0.65 && bubbles.length < 18) {
+      if (Math.random() < 0.52) {
+        r.stopTimer = (r.kind === 12 || r.kind === 13) ? (1.1 + Math.random() * 1.4) : (1.5 + Math.random() * 2.1);
+        r.moveTimer = 2.2 + Math.random() * 3.4;
+        if (r.kind === 11) {
+          rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.0);
+        } else if (r.kind === 12 || r.kind === 13) {
+          const textCol = Math.random() < 0.72 ? 1 : 2; // mostly "LÜLÜLÜLÜ!", sometimes "DUKTUR DUKTUR!"
+          rPushBubble(r.x, r.y - r.size * 0.54, textCol, 3, 2.0);
+        } else if (Math.random() < 0.65) {
           const sym = r.kind === 5 ? 4 : (r.kind === 9 || r.kind === 8 ? 3 : 5);
-          bubbles.push({ x: r.x, y: r.y - r.size * 0.48, age: 0, dur: 1.5, col: sym });
+          rPushBubble(r.x, r.y - r.size * 0.48, sym, 2, 1.5);
         }
         continue;
       } else {
-        const turn = (Math.random() - 0.5) * 1.4;
+        const turn = (Math.random() - 0.5) * ((r.kind === 12 || r.kind === 13) ? 2.4 : 1.4);
         const c = Math.cos(turn), s = Math.sin(turn);
         const nvx = r.vx * c - r.vy * s;
         const nvy = r.vx * s + r.vy * c;
         r.vx = nvx; r.vy = nvy;
-        r.moveTimer = 2.2 + Math.random() * 3.2;
+        r.moveTimer = 2.0 + Math.random() * 3.0;
       }
     }
 
@@ -843,19 +1394,25 @@ function stepRoachProps(dt, timeSec) {
     r.x = nx; r.y = ny;
   }
 
-  // Ambient celebratory bubbles for Diva & Couple
+  // Ambient speech & reaction bubbles
   bubbleTimer += dt * spdMul;
-  if (bubbleTimer > 1.3 && roaches.length) {
+  if (bubbleTimer > 0.72 && roaches.length) {
     bubbleTimer = 0;
     const star = roaches[Math.floor(Math.random() * roaches.length)];
-    if (bubbles.length < 18) {
+    if (star.kind === 11) {
+      rPushBubble(star.x, star.y - star.size * 0.52, 2, 3, 2.3);
+    } else if (star.kind === 12 || star.kind === 13) {
+      rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.72 ? 1 : 2, 3, 2.3);
+    } else if (star.kind === 15 && star.chargeTimer > 0) {
+      rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.0);
+    } else {
       const col = (star.kind === 8 || star.kind === 9) ? 3 : (star.kind === 5 ? 4 : 5);
-      bubbles.push({ x: star.x + (Math.random() - 0.5) * 14, y: star.y - star.size * 0.45, age: 0, dur: 1.4, col });
+      rPushBubble(star.x + (Math.random() - 0.5) * 14, star.y - star.size * 0.45, col, 2, 1.5);
     }
   }
   for (let i = bubbles.length - 1; i >= 0; i--) {
     bubbles[i].age += dt;
-    bubbles[i].y -= 20 * dt;
+    bubbles[i].y -= 18 * dt;
     if (bubbles[i].age >= bubbles[i].dur) bubbles.splice(i, 1);
   }
 }
@@ -863,28 +1420,54 @@ function stepRoachProps(dt, timeSec) {
 function drawRoachProps(timeSec) {
   initRoachProps();
   const items = [];
+  const zaps = [];
   const spdMul = Math.max(0.15, P.speed == null ? 1.0 : P.speed);
 
-  // Build unified Y-sorted draw queue (props + roaches)
+  // Build unified Y-sorted draw queue (props, beds, outlets + roaches)
   const actors = [];
   if ((P.props || 0) > 0.04) {
     for (const p of streetProps) {
-      const sway = p.col === 0 ? 0 : Math.sin(timeSec * 1.4 + p.phase) * 0.04;
-      actors.push({ sortY: p.y + p.size * 0.28, x: p.x, y: p.y, size: p.size, rot: sway, col: p.col, row: p.row, alpha: 0.96, shadowSize: p.col === 0 ? 54 : 26, shadowOffY: p.col === 0 ? 44 : 16 });
+      let sway = 0, bounceY = 0;
+      if (p.type === 'bed') {
+        // Hospital bed wiggles when shouting "LÜLÜLÜLÜ!"
+        sway = Math.sin(timeSec * 8.5 + p.phase) * 0.035;
+        bounceY = Math.abs(Math.sin(timeSec * 6.0 + p.phase)) * 2.2;
+      } else if (p.type === 'prop' && p.col !== 0) {
+        sway = Math.sin(timeSec * 1.4 + p.phase) * 0.04;
+      }
+      actors.push({
+        sortY: p.y + p.size * 0.28,
+        x: p.x,
+        y: p.y - bounceY,
+        size: p.size,
+        rot: sway,
+        col: p.col,
+        row: p.row,
+        alpha: 0.98,
+        shadowSize: p.type === 'bed' ? 92 : (p.col === 0 && p.type === 'prop' ? 54 : 30),
+        shadowOffY: p.type === 'bed' ? 28 + bounceY : (p.col === 0 && p.type === 'prop' ? 44 : 18),
+      });
     }
   }
 
   for (const r of roaches) {
-    const moving = r.stopTimer <= 0;
-    const bounce = moving
-      ? Math.abs(Math.sin(timeSec * (5.5 * spdMul) + r.phase)) * 4.5
-      : Math.sin(timeSec * 2.8 + r.phase) * 1.5;
-    const tilt = moving
-      ? Math.sin(timeSec * (5.5 * spdMul) + r.phase) * 0.09
-      : (r.kind === 5 ? Math.sin(timeSec * 4.0 + r.phase) * 0.14 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
+    const charging = r.kind === 15 && r.chargeTimer > 0;
+    const crazy = r.kind === 12 || r.kind === 13;
+    const moving = r.stopTimer <= 0 && !charging;
+    const jitterX = charging ? Math.sin(timeSec * 48 + r.phase) * 2.2 : 0;
+    const bounce = charging
+      ? Math.abs(Math.sin(timeSec * 28 + r.phase)) * 3.0
+      : moving
+        ? Math.abs(Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase)) * (crazy ? 6.5 : 4.5)
+        : Math.sin(timeSec * 2.8 + r.phase) * (crazy ? 3.0 : 1.5);
+    const tilt = charging
+      ? Math.sin(timeSec * 42 + r.phase) * 0.14
+      : moving
+        ? Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase) * (crazy ? 0.17 : 0.09)
+        : (r.kind === 5 || crazy ? Math.sin(timeSec * 4.5 + r.phase) * 0.16 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
     actors.push({
       sortY: r.y + r.size * 0.34,
-      x: r.x,
+      x: r.x + jitterX,
       y: r.y - bounce,
       size: r.size,
       rot: tilt,
@@ -894,6 +1477,16 @@ function drawRoachProps(timeSec) {
       shadowSize: r.size * 0.72,
       shadowOffY: r.size * 0.35 + bounce,
     });
+
+    if (charging && r.targetOutlet) {
+      zaps.push({
+        x: (r.x + r.targetOutlet.x) * 0.5,
+        y: (r.y + r.targetOutlet.y) * 0.5 - 6,
+        size: 46 + Math.sin(timeSec * 36) * 8,
+        rot: timeSec * 7.0 + r.phase,
+        alpha: 0.72 + 0.26 * Math.sin(timeSec * 40),
+      });
+    }
   }
 
   actors.sort((a, b) => a.sortY - b.sortY);
@@ -906,18 +1499,24 @@ function drawRoachProps(timeSec) {
     items.push({ x: a.x, y: a.y, size: a.size, rot: a.rot, col: a.col, row: a.row, alpha: a.alpha });
   }
 
-  // Reaction bubbles on top
+  // Electric discharge flashes between outlet and charging roach
+  for (const z of zaps) {
+    items.push({ x: z.x, y: z.y, size: z.size, rot: z.rot, col: 7, row: 2, alpha: z.alpha });
+  }
+
+  // Reaction & Turkish speech bubbles on top
   for (const b of bubbles) {
     const t = b.age / b.dur;
     const pop = Math.min(1, t * 4);
+    const isText = b.row === 3;
     items.push({
-      x: b.x + Math.sin(t * 6) * 5,
+      x: b.x + Math.sin(t * 6) * (isText ? 2.5 : 5),
       y: b.y,
-      size: 26 * (0.7 + 0.35 * pop),
-      rot: Math.sin(t * 5) * 0.12,
+      size: (isText ? 96 : 26) * (0.74 + 0.30 * pop),
+      rot: Math.sin(t * 5) * (isText ? 0.04 : 0.12),
       col: b.col,
-      row: 2,
-      alpha: t < 0.7 ? 0.95 : (1 - t) / 0.3,
+      row: b.row == null ? 2 : b.row,
+      alpha: t < 0.72 ? 0.98 : (1 - t) / 0.28,
     });
   }
 
