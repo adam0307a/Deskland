@@ -175,6 +175,112 @@
       ]
     },
     {
+      "id": "aurora",
+      "adaptive": true,
+      "name": "极光冰湖",
+      "desc": "深蓝冰湖倒映流动的翠绿极光，图标落在暮色雪岛上，雪松与暖灯笼相伴",
+      "page": "aurora.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(circle at 27% 46%, rgba(255, 200, 108, 0.72) 0, rgba(255, 180, 76, 0.16) 7%, transparent 15%), radial-gradient(ellipse 26% 22% at 32% 48%, #3c5276 0, #314463 72%, #8bd6ea 76%, transparent 80%), radial-gradient(ellipse 68% 22% at 68% 36%, rgba(52, 235, 168, 0.56) 0, rgba(35, 198, 214, 0.25) 48%, transparent 78%), radial-gradient(ellipse 52% 20% at 62% 72%, rgba(148, 96, 238, 0.42) 0, transparent 76%), linear-gradient(155deg, #071224 0%, #0d263b 52%, #13384f 100%)",
+      "groups": [
+        {
+          "name": "雪岸",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "雪地范围",
+              "hint": "雪地小岛从图标向外延伸多远",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 82,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "岸线曲折",
+              "hint": "雪岸轮廓弯弯曲曲的程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 32
+            }
+          ]
+        },
+        {
+          "name": "极光与冰面",
+          "params": [
+            {
+              "key": "shoal",
+              "label": "浅冰边缘",
+              "hint": "冰岸外围浅蓝冰层的宽度",
+              "min": 0,
+              "max": 240,
+              "step": 1,
+              "default": 90,
+              "unit": "px"
+            },
+            {
+              "key": "aurora",
+              "label": "极光亮度",
+              "hint": "冰面上流动的极光倒影有多明亮",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            },
+            {
+              "key": "flow",
+              "label": "流动速度",
+              "hint": "极光飘动和飘雪的速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "景物",
+          "params": [
+            {
+              "key": "pines",
+              "label": "雪松数量",
+              "hint": "雪地小岛上覆雪的松树数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 12,
+              "step": 1,
+              "default": 6,
+              "unit": "棵"
+            },
+            {
+              "key": "lanterns",
+              "label": "暖灯笼",
+              "hint": "雪岸边点亮的暖色灯笼",
+              "min": 0,
+              "max": 6,
+              "step": 1,
+              "default": 2,
+              "unit": "盏"
+            },
+            {
+              "key": "snow",
+              "label": "飘雪密度",
+              "hint": "夜空中缓缓飘落的雪花多少",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.45,
+              "format": "percent"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",

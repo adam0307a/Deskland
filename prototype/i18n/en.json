@@ -547,6 +547,51 @@
           "unit": ""
         }
       }
+    },
+    "aurora": {
+      "name": "Aurora Lake",
+      "desc": "A midnight frozen lake reflects ribbons of aurora while your icons rest on twilight snowy islands with pines and warm lanterns",
+      "groups": [
+        "Snowy shore",
+        "Aurora & ice",
+        "Details"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Snow clearing",
+          "hint": "How far the snowy islands extend around your icons"
+        },
+        "warp": {
+          "label": "Winding shore",
+          "hint": "How much the snowy shoreline twists and turns"
+        },
+        "shoal": {
+          "label": "Icy edge",
+          "hint": "How wide the pale icy border glows around the shore"
+        },
+        "aurora": {
+          "label": "Aurora glow",
+          "hint": "How bright the northern lights shimmer across the frozen lake"
+        },
+        "flow": {
+          "label": "Drift speed",
+          "hint": "How fast the aurora ribbons and snowfall drift"
+        },
+        "pines": {
+          "label": "Snowy pines",
+          "hint": "Snow-dusted pines resting on the islands; set to 0 to hide",
+          "unit": ""
+        },
+        "lanterns": {
+          "label": "Warm lanterns",
+          "hint": "Warm glowing lanterns placed along the snowy shore",
+          "unit": ""
+        },
+        "snow": {
+          "label": "Snowfall",
+          "hint": "How densely gentle snowflakes drift across the scene"
+        }
+      }
     }
   }
 }

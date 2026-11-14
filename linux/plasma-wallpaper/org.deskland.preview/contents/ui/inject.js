@@ -82,6 +82,7 @@
   var THEME_PAGES = {
     beach: 'flat.html',
     meadow: 'meadow.html',
+    aurora: 'aurora.html',
   };
 
   function pollSettings() {
