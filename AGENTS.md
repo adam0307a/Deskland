@@ -21,7 +21,7 @@ This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and include
 | Path | Purpose |
 | --- | --- |
 | `prototype/` | Shared HTML/JS/CSS wallpaper themes, settings UI, i18n JSONs, assets, thumbnails |
-| `prototype/themes.json` | Canonical theme registry (`meadow`, `beach`, `aurora`, `glade`, `rift`, `strike`, `pocket`, `roach`, `rosebrook`, `polarnight`) |
+| `prototype/themes.json` | Canonical theme registry (`meadow`, `beach`, `aurora`, `glade`, `rift`, `strike`, `pocket`, `roach`, `rosebrook`, `polarnight`, `desert`) |
 | `prototype/settings.html` | Settings window UI (theme grid, live preview iframe, controls, import button & `?` guide modal, snapshot/video share) |
 | `prototype/share.js` | Shared privacy-safe snapshot/video capture helpers (sample icons & color blocks, never real user filenames) |
 | `prototype/i18n/` | UI & theme localization dictionaries (`en.json`, `zh-CN.json` only) |
@@ -55,7 +55,7 @@ This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and include
 ## 3. Themes & Prototype Rules
 
 ### Built-in Themes (`prototype/themes.json`)
-All 10 built-in themes in this fork have `status: "ready"` and full source code (no locked placeholder themes):
+All 11 built-in themes in this fork have `status: "ready"` and full source code (no locked placeholder themes):
 - **`meadow`** (`meadow.html`, adaptive): Ink-and-wash meadow, icon-hugging clouds & shadows, animated kite boy and black cat.
 - **`beach`** (`flat.html`, non-adaptive coastline around icons): Animated shoreline, waves, kayaks, seabirds, and coconut palms.
 - **`aurora`** (`aurora.html`, adaptive): Top-down frozen fjord, ice shimmer, glowing aurora reflection, pine islands & lanterns (`aurora-pines.js`).
@@ -66,6 +66,7 @@ All 10 built-in themes in this fork have `status: "ready"` and full source code 
 - **`roach`** (`roach.html`, adaptive): Reactive crawling roach world (`roach-props.js`) with optional audio (`prototype/assets/roach-default.mp3`) — keeps default audio **paused (`audioPlay: 0`)** until the user explicitly presses Play.
 - **`rosebrook`** (`rosebrook.html`, adaptive): Blooming flowers/roses around icons over lush green grass & brook (`rosebrook-blooms.js`).
 - **`polarnight`** (`polarnight.html`, adaptive): Side-view polar night lake horizon, triple aurora ribbons, shooting stars, snow forest clearing around icons, and warm shore cabin with smoke.
+- **`desert`** (`desert.html`, adaptive): Overhead Sahara desert dunes with raised sunlit sand hills beneath dropped icons, turquoise date-palm oases, Bedouin tents, walking camel caravans, and robed Arab travelers (`desert-props.js`).
 
 ### Localization & Consistency
 - **Supported UI languages**: **Simplified Chinese (`zh-CN`) and English (`en`) ONLY**. Do not add extra languages.

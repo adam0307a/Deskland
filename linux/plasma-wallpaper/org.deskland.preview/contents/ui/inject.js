@@ -92,6 +92,7 @@
     roach: 'roach.html',
     rosebrook: 'rosebrook.html',
     polarnight: 'polarnight.html',
+    desert: 'desert.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';

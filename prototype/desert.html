@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deskland · 沙漠绿洲（原型）</title>
+<!--
+  Deskland · 沙漠绿洲主题（Desert Oasis；俯视；WebGL2 2D + Canvas2D 图集）
+  画风：俯瞰金色撒哈拉沙海，微风吹拂的沙纹与翡翠绿洲湖泊交错。
+  - 图标所在与落下的位置化作温暖隆起的金色沙丘（Sand Dunes），受光面明亮、背阴面呈琥珀阴影。
+  - 低洼盆地嵌着清澈的绿洲泉湖、成排椰枣棕榈与贝都因帐篷。
+  - 戴着头巾的阿拉伯旅人与单峰骆驼队沿着绿洲间的沙脊穿行，并在松软沙地上留下细腻足迹。
+-->
+<style>
+  :root { --taskbar: 48px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #c58a48; }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #desktop { position: fixed; left: 0; top: 0; right: 0; bottom: var(--taskbar); }
+
+  .icon {
+    position: absolute; width: 76px; padding: 4px 2px 5px;
+    display: flex; flex-direction: column; align-items: center;
+    border: 1px solid transparent; border-radius: 4px;
+    user-select: none; touch-action: none; cursor: default;
+  }
+  .icon:hover { background: rgba(255,255,255,.16); border-color: rgba(255,244,218,.4); }
+  .icon.sel { background: rgba(196,120,38,.30); border-color: rgba(255,232,184,.85); }
+  .icon.drag { opacity: .88; z-index: 10; transform: scale(1.04); }
+  .icon.settle { transition: left .22s cubic-bezier(.2,.8,.3,1), top .22s cubic-bezier(.2,.8,.3,1); }
+  .icon.born { animation: born .45s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes born { from { opacity: 0; transform: scale(.6); } }
+  .glyph { width: 48px; height: 48px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.3)) drop-shadow(3px 6px 6px rgba(96,54,16,.38)); pointer-events: none; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .label {
+    margin-top: 3px; max-width: 72px; font-size: 12px; line-height: 15px; color: #fff; text-align: center;
+    text-shadow: 0 0 2px rgba(62,32,6,.95), 0 1px 3px rgba(56,28,6,.9);
+    word-break: break-all; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    pointer-events: none;
+  }
+
+  #taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--taskbar);
+    background: rgba(42,26,14,.68); backdrop-filter: blur(28px) saturate(1.4); -webkit-backdrop-filter: blur(28px) saturate(1.4);
+    border-top: 1px solid rgba(255,235,198,.14);
+    display: flex; align-items: center; justify-content: center; z-index: 40;
+  }
+  #taskbar .apps { display: flex; gap: 4px; }
+  #taskbar .app { width: 40px; height: 40px; border-radius: 4px; display: grid; place-items: center; }
+  #taskbar .app:hover { background: rgba(255,255,255,.08); }
+  #taskbar .app svg { width: 24px; height: 24px; }
+  #clock { position: absolute; right: 14px; color: #fff; font-size: 12px; line-height: 16px; text-align: right; }
+
+  #panel {
+    position: fixed; top: 14px; right: 14px; width: 284px; max-height: calc(100vh - var(--taskbar) - 28px); overflow: auto;
+    background: rgba(48,29,14,.84); backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    color: #fdf4e3; border: 1px solid rgba(255,222,164,.24); border-radius: 12px;
+    font-size: 12px; line-height: 1.4; box-shadow: 0 12px 32px rgba(0,0,0,.34); z-index: 50;
+  }
+  #panel.hidden { display: none; }
+  body.wall #panel, body.wall #taskbar, body.wall #desktop { display: none; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.preview #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(255,255,255,.88); box-shadow: 3px 6px 8px rgba(88,48,12,.32); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.76); }
+  #panel header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+  #panel header b { font-size: 14px; letter-spacing: .06em; color: #ffd996; }
+  #panel header span { margin-left: 8px; opacity: .6; }
+  #panel.collapsed .body { display: none; }
+  .ibtn { background: none; border: 0; color: inherit; opacity: .65; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .ibtn:hover { opacity: 1; }
+  #panel .body { padding: 0 14px 14px; }
+  .sec { margin-top: 12px; }
+  .sec > .t { opacity: .62; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(255,255,255,.06); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { background: none; border: 0; color: inherit; padding: 5px 0; border-radius: 5px; cursor: pointer; font: inherit; opacity: .75; white-space: nowrap; }
+  .seg button:hover { opacity: 1; }
+  .seg button.on { background: rgba(235,164,68,.30); opacity: 1; color: #ffebc2; }
+  .slider { margin-top: 9px; }
+  .slider .row { display: flex; justify-content: space-between; }
+  .slider .row span:last-child { opacity: .62; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: #eb9d3c; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggles input { accent-color: #eb9d3c; margin: 0; }
+  .btns { display: flex; gap: 6px; }
+  .btns button {
+    flex: 1; font: inherit; color: inherit; cursor: pointer; padding: 7px 0; border-radius: 7px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,222,164,.22);
+  }
+  .btns button:hover { background: rgba(235,164,68,.22); }
+  #stats { margin-top: 12px; padding: 8px 10px; border-radius: 7px; background: rgba(0,0,0,.26); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; line-height: 1.6; color: #f5e2c1; }
+  #stats .live { color: #ffcb77; }
+  .hint { margin-top: 10px; opacity: .55; font-size: 11px; line-height: 1.6; }
+  #nogl { position: fixed; inset: 0; display: none; place-items: center; color: #fff; font-size: 16px; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="desktop"></div>
+
+<div id="taskbar">
+  <div class="apps">
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="2" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#fff" stroke-width="2"/><path d="M15 15l5 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v1H2z" fill="#e09b1d"/><path d="M2 9h20v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#ffc83d"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1b8fd6"/><path d="M6 13c1-5 11-6 12 0-3-2-8-2-9 2 0 2 2 3 4 3-4 1-7-1-7-5z" fill="#6fe37a" opacity=".9"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2.5" fill="#2b2b2b" stroke="#777"/><path d="M6 9l3 3-3 3M11 15h6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+  </div>
+  <div id="clock"></div>
+</div>
+
+<aside id="panel">
+  <header>
+    <div><b>沙漠绿洲</b><span>Desert Oasis</span></div>
+    <div><button class="ibtn" id="collapse" title="折叠">–</button></div>
+  </header>
+  <div class="body">
+    <div class="sec">
+      <div class="t">图标布局（可拖动、删增）</div>
+      <div class="seg" id="layouts">
+        <button data-k="mine" class="on">常规</button>
+        <button data-k="cluster">两簇</button>
+        <button data-k="frame">贴边</button>
+        <button data-k="sparse">稀疏</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="t">沙丘与图标</div>
+      <div class="slider"><div class="row"><span>沙丘范围</span><span id="vSigma"></span></div><input id="sigma" type="range" min="40" max="200" step="1"></div>
+      <div class="slider"><div class="row"><span>风纹起伏</span><span id="vWarp"></span></div><input id="warp" type="range" min="0" max="80" step="1"></div>
+    </div>
+    <div class="sec">
+      <div class="t">绿洲与光影</div>
+      <div class="slider"><div class="row"><span>绿洲数量</span><span id="vOases"></span></div><input id="oases" type="range" min="0" max="4" step="1"></div>
+      <div class="slider"><div class="row"><span>日照暖度</span><span id="vWarmth"></span></div><input id="warmth" type="range" min="0" max="1" step="0.01"></div>
+      <div class="slider"><div class="row"><span>风沙与驼速</span><span id="vWind"></span></div><input id="wind" type="range" min="0" max="2.5" step="0.05"></div>
+    </div>
+    <div class="sec">
+      <div class="t">驼队与旅人</div>
+      <div class="slider"><div class="row"><span>骆驼数量</span><span id="vCamels"></span></div><input id="camels" type="range" min="0" max="12" step="1"></div>
+      <div class="slider"><div class="row"><span>绿洲椰枣树</span><span id="vPalms"></span></div><input id="palms" type="range" min="0" max="18" step="1"></div>
+      <div class="toggles" style="margin-top:8px">
+        <label><input type="checkbox" id="travelers">阿拉伯旅人</label>
+        <label><input type="checkbox" id="adaptive">自适应沙丘</label>
+        <label><input type="checkbox" id="debug">沙丘轮廓</label>
+      </div>
+    </div>
+    <div class="sec btns">
+      <button id="add">＋ 放一个图标</button>
+      <button id="reseed">换一片沙海</button>
+    </div>
+    <div id="stats"></div>
+    <div class="hint">
+      · 图标所处的位置会隆起温暖的沙丘<br>
+      · 点击绿洲或沙地激起波纹与风沙 · <kbd>H</kbd> 隐藏面板
+    </div>
+  </div>
+</aside>
+
+<div id="nogl">需要支持 WebGL 2 的浏览器 / WebView</div>
+<script src="desert-props.js"></script>
+<script>
+const QS = new URLSearchParams(location.search);
+const WALL = QS.get('wallpaper') === '1';
+const PREVIEW = QS.get('preview') === '1';
+if (PREVIEW) document.documentElement.style.setProperty('--taskbar', '0px');
+
+const DEFAULTS = { sigma: 88, warp: 36, oases: 2, warmth: 0.78, wind: 1.0, camels: 6, travelers: 1, palms: 10, adaptive: 1 };
+const P = Object.assign({}, DEFAULTS, { debug: 0 });
+const CELL_W = 86, CELL_H = 98, GRID_X0 = 18, GRID_Y0 = 18;
+const TASKBAR = PREVIEW ? 0 : 48;
+const FIELD_STEP = 14;
+const MORPH_MS = 950;
+let seed = 73194;
+
+/* ======================================================================
+   噪声纹理 & CPU 距离场（图标 → 隆起的沙丘）
+   ====================================================================== */
+function rng32(s) { return () => ((s = s + 0x6d2b79f5 | 0, s = Math.imul(s ^ s >>> 15, 1 | s), s = s + Math.imul(s ^ s >>> 7, 61 | s) ^ s, ((s ^ s >>> 14) >>> 0) / 4294967296)); }
+function makeNoiseImage() {
+  const S = 256, N = S * S;
+  const v = [0, 1, 2].map(() => {
+    const a = new Float32Array(N), r = rng32(seed + Math.random() * 1000 | 0);
+    for (let i = 0; i < N; i++) a[i] = r();
+    return a;
+  });
+  const blur = a => {
+    const b = new Float32Array(N);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++)
+      b[y * S + x] = (a[((y - 1) & 255) * S + x] + a[y * S + ((x - 1) & 255)] + a[y * S + x] * 2 + a[y * S + ((x + 1) & 255)] + a[((y + 1) & 255) * S + x]) / 6;
+    return b;
+  };
+  for (let i = 0; i < 3; i++) v[i] = blur(v[i]);
+  const d = new Uint8Array(N * 4);
+  for (let i = 0; i < N; i++) {
+    d[i * 4] = Math.round(v[0][i] * 255);
+    d[i * 4 + 1] = Math.round(v[1][i] * 255);
+    d[i * 4 + 2] = Math.round(v[2][i] * 255);
+    d[i * 4 + 3] = 255;
+  }
+  return { S, d };
+}
+
+function hash2(ix, iy) {
+  const n = Math.sin(ix * 127.1 + iy * 311.7 + seed * 0.013) * 43758.5453;
+  return n - Math.floor(n);
+}
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy), b = hash2(ix + 1, iy), c = hash2(ix, iy + 1), d = hash2(ix + 1, iy + 1);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbmCPU(x, y) { return vnoise(x, y) * 0.65 + vnoise(x * 2.05 + 4.1, y * 2.05 - 2.7) * 0.35; }
+
+let Gw = 1, Gh = 1, Wc = 1, Hc = 1, W = 1, H = 1, sc = 1;
+const fAt = (s, x, y) => s[Math.max(0, Math.min(Gh - 1, Math.round(y / FIELD_STEP))) * Gw + Math.max(0, Math.min(Gw - 1, Math.round(x / FIELD_STEP)))];
+
+// Positive inside & on the icon sand dune mound, negative out on open desert floor
+function computeField(rects) {
+  const s = new Float32Array(Gw * Gh);
+  const K = 56, W = P.warp;
+  for (let j = 0; j < Gh; j++) {
+    const y = j * FIELD_STEP;
+    for (let i = 0; i < Gw; i++) {
+      const x = i * FIELD_STEP;
+      let sum = 0;
+      for (let m = 0; m < rects.length; m++) {
+        const b = rects[m];
+        const dx = Math.max(Math.abs(x - b.cx) - b.hw, 0);
+        const dy = Math.max(Math.abs(y - b.cy) - b.hh, 0);
+        const d = Math.hypot(dx, dy);
+        sum += Math.exp(-d / K);
+      }
+      const d = (sum > 1e-8 ? -K * Math.log(sum) : 1030) - P.sigma;
+      const warp = (fbmCPU(x / 185, y / 185) - 0.48) * W;
+      s[j * Gw + i] = -(d + warp);
+    }
+  }
+  return { s };
+}
+
+/* ======================================================================
+   WebGL2 着色器：黄金撒哈拉沙海 + 图标隆起沙丘 + 绿洲泉水 + 驼印
+   ====================================================================== */
+const VS = `#version 300 es
+void main() {
+  vec2 p = vec2((gl_VertexID & 1) * 2, (gl_VertexID >> 1) * 2) - 1.0;
+  gl_Position = vec4(p.x, -p.y, 0.0, 1.0);
+}`;
+
+const FS = `#version 300 es
+precision highp float;
+uniform vec2 uRes, uGrid;
+uniform float uTime, uScale, uMorph, uWarmth, uWind, uDebug, uSeed, uAdaptive;
+uniform int uOasesCount;
+uniform vec4 uOases[4]; // x, y, radiusX, radiusY
+uniform vec4 uPulse;    // tap ripple x, y, startTime, isWater
+uniform sampler2D uFieldA, uFieldB, uNoise;
+out vec4 o;
+
+float ss(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
+vec3 N(vec2 p, float s) { return texture(uNoise, p / (s * uScale)).rgb; }
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+float sampleField(vec2 px) {
+  vec2 uv = (px / uScale) / uGrid;
+  float a = texture(uFieldA, uv).r;
+  float b = texture(uFieldB, uv).r;
+  return mix(a, b, uMorph);
+}
+
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
+  vec2 cp = p / uScale;
+  float nA = N(p + vec2(uSeed * 3.1, uSeed * 1.7), 520.0).r;
+  float nB = N(p * 1.65 - vec2(uSeed * 2.3, 41.0), 190.0).g;
+  float nFine = N(p * 3.1, 64.0).b;
+
+  // Macro rolling Sahara dunes (SW -> NE crest orientation)
+  vec2 rotP = vec2(cp.x * 0.86 + cp.y * 0.51, -cp.x * 0.51 + cp.y * 0.86);
+  float macroWave = sin(rotP.y * 0.017 + nA * 4.4);
+  float microRipple = sin(rotP.y * 0.24 + nB * 5.2 + sin(rotP.x * 0.04) * 2.1);
+
+  // Height of icon-driven sand dune mound + wide smoothed gradient (no grid stair-stepping)
+  float fC = sampleField(p);
+  float eps = 24.0 * uScale;
+  float fL = sampleField(p - vec2(eps, 0.0));
+  float fR = sampleField(p + vec2(eps, 0.0));
+  float fU = sampleField(p - vec2(0.0, eps));
+  float fD = sampleField(p + vec2(0.0, eps));
+  vec2 grad = vec2(fR - fL, fD - fU) / (2.0 * eps);
+
+  // Icon dune elevation profile (0 on open desert -> 1 on elevated golden sand dune under icons)
+  float duneZone = ss(-110.0, -5.0, fC) * uAdaptive;
+  float duneEl = ss(-34.0, 48.0, fC) * uAdaptive;
+  float lightDot = dot(normalize(vec2(-0.72, -0.68)), grad) * 14.0 * duneZone;
+  float sunFace = lightDot / (1.0 + abs(lightDot));
+
+  // Base warm Sahara sand palette (smooth silky rolling dune bands)
+  vec3 sandDeep = vec3(0.79, 0.57, 0.31);
+  vec3 sandMid  = vec3(0.90, 0.72, 0.44);
+  vec3 sandLit  = vec3(0.97, 0.85, 0.59);
+  vec3 col = mix(sandDeep, sandMid, 0.50 + 0.42 * macroWave);
+  col = mix(col, sandLit, ss(0.28, 0.92, macroWave + (nB - 0.5) * 0.25) * 0.60);
+
+  // Crisp wind-blown sand ripples modulated along dune crests
+  float rip = 0.5 + 0.5 * microRipple;
+  col += (rip - 0.5) * mix(0.045, 0.018, duneEl * 0.75) * vec3(0.95, 0.74, 0.42);
+  col += (nFine - 0.5) * 0.018;
+
+  // Sculpted sand dune mound under icons (sunlit NW ridge, warm amber SE slope)
+  vec3 moundLit = mix(sandLit, vec3(0.99, 0.90, 0.68), 0.35);
+  vec3 moundShad = vec3(0.73, 0.50, 0.25);
+  col = mix(col, moundLit, duneEl * 0.48);
+  col = mix(col, moundLit + vec3(0.04, 0.03, 0.0), ss(0.04, 0.75, sunFace) * 0.46 * duneZone);
+  col = mix(col, moundShad, ss(-0.04, -0.78, sunFace) * 0.42 * duneZone);
+
+  // Soft sunlit dune ridge highlight around icon sand mound
+  float rim = exp(-pow(fC / 18.0, 2.0)) * duneZone;
+  col += vec3(0.11, 0.08, 0.02) * rim * (0.45 + 0.55 * clamp(sunFace + 0.5, 0.0, 1.0));
+
+  // Gentle warm contrast base under icon labels so white text stays crisp
+  float iconCore = ss(18.0, 74.0, fC) * uAdaptive;
+  col = mix(col, col * vec3(0.80, 0.72, 0.60), iconCore * 0.48);
+
+  // Ambient drifting sand haze bands across open dunes
+  float drift = sin((rotP.x - uTime * 36.0 * uWind) * 0.014 + nA * 3.0) * 0.5 + 0.5;
+  col += vec3(0.05, 0.035, 0.01) * drift * (0.35 + 0.65 * uWarmth);
+
+  // Oasis turquoise lakes nestled in low sand basins
+  for (int i = 0; i < 4; i++) {
+    if (i >= uOasesCount) break;
+    vec4 oa = uOases[i];
+    vec2 dp = (cp - oa.xy) / oa.zw;
+    float ang = atan(dp.y, dp.x);
+    float lobe = 1.0 + 0.14 * sin(ang * 3.0 + float(i) * 1.9 + uSeed) + 0.07 * cos(ang * 5.0 - float(i));
+    float dOa = length(dp) / lobe;
+
+    // Damp golden-olive shoreline & lush moss grass halo around oasis
+    float wetSand = 1.0 - ss(0.95, 1.24, dOa);
+    float greenRing = (1.0 - ss(0.88, 1.16, dOa)) * ss(0.76, 1.02, dOa);
+    vec3 shoreCol = vec3(0.62, 0.48, 0.27);
+    vec3 mossCol = vec3(0.28, 0.50, 0.25);
+    col = mix(col, shoreCol, wetSand * 0.62);
+    col = mix(col, mossCol, greenRing * 0.72 * (0.65 + 0.35 * nB));
+
+    // Turquoise-emerald oasis water with shallow sandy shelf & caustic sparkle
+    if (dOa < 1.04) {
+      float depth = clamp(1.0 - dOa, 0.0, 1.0);
+      vec3 shallowWater = vec3(0.27, 0.76, 0.72);
+      vec3 deepWater    = vec3(0.06, 0.44, 0.50);
+      vec3 wCol = mix(shallowWater, deepWater, pow(depth, 0.62));
+
+      float t = uTime * max(0.2, uWind);
+      vec2 wuv = p * vec2(0.8, 1.3) + vec2(t * 14.0, -t * 9.0);
+      float c1 = N(wuv, 88.0).r;
+      float c2 = N(wuv * 1.3 - vec2(t * 18.0, t * 7.0), 64.0).g;
+      float shimmer = pow(ss(0.55, 0.94, c1 * 0.55 + c2 * 0.45), 2.0);
+      wCol += vec3(0.55, 0.92, 0.88) * shimmer * (0.35 + 0.65 * uWarmth);
+
+      // Interactive tap ripple on oasis water
+      float dtTap = uTime - uPulse.z;
+      if (uPulse.w > 0.5 && dtTap >= 0.0 && dtTap < 2.2) {
+        float rd = length(cp - uPulse.xy);
+        float waveR = dtTap * 68.0;
+        float ring = exp(-pow((rd - waveR) / 5.5, 2.0)) * (1.0 - dtTap / 2.2);
+        wCol += vec3(0.45, 0.80, 0.80) * ring * 0.7;
+      }
+
+      float wMask = 1.0 - ss(0.92, 1.0, dOa);
+      col = mix(col, wCol, wMask);
+    }
+  }
+
+  // Sand tap shockwave ring if clicked on open sand
+  float dtSand = uTime - uPulse.z;
+  if (uPulse.w < 0.5 && dtSand >= 0.0 && dtSand < 1.5) {
+    float rd = length(cp - uPulse.xy);
+    float ring = exp(-pow((rd - dtSand * 82.0) / 7.5, 2.0)) * (1.0 - dtSand / 1.5);
+    col += vec3(0.18, 0.13, 0.04) * ring;
+  }
+
+  // Warm sunlight golden wash from upper-left + film grain
+  float sunGrad = clamp(1.0 - (p.x * 0.45 + p.y * 0.55) / (uRes.x * 0.45 + uRes.y * 0.55), 0.0, 1.0);
+  col += vec3(0.10, 0.065, 0.01) * sunGrad * uWarmth;
+  col *= 1.0 + (hash2(floor(p * (0.85 * max(uScale, 1.0)))) - 0.5) * 0.024;
+
+  if (uDebug > 0.5) col = mix(col, vec3(0.95, 0.25, 0.15), 1.0 - ss(0.0, 1.8, abs(fC)));
+  o = vec4(col, 1.0);
+}`;
+
+/* ======================================================================
+   WebGL 初始化与距离场上传
+   ====================================================================== */
+const cv = document.getElementById('art');
+const gl = cv.getContext('webgl2', { antialias: false });
+if (!gl) document.getElementById('nogl').style.display = 'grid';
+
+function program(vsSrc, fsSrc) {
+  const mk = (type, src) => {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); throw new Error('shader'); }
+    return s;
+  };
+  const p = gl.createProgram();
+  gl.attachShader(p, mk(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  const U = {};
+  const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const nm = gl.getActiveUniform(p, i).name.replace(/\[0\]$/, ''); U[nm] = gl.getUniformLocation(p, nm); }
+  return { p, U };
+}
+
+const PR = program(VS, FS);
+const bgVAO = gl.createVertexArray();
+
+let noiseTex = null;
+function buildNoiseTex() {
+  if (noiseTex) gl.deleteTexture(noiseTex);
+  const { S, d } = makeNoiseImage();
+  noiseTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, noiseTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+}
+
+const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
+function toHalf(v) {
+  f32[0] = v; const x = u32[0];
+  const sign = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 112, m = x & 0x7fffff;
+  if (e <= 0) return sign;
+  if (e >= 31) return sign | 0x7c00;
+  return sign | (e << 10) | (m >>> 13);
+}
+
+const ftex = [null, null];
+let fromI = 0, toI = 0, morphT0 = -1e9, morphDur = MORPH_MS, FA = null, FB = null;
+function allocField() {
+  for (let i = 0; i < 2; i++) {
+    if (ftex[i]) gl.deleteTexture(ftex[i]);
+    ftex[i] = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, ftex[i]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R16F, Gw, Gh, 0, gl.RED, gl.HALF_FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+}
+function uploadField(i, Fd) {
+  const d = new Uint16Array(Gw * Gh);
+  for (let k = 0; k < d.length; k++) d[k] = toHalf(Fd.s[k]);
+  gl.bindTexture(gl.TEXTURE_2D, ftex[i]);
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, Gw, Gh, gl.RED, gl.HALF_FLOAT, d);
+}
+
+const iconRects = () => icons.map(ic => ({ cx: ic.x + ic.w / 2, cy: ic.y + ic.h / 2, hw: ic.w / 2 - 4, hh: ic.h / 2 - 2 }));
+let curMix = 1;
+
+/* ======================================================================
+   绿洲、棕榈、贝都因营地、骆驼商队 & 阿拉伯旅人世界布局
+   ====================================================================== */
+let oasesList = [];
+let staticProps = []; // palms, Bedouin tents, oasis bushes, desert rocks, camp travelers
+let caravans = [];    // traveling camel trains led by an Arab guide
+let dustWisps = [];   // drifting wind sand wisps
+let tapPulse = [0, 0, -99, 0];
+
+function pickOases() {
+  const r = rng32(seed + 411);
+  const cand = [
+    { x: Wc * (0.64 + r() * 0.14), y: Hc * (0.28 + r() * 0.16), rx: 74 + r() * 24, ry: 52 + r() * 18 },
+    { x: Wc * (0.34 + r() * 0.14), y: Hc * (0.62 + r() * 0.14), rx: 66 + r() * 22, ry: 48 + r() * 16 },
+    { x: Wc * (0.76 + r() * 0.12), y: Hc * (0.68 + r() * 0.14), rx: 56 + r() * 18, ry: 42 + r() * 14 },
+    { x: Wc * (0.24 + r() * 0.12), y: Hc * (0.24 + r() * 0.14), rx: 58 + r() * 18, ry: 40 + r() * 14 },
+  ];
+  const f = FB ? FB.s : null;
+  oasesList = [];
+  for (let i = 0; i < Math.min(P.oases, cand.length); i++) {
+    const o = cand[i];
+    if (f && P.adaptive) {
+      // Gently nudge oasis away from dense icon sand dunes if needed
+      let best = o, bestVal = fAt(f, o.x, o.y);
+      for (let t = 0; t < 8 && bestVal > -18; t++) {
+        const nx = Math.max(120, Math.min(Wc - 120, o.x + (r() - 0.5) * 200));
+        const ny = Math.max(100, Math.min(Hc - 120, o.y + (r() - 0.5) * 160));
+        const fv = fAt(f, nx, ny);
+        if (fv < bestVal) { bestVal = fv; best = { ...o, x: nx, y: ny }; }
+      }
+      oasesList.push(best);
+    } else {
+      oasesList.push(o);
+    }
+  }
+}
+
+function rebuildDesertProps() {
+  pickOases();
+  staticProps = [];
+  const r = rng32(seed + 887);
+
+  // Palms, shore bushes & Bedouin camps clustered around oases
+  const count = oasesList.length;
+  if (count > 0) {
+    const totalPalms = Math.max(0, Math.round(P.palms));
+    for (let i = 0; i < totalPalms; i++) {
+      const oa = oasesList[i % count];
+      const ang = (i / Math.max(1, totalPalms / count)) * Math.PI * 2 + r() * 0.7;
+      const distMul = 1.06 + r() * 0.34;
+      const x = oa.x + Math.cos(ang) * oa.rx * distMul;
+      const y = oa.y + Math.sin(ang) * oa.ry * distMul;
+      staticProps.push({
+        x, y,
+        col: i % 3 === 0 ? 6 : 5,
+        size: (i % 3 === 0 ? 52 : 64) * (0.88 + r() * 0.25),
+        rot: r() * Math.PI * 2,
+        swayPhase: r() * 6.28,
+        swayAmt: 0.045,
+      });
+    }
+
+    // Lush oasis bushes around shore
+    for (let oi = 0; oi < count; oi++) {
+      const oa = oasesList[oi];
+      for (let b = 0; b < 5; b++) {
+        const ang = b * 1.25 + r() * 0.6;
+        staticProps.push({
+          x: oa.x + Math.cos(ang) * oa.rx * (1.02 + r() * 0.14),
+          y: oa.y + Math.sin(ang) * oa.ry * (1.02 + r() * 0.14),
+          col: 8,
+          size: 32 + r() * 14,
+          rot: r() * Math.PI * 2,
+          swayPhase: r() * 6.28,
+          swayAmt: 0.02,
+        });
+      }
+
+      // Bedouin tent + resting Arab travelers near the main oasis
+      if (P.travelers) {
+        const tx = Math.max(90, Math.min(Wc - 90, oa.x - oa.rx * 1.48));
+        const ty = Math.max(80, Math.min(Hc - 100, oa.y + oa.ry * 0.45));
+        staticProps.push({ x: tx, y: ty, col: 4, size: 92, rot: -0.25 + (oi % 2) * 0.5, swayPhase: 0, swayAmt: 0 });
+        staticProps.push({
+          x: tx + 22, y: ty + 38,
+          col: 3, size: 44,
+          rot: Math.atan2(oa.y - ty, oa.x - tx),
+          swayPhase: r() * 6.28, swayAmt: 0.03,
+        });
+      }
+    }
+  }
+
+  // Scattered sandstone outcrops across open dunes
+  for (let i = 0; i < 9; i++) {
+    const x = 70 + r() * Math.max(100, Wc - 140);
+    const y = 70 + r() * Math.max(100, Hc - 160);
+    if (FB && P.adaptive && fAt(FB.s, x, y) > -8) continue;
+    let inLake = false;
+    for (const oa of oasesList) {
+      if (Math.hypot((x - oa.x) / oa.rx, (y - oa.y) / oa.ry) < 1.35) { inLake = true; break; }
+    }
+    if (inLake) continue;
+    staticProps.push({ x, y, col: 7, size: 42 + r() * 20, rot: r() * 6.28, swayPhase: 0, swayAmt: 0 });
+  }
+
+  rebuildCaravans();
+  rebuildDust();
+}
+
+function rebuildCaravans() {
+  caravans = [];
+  const total = Math.max(0, Math.round(P.camels));
+  if (total <= 0) return;
+  const r = rng32(seed + 1303);
+  const groupCount = total >= 4 ? 2 : 1;
+  const perGroup = Math.ceil(total / groupCount);
+  let created = 0;
+  for (let g = 0; g < groupCount; g++) {
+    const startY = Hc * (g === 0 ? 0.42 : 0.74) + (r() - 0.5) * 80;
+    const baseSpeed = (16 + r() * 8) * (g === 0 ? 1 : -1);
+    const pathAmp = 34 + r() * 26;
+    const freq = 0.0045 + r() * 0.0025;
+    const phase = r() * Math.PI * 2;
+    const baseX = r() * Wc;
+    const camelsInGroup = Math.min(perGroup, total - created);
+    created += camelsInGroup;
+    caravans.push({
+      baseX, startY, baseSpeed, pathAmp, freq, phase,
+      camels: camelsInGroup,
+      hasGuide: !!P.travelers,
+    });
+  }
+}
+
+function rebuildDust() {
+  const r = rng32(seed + 2207);
+  dustWisps = [];
+  for (let i = 0; i < 42; i++) {
+    dustWisps.push({
+      x: r() * Wc,
+      y: r() * Hc,
+      spd: 42 + r() * 58,
+      size: 48 + r() * 64,
+      alpha: 0.14 + r() * 0.20,
+      phase: r() * 6.28,
+    });
+  }
+}
+
+function commit(fromEmpty = false) {
+  const nf = computeField(P.adaptive ? iconRects() : []);
+  const target = 1 - toI;
+  if (fromEmpty) { FA = computeField([]); uploadField(toI, FA); }
+  else FA = FB;
+  FB = nf;
+  uploadField(target, FB);
+  fromI = toI; toI = target;
+  morphT0 = performance.now();
+  morphDur = fromEmpty ? 1500 : MORPH_MS;
+  if (!staticProps.length && oasesList.length === 0 && P.oases > 0) rebuildDesertProps();
+}
+
+function refresh() {
+  FA = FB = computeField(P.adaptive ? iconRects() : []);
+  uploadField(toI, FB);
+  fromI = toI; morphT0 = -1e9;
+  rebuildDesertProps();
+}
+
+/* ======================================================================
+   桌面图标（DOM，仅预览/独立演示模式使用）
+   ====================================================================== */
+const desktop = document.getElementById('desktop');
+let icons = [], layoutKind = 'mine', selected = null, drag = null, extraIdx = 0, layoutCapacity = 0;
+const grid = { cols: 1, rows: 1 };
+let DW = innerWidth, DH = innerHeight - TASKBAR;
+function computeGrid() {
+  DW = innerWidth; DH = innerHeight - TASKBAR;
+  grid.cols = Math.max(1, Math.floor((DW - GRID_X0) / CELL_W));
+  grid.rows = Math.max(1, Math.floor((DH - GRID_Y0) / CELL_H));
+}
+const cellPos = (c, r) => ({ x: GRID_X0 + c * CELL_W, y: GRID_Y0 + r * CELL_H });
+
+const GLYPHS = {
+  pc: `<svg viewBox="0 0 48 48"><rect x="6" y="8" width="36" height="24" rx="2.5" fill="#1b3a5c" stroke="#8ec5fc" stroke-width="1.5"/><rect x="9" y="11" width="30" height="18" fill="#3a9bdc"/><path d="M18 35h12l2 4H16z" fill="#9fb2c7"/></svg>`,
+  bin: `<svg viewBox="0 0 48 48"><path d="M14 14h20l-2 26H16z" fill="#c8d6e5" stroke="#576574" stroke-width="1.5"/><path d="M11 12h26v3H11z" fill="#8395a7"/><path d="M20 8h8v4h-8z" fill="#576574"/></svg>`,
+  folder: `<svg viewBox="0 0 48 48"><path d="M5 13a3 3 0 0 1 3-3h10l4 4h18a3 3 0 0 1 3 3v3H5z" fill="#e59e1f"/><rect x="5" y="16" width="38" height="22" rx="3" fill="#ffd25a"/></svg>`,
+  doc: `<svg viewBox="0 0 48 48"><path d="M11 6h18l8 8v28H11z" fill="#fff" stroke="#90a4ae" stroke-width="1.4"/><path d="M29 6v8h8" fill="#cfd8dc"/><path d="M16 22h16M16 28h16M16 34h10" stroke="#64b5f6" stroke-width="2" stroke-linecap="round"/></svg>`,
+  photo: `<svg viewBox="0 0 48 48"><rect x="6" y="10" width="36" height="28" rx="3" fill="#ffeaa7" stroke="#b07d2b" stroke-width="1.4"/><circle cx="17" cy="20" r="3.5" fill="#e17055"/><path d="M8 34l9-9 7 7 6-5 10 7z" fill="#2d98da"/></svg>`,
+  note: `<svg viewBox="0 0 48 48"><rect x="10" y="7" width="28" height="34" rx="2.5" fill="#fff8c6" stroke="#d4b44a" stroke-width="1.4"/><path d="M15 17h18M15 23h18M15 29h12" stroke="#8d7932" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  code: `<svg viewBox="0 0 48 48"><rect x="7" y="9" width="34" height="30" rx="3.5" fill="#1e272e" stroke="#485460" stroke-width="1.4"/><path d="M17 19l-5 5 5 5M31 19l5 5-5 5M26 17l-4 14" stroke="#00d8d6" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  music: `<svg viewBox="0 0 48 48"><rect x="8" y="8" width="32" height="32" rx="8" fill="#e06636"/><path d="M21 31V17l13-3v14" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="18" cy="31" r="3.5" fill="#fff"/><circle cx="31" cy="28" r="3.5" fill="#fff"/></svg>`,
+};
+const EXTRA_POOL = [
+  ['沙漠手记', 'note'], ['绿洲摄影', 'photo'], ['丝路航图', 'code'],
+  ['行程安排', 'doc'], ['资料归档', 'folder'], ['骆驼铃音', 'music'],
+];
+const SAMPLE = [
+  ['此电脑', 'pc', 0, 0], ['回收站', 'bin', 0, 1], ['项目文档', 'folder', 0, 2],
+  ['撒哈拉游记', 'photo', 0, 3], ['沙丘地形.md', 'note', 0, 4],
+  ['沙漠绿洲', 'folder', 1, 0], ['骆驼商队', 'doc', 1, 1], ['旅行清单', 'doc', 1, 2],
+  ['绿洲坐标', 'code', 1, 3], ['阿拉伯民谣', 'music', 1, 4],
+];
+
+function mkIcon(name, kind, x, y, born = false) {
+  const el = document.createElement('div');
+  el.className = 'icon' + (born ? ' born' : '');
+  el.innerHTML = `<div class="glyph">${GLYPHS[kind] || GLYPHS.doc}</div><div class="label">${name}</div>`;
+  const ic = { el, x, y, w: 76, h: 86, col: 0, row: 0 };
+  setPos(ic, x, y); desktop.appendChild(el);
+  el.addEventListener('pointerdown', e => {
+    e.stopPropagation(); select(ic); el.setPointerCapture(e.pointerId);
+    drag = { ic, id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: ic.x, oy: ic.y, moved: false };
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag || drag.ic !== ic || drag.id !== e.pointerId) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) > 4) { drag.moved = true; ic.el.classList.remove('settle'); ic.el.classList.add('drag'); }
+    if (drag.moved) setPos(ic, Math.max(0, Math.min(DW - ic.w, drag.ox + dx)), Math.max(0, Math.min(DH - ic.h, drag.oy + dy)));
+  });
+  const end = e => {
+    if (!drag || drag.ic !== ic || drag.id !== e.pointerId) return;
+    const moved = drag.moved; drag = null; ic.el.classList.remove('drag');
+    if (moved) {
+      const { c, r } = nearestFree(ic.x, ic.y, ic);
+      const p = cellPos(c, r); ic.col = c; ic.row = r;
+      ic.el.classList.add('settle'); setPos(ic, p.x, p.y);
+      tapPulse = [p.x + ic.w / 2, p.y + ic.h / 2, curTimeSec, 0];
+      commit();
+    }
+  };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  return ic;
+}
+function setPos(ic, x, y) { ic.x = x; ic.y = y; ic.el.style.left = x + 'px'; ic.el.style.top = y + 'px'; }
+function select(ic) { if (selected) selected.el.classList.remove('sel'); selected = ic; if (ic) ic.el.classList.add('sel'); }
+function nearestFree(x, y, self) {
+  const used = new Set(icons.filter(a => a !== self).map(a => a.col + ',' + a.row));
+  let best = { c: 0, r: 0 }, bestD = 1e9;
+  for (let c = 0; c < grid.cols; c++) for (let r = 0; r < grid.rows; r++) {
+    if (used.has(c + ',' + r)) continue;
+    const p = cellPos(c, r), d = Math.hypot(p.x - x, p.y - y);
+    if (d < bestD) { bestD = d; best = { c, r }; }
+  }
+  return best;
+}
+
+function applyLayout(kind) {
+  layoutKind = kind;
+  desktop.innerHTML = ''; icons = []; selected = null;
+  computeGrid(); layoutCapacity = grid.cols * grid.rows;
+  let cells = [];
+  if (kind === 'mine') cells = SAMPLE.map(s => [s[0], s[1], s[2], s[3]]);
+  else if (kind === 'cluster') {
+    const cx = Math.max(4, Math.floor(grid.cols * 0.62)), cy = Math.max(2, Math.floor(grid.rows * 0.50));
+    cells = [['此电脑', 'pc', 0, 0], ['回收站', 'bin', 0, 1], ['文件', 'folder', 0, 2], ['照片', 'photo', 1, 0], ['笔记', 'note', 1, 1],
+      ['项目A', 'folder', cx, cy], ['设计稿', 'doc', cx + 1, cy], ['旅记', 'code', cx, cy + 1], ['民谣', 'music', cx + 1, cy + 1]];
+  } else if (kind === 'frame') {
+    const C = grid.cols - 1, R = grid.rows - 1;
+    for (let i = 0; i < 4 && i <= R; i++) cells.push(['项目' + (i + 1), 'folder', 0, i]);
+    for (let i = 0; i < 4 && i <= R; i++) cells.push(['文档' + (i + 1), 'doc', C, i]);
+    for (let i = 2; i < C - 1 && i < 6; i++) cells.push(['工具' + i, 'code', i, 0]);
+  } else {
+    cells = [['此电脑', 'pc', 0, 0], ['回收站', 'bin', grid.cols - 1, grid.rows - 1],
+      ['旅途', 'folder', Math.floor(grid.cols * 0.38), Math.floor(grid.rows * 0.34)],
+      ['沙漠手记', 'note', Math.floor(grid.cols * 0.66), Math.floor(grid.rows * 0.62)]];
+  }
+  const seen = new Set();
+  for (const [name, g, c0, r0] of cells) {
+    let c = Math.max(0, Math.min(grid.cols - 1, c0)), r = Math.max(0, Math.min(grid.rows - 1, r0));
+    while (seen.has(c + ',' + r)) { r++; if (r >= grid.rows) { r = 0; c = (c + 1) % grid.cols; } }
+    seen.add(c + ',' + r);
+    const p = cellPos(c, r); const ic = mkIcon(name, g, p.x, p.y); ic.col = c; ic.row = r; icons.push(ic);
+  }
+  commit();
+}
+
+/* ======================================================================
+   尺寸调整 & 渲染循环
+   ====================================================================== */
+function resize() {
+  sc = devicePixelRatio || 1;
+  const dw = cv.clientWidth || innerWidth, dh = cv.clientHeight || innerHeight;
+  W = Wc = Math.max(1, Math.round(dw)); H = Hc = Math.max(1, Math.round(dh));
+  cv.width = Math.round(dw * sc); cv.height = Math.round(dh * sc);
+  gl.viewport(0, 0, cv.width, cv.height);
+  Gw = Math.max(8, Math.ceil(Wc / FIELD_STEP) + 2);
+  Gh = Math.max(8, Math.ceil(Hc / FIELD_STEP) + 2);
+  buildNoiseTex(); allocField(); refresh();
+}
+
+const spriteDataA = new Float32Array(600 * 4);
+const spriteDataB = new Float32Array(600 * 4);
+let curTimeSec = 0;
+
+function draw(now) {
+  const t = curTimeSec = now * 0.001;
+  curMix = morphDur > 0 ? Math.min(1, Math.max(0, (now - morphT0) / morphDur)) : 1;
+  curMix = curMix * curMix * (3 - 2 * curMix);
+
+  gl.useProgram(PR.p);
+  gl.bindVertexArray(bgVAO);
+  gl.uniform2f(PR.U.uRes, cv.width, cv.height);
+  gl.uniform2f(PR.U.uGrid, Gw * FIELD_STEP, Gh * FIELD_STEP);
+  gl.uniform1f(PR.U.uTime, t);
+  gl.uniform1f(PR.U.uScale, sc);
+  gl.uniform1f(PR.U.uMorph, curMix);
+  gl.uniform1f(PR.U.uWarmth, P.warmth);
+  gl.uniform1f(PR.U.uWind, P.wind);
+  gl.uniform1f(PR.U.uDebug, P.debug ? 1 : 0);
+  gl.uniform1f(PR.U.uSeed, (seed % 1000) * 0.37);
+  gl.uniform1f(PR.U.uAdaptive, P.adaptive ? 1 : 0);
+  gl.uniform4f(PR.U.uPulse, tapPulse[0], tapPulse[1], tapPulse[2], tapPulse[3]);
+
+  const flatOases = new Float32Array(16);
+  for (let i = 0; i < Math.min(4, oasesList.length); i++) {
+    const oa = oasesList[i];
+    flatOases[i * 4] = oa.x;
+    flatOases[i * 4 + 1] = oa.y;
+    flatOases[i * 4 + 2] = oa.rx;
+    flatOases[i * 4 + 3] = oa.ry;
+  }
+  gl.uniform1i(PR.U.uOasesCount, oasesList.length);
+  gl.uniform4fv(PR.U.uOases, flatOases);
+
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ftex[fromI]); gl.uniform1i(PR.U.uFieldA, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ftex[toI]); gl.uniform1i(PR.U.uFieldB, 1);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, noiseTex); gl.uniform1i(PR.U.uNoise, 2);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // Batch render all static & dynamic desert sprites in a single instanced call
+  let n = 0;
+  function pushSprite(x, y, size, rot, col, alpha) {
+    if (n >= 600 || alpha <= 0.01) return;
+    const i4 = n * 4;
+    spriteDataA[i4] = x * sc;
+    spriteDataA[i4 + 1] = y * sc;
+    spriteDataA[i4 + 2] = size * sc;
+    spriteDataA[i4 + 3] = rot;
+    spriteDataB[i4] = col;
+    spriteDataB[i4 + 1] = alpha;
+    spriteDataB[i4 + 2] = 0;
+    spriteDataB[i4 + 3] = 0;
+    n++;
+  }
+
+  // Static rocks, tents, shore bushes (under caravan & palms)
+  for (let i = 0; i < staticProps.length; i++) {
+    const sp = staticProps[i];
+    if (sp.col === 5 || sp.col === 6) continue;
+    const sw = sp.swayAmt ? Math.sin(t * (1.2 + P.wind * 0.7) + sp.swayPhase) * sp.swayAmt : 0;
+    pushSprite(sp.x, sp.y, sp.size, sp.rot + sw, sp.col, 1.0);
+  }
+
+  // Walking camel caravans + Arab caravan guides
+  for (let ci = 0; ci < caravans.length; ci++) {
+    const cvn = caravans[ci];
+    const dir = cvn.baseSpeed >= 0 ? 1 : -1;
+    const span = Wc + 340;
+    const stepSpacing = 62;
+
+    // Guide leads ahead of camel train
+    const leadPos = ((cvn.baseX + t * cvn.baseSpeed * Math.max(0, P.wind) + 170) % span + span) % span - 170;
+    const guideX = dir > 0 ? leadPos : (Wc - leadPos);
+    const guideY = cvn.startY + Math.sin(guideX * cvn.freq + cvn.phase) * cvn.pathAmp;
+    const slope = Math.cos(guideX * cvn.freq + cvn.phase) * cvn.pathAmp * cvn.freq;
+    const heading = dir > 0 ? Math.atan(slope) : (Math.PI + Math.atan(slope));
+
+    if (cvn.hasGuide) {
+      const gBob = Math.sin(t * 4.5 * Math.max(0.2, P.wind) + ci) * 0.08;
+      pushSprite(guideX, guideY, 48, heading + gBob, 2, 1.0);
+    }
+
+    for (let k = 0; k < cvn.camels; k++) {
+      const offset = (k + 1) * stepSpacing;
+      const cx = guideX - Math.cos(heading) * offset;
+      const cy = cvn.startY + Math.sin(cx * cvn.freq + cvn.phase) * cvn.pathAmp;
+      const cSlope = Math.cos(cx * cvn.freq + cvn.phase) * cvn.pathAmp * cvn.freq;
+      const cHead = dir > 0 ? Math.atan(cSlope) : (Math.PI + Math.atan(cSlope));
+      const strideFlip = Math.floor(t * (2.6 * Math.max(0.2, P.wind)) + k) % 2;
+      const wobble = Math.sin(t * 3.1 + k * 1.4) * 0.04;
+      pushSprite(cx, cy, 72, cHead + wobble, (k + strideFlip) % 2, 1.0);
+    }
+  }
+
+  // Palms above caravan/tent so fronds cast natural overhead depth
+  for (let i = 0; i < staticProps.length; i++) {
+    const sp = staticProps[i];
+    if (sp.col !== 5 && sp.col !== 6) continue;
+    const sw = Math.sin(t * (1.1 + P.wind * 0.9) + sp.swayPhase) * sp.swayAmt * Math.max(0.3, P.wind);
+    pushSprite(sp.x, sp.y, sp.size, sp.rot + sw, sp.col, 1.0);
+  }
+
+  // Drifting desert wind dust wisps across scene
+  for (let i = 0; i < dustWisps.length; i++) {
+    const dw = dustWisps[i];
+    const x = ((dw.x + t * dw.spd * Math.max(0.15, P.wind)) % (Wc + 140)) - 70;
+    const y = ((dw.y + Math.sin(t * 0.6 + dw.phase) * 18 + t * 8 * Math.max(0.1, P.wind)) % (Hc + 100)) - 50;
+    pushSprite(x, y, dw.size, -0.18 + Math.sin(t * 0.8 + dw.phase) * 0.05, 9, dw.alpha * (0.4 + 0.6 * P.warmth));
+  }
+
+  drawDesertSprites(gl, cv.width, cv.height, spriteDataA, spriteDataB, n);
+}
+
+let paused = false, lastT = 0, fpsAcc = 0, fpsN = 0, fpsShow = 0;
+function frame(now) {
+  if (!paused && gl) {
+    if (!lastT || now - lastT >= 31) {
+      const dt = now - lastT;
+      lastT = now;
+      draw(now);
+      if (dt > 0 && dt < 500) {
+        fpsAcc += 1000 / dt; fpsN++;
+        if (fpsN >= 16) { fpsShow = Math.round(fpsAcc / fpsN); fpsAcc = 0; fpsN = 0; updateStats(); }
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ======================================================================
+   UI / 独立预览交互
+   ====================================================================== */
+function updateStats() {
+  const el = document.getElementById('stats');
+  if (!el || WALL || PREVIEW) return;
+  el.innerHTML = `<span class="live">● ${fpsShow || 30} fps</span> · 沙丘图标 ${icons.length} · 绿洲 ${oasesList.length} · 骆驼 ${Math.round(P.camels)}`;
+}
+
+const SLIDERS = [
+  ['sigma', 'vSigma', v => Math.round(v) + ' px'],
+  ['warp', 'vWarp', v => String(Math.round(v))],
+  ['oases', 'vOases', v => Math.round(v) + ' 处'],
+  ['warmth', 'vWarmth', v => Math.round(v * 100) + '%'],
+  ['wind', 'vWind', v => '×' + v.toFixed(2)],
+  ['camels', 'vCamels', v => Math.round(v) + ' 峰'],
+  ['palms', 'vPalms', v => Math.round(v) + ' 棵'],
+];
+
+function syncPanel() {
+  for (const [k, vid, fmt] of SLIDERS) {
+    document.getElementById(k).value = P[k];
+    document.getElementById(vid).textContent = fmt(P[k]);
+  }
+  document.getElementById('travelers').checked = !!P.travelers;
+  document.getElementById('adaptive').checked = !!P.adaptive;
+  document.getElementById('debug').checked = !!P.debug;
+  updateStats();
+}
+
+for (const [k, vid, fmt] of SLIDERS) {
+  document.getElementById(k).addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    P[k] = v;
+    document.getElementById(vid).textContent = fmt(v);
+    if (k === 'sigma' || k === 'warp') commit();
+    else if (k === 'oases' || k === 'palms') rebuildDesertProps();
+    else if (k === 'camels') rebuildCaravans();
+    updateStats();
+  });
+}
+document.getElementById('travelers').addEventListener('change', e => { P.travelers = e.target.checked ? 1 : 0; rebuildDesertProps(); });
+document.getElementById('adaptive').addEventListener('change', e => { P.adaptive = e.target.checked ? 1 : 0; commit(); });
+document.getElementById('debug').addEventListener('change', e => { P.debug = e.target.checked ? 1 : 0; });
+
+document.querySelectorAll('#layouts button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#layouts button').forEach(x => x.classList.toggle('on', x === b));
+  applyLayout(b.dataset.k);
+}));
+document.getElementById('add').addEventListener('click', () => {
+  const [nm, kd] = EXTRA_POOL[extraIdx++ % EXTRA_POOL.length];
+  const { c, r } = nearestFree(Wc * 0.45, Hc * 0.45, null);
+  const p = cellPos(c, r); const ic = mkIcon(nm, kd, p.x, p.y, true); ic.col = c; ic.row = r; icons.push(ic);
+  tapPulse = [p.x + ic.w / 2, p.y + ic.h / 2, curTimeSec, 0];
+  commit();
+});
+document.getElementById('reseed').addEventListener('click', () => { seed = (seed * 1664525 + 1013904223) >>> 0; buildNoiseTex(); refresh(); });
+document.getElementById('collapse').addEventListener('click', () => document.getElementById('panel').classList.toggle('collapsed'));
+
+desktop.addEventListener('pointerdown', e => {
+  select(null);
+  let onWater = 0;
+  for (const oa of oasesList) {
+    if (Math.hypot((e.clientX - oa.x) / oa.rx, (e.clientY - oa.y) / oa.ry) < 1.0) { onWater = 1; break; }
+  }
+  tapPulse = [e.clientX, e.clientY, curTimeSec, onWater];
+});
+addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+    const ic = selected; select(null); ic.el.remove(); icons = icons.filter(x => x !== ic); commit();
+  } else if (e.key === 'h' || e.key === 'H') document.getElementById('panel').classList.toggle('hidden');
+});
+let resizeT = 0;
+addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (WALL || PREVIEW) { resize(); return; }
+    resize(); computeGrid();
+    if (grid.cols * grid.rows > layoutCapacity && layoutCapacity < 40) { applyLayout(layoutKind); syncPanel(); return; }
+    for (const ic of icons) setPos(ic, Math.min(ic.x, Math.max(0, DW - ic.w)), Math.min(ic.y, Math.max(0, DH - ic.h)));
+    commit();
+  }, 100);
+});
+function tickClock() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  document.getElementById('clock').innerHTML = `${z(d.getHours())}:${z(d.getMinutes())}<br>${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* ======================================================================
+   托管模式（壁纸 ?wallpaper=1 / 设置预览 ?preview=1）
+   ====================================================================== */
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed !== seed) { seed = v.seed; buildNoiseTex(); }
+  let fieldDirty = false, propsDirty = false, carDirty = false;
+  for (const k in v) {
+    if (!(k in P) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    P[k] = v[k];
+    if (k === 'sigma' || k === 'warp' || k === 'adaptive') fieldDirty = true;
+    else if (k === 'oases' || k === 'palms' || k === 'travelers') propsDirty = true;
+    else if (k === 'camels') carDirty = true;
+  }
+  if (fieldDirty) commit();
+  if (propsDirty) rebuildDesertProps();
+  else if (carDirty) rebuildCaravans();
+}
+function drawGhosts() {
+  const box = document.getElementById('ghosts');
+  box.innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+function startHostedMode() {
+  document.body.classList.add('wall');
+  if (PREVIEW) {
+    document.body.classList.add('preview');
+    const g = document.createElement('div'); g.id = 'ghosts'; document.body.appendChild(g);
+  }
+  icons = [];
+  commit(true);
+  let first = true;
+  const settlePaused = () => { if (paused && gl) draw(performance.now()); };
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; settlePaused(); return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
+    if (PREVIEW) drawGhosts();
+    commit(first);
+    if (first) first = false;
+    settlePaused();
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+
+/* ---------- 启动 ---------- */
+window.__dbg = {
+  P, applyLayout, oasesList, caravans,
+  bench() {
+    const ts = [];
+    for (let i = 0; i < 10; i++) { const a = performance.now(); draw(performance.now()); ts.push(performance.now() - a); }
+    ts.sort((a, b) => a - b);
+    return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height, oases: oasesList.length, caravans: caravans.length };
+  },
+};
+if (gl) initDesertSpriteBatch(gl);
+resize();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+</script>
+<script src="share.js"></script>
+</body>
+</html>

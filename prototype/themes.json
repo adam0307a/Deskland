@@ -972,6 +972,113 @@
           ]
         }
       ]
+    },
+    {
+      "id": "desert",
+      "adaptive": true,
+      "name": "沙漠绿洲",
+      "desc": "俯瞰金色撒哈拉沙海：图标周围隆起温暖沙丘，驼队与阿拉伯旅人在椰枣绿洲间穿行",
+      "page": "desert.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/desert.webp?v=1a2b3c4d) center / cover no-repeat, radial-gradient(ellipse 24% 20% at 68% 36%, #2bb8a8 0, #167b7f 62%, #4a823f 76%, transparent 82%), radial-gradient(ellipse 18% 16% at 30% 68%, #2bb8a8 0, #167b7f 62%, #4a823f 76%, transparent 82%), linear-gradient(155deg, #f3d089 0%, #dda259 52%, #b57333 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "图标沙丘",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "沙丘范围",
+              "hint": "图标周围隆起的沙丘向外铺开多远",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 88,
+              "unit": "px"
+            },
+            {
+              "key": "warp",
+              "label": "风纹起伏",
+              "hint": "沙丘轮廓和沙脊风纹的弯折程度",
+              "min": 0,
+              "max": 80,
+              "step": 1,
+              "default": 36
+            }
+          ]
+        },
+        {
+          "name": "绿洲与阳光",
+          "params": [
+            {
+              "key": "oases",
+              "label": "绿洲数量",
+              "hint": "低洼沙盆中清水绿洲的数量",
+              "min": 0,
+              "max": 4,
+              "step": 1,
+              "default": 2,
+              "unit": "处"
+            },
+            {
+              "key": "warmth",
+              "label": "日照暖度",
+              "hint": "撒哈拉阳光的温度与金色光泽强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            },
+            {
+              "key": "wind",
+              "label": "风沙与驼速",
+              "hint": "风沙吹拂、棕榈摇曳以及驼队行进的速度",
+              "min": 0,
+              "max": 2.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "驼队与旅人",
+          "params": [
+            {
+              "key": "camels",
+              "label": "骆驼数量",
+              "hint": "在绿洲之间穿行的骆驼数量，设为 0 可隐藏",
+              "min": 0,
+              "max": 12,
+              "step": 1,
+              "default": 6,
+              "unit": "峰"
+            },
+            {
+              "key": "travelers",
+              "label": "阿拉伯旅人",
+              "hint": "带领驼队的阿拉伯领路人与绿洲贝都因帐篷",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "palms",
+              "label": "绿洲椰枣树",
+              "hint": "绿洲岸边郁郁葱葱的椰枣棕榈树数量",
+              "min": 0,
+              "max": 18,
+              "step": 1,
+              "default": 10,
+              "unit": "棵"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

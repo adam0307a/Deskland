@@ -575,6 +575,56 @@
           ]
         }
       }
+    },
+    "desert": {
+      "name": "Sahara Oasis",
+      "desc": "Overhead view of golden desert dunes: dropped icons raise sunlit sand hills while camel caravans and Arab travelers wind between palm oases",
+      "groups": [
+        "Icon sand dunes",
+        "Oasis & sunlight",
+        "Caravan & travelers"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Dune size",
+          "hint": "How far the raised sand dune mound spreads around each icon"
+        },
+        "warp": {
+          "label": "Wind ripples",
+          "hint": "Natural curvature and wind-sculpted contours of the dunes"
+        },
+        "oases": {
+          "label": "Oases count",
+          "hint": "Number of turquoise desert oases nestled in the low basins",
+          "unit": ""
+        },
+        "warmth": {
+          "label": "Sunlight warmth",
+          "hint": "Intensity of golden Sahara sunlight and shimmering haze"
+        },
+        "wind": {
+          "label": "Wind & caravan pace",
+          "hint": "Speed of blowing sand dust, swaying palms, and walking caravans"
+        },
+        "camels": {
+          "label": "Camels",
+          "hint": "Number of camels marching across the dunes; 0 hides caravans",
+          "unit": ""
+        },
+        "travelers": {
+          "label": "Arab travelers",
+          "hint": "Robed Arab caravan guides wearing keffiyehs and Bedouin oasis tents",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "palms": {
+          "label": "Date palms",
+          "hint": "Number of lush date palm trees ringing the oases",
+          "unit": ""
+        }
+      }
     }
   }
 }
