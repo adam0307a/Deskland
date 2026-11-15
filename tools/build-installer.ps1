@@ -38,10 +38,10 @@ $WebView2Bootstrapper = [IO.Path]::GetFullPath($WebView2Bootstrapper)
 $sources = @('.gitattributes', '.gitignore', 'AGENTS.md', 'LICENSE', 'NOTICE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md',
     'host\DesktopHost.cs', 'host\Themes.cs', 'host\DesklandPreview.ico', 'host\README.md', 'host\app.manifest', 'host\build.ps1', 'host\inspect.ps1',
     'tools\build-installer.ps1', 'tools\installer.nsi', 'tools\version.json')
-$themeFiles = @('flat.html', 'meadow.html', 'aurora.html', 'glade.html', 'rift.html', 'strike.html', 'pocket.html', 'roach.html',
+$themeFiles = @('flat.html', 'meadow.html', 'aurora.html', 'glade.html', 'rift.html', 'strike.html', 'pocket.html', 'roach.html', 'rosebrook.html', 'polarnight.html',
     'settings.html', 'thumbs-data.js', 'share.js', 'serve.mjs', 'themes.json',
-    'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js', 'aurora-pines.js', 'glade-trees.js', 'rift-props.js', 'strike-props.js', 'pocket-props.js', 'roach-props.js',
-    'i18n\en.json', 'i18n\zh-CN.json', 'thumbs\beach.webp', 'thumbs\meadow.webp',
+    'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js', 'aurora-pines.js', 'glade-trees.js', 'rift-props.js', 'strike-props.js', 'pocket-props.js', 'roach-props.js', 'rosebrook-blooms.js',
+    'i18n\en.json', 'i18n\zh-CN.json', 'thumbs\beach.webp', 'thumbs\meadow.webp', 'thumbs\polarnight.webp',
     'assets\beach-coconut-palm-v2.png', 'assets\beach-coconut-palm-curved.png', 'assets\beach-coconut-palm-airy.png', 'assets\beach-coconut-palm-windswept.png', 'assets\beach-coconut-palm-arch.png',
     'assets\meadow-black-kitten.png', 'assets\meadow-kite-boy-level-face.png', 'assets\meadow-kite-boy-diagonal-run.png')
 $themes = (Get-Content -LiteralPath (Join-Path $root 'prototype\themes.json') -Raw -Encoding UTF8 | ConvertFrom-Json).themes

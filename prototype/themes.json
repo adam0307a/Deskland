@@ -863,6 +863,115 @@
           ]
         }
       ]
+    },
+    {
+      "id": "polarnight",
+      "adaptive": true,
+      "name": "极地极光",
+      "desc": "极地夜湖：极光在天上流动、冰面映着光，图标停在雪松林间的空地上",
+      "page": "polarnight.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/polarnight.webp?v=fb23c3b3) center / cover no-repeat, linear-gradient(180deg, #050a1c 0%, #0b1733 40%, #24435f 60%, #8ea2c6 78%, #132c49 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "空地大小",
+              "hint": "图标四周不留树的空地往外铺多远",
+              "min": 40,
+              "max": 200,
+              "step": 1,
+              "default": 90,
+              "unit": "px"
+            },
+            {
+              "key": "density",
+              "label": "森林密度",
+              "hint": "空地之外的长得多密，设为 0 就没有树",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.6,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "极光",
+          "params": [
+            {
+              "key": "glow",
+              "label": "极光亮度",
+              "hint": "天上三条飘带有多亮",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.75,
+              "format": "percent"
+            },
+            {
+              "key": "flow",
+              "label": "流动速度",
+              "hint": "极光流动、湖面波光和落雪有多快",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "palette",
+              "label": "极光配色",
+              "hint": "飘带的颜色",
+              "options": [
+                "绿粉",
+                "紫青",
+                "金绿"
+              ],
+              "default": 0
+            }
+          ]
+        },
+        {
+          "name": "冬夜",
+          "params": [
+            {
+              "key": "snow",
+              "label": "落雪",
+              "hint": "缓缓飘落的雪片有多少，设为 0 可停雪",
+              "min": 0,
+              "max": 240,
+              "step": 1,
+              "default": 110,
+              "unit": "片"
+            },
+            {
+              "key": "meteor",
+              "label": "流星",
+              "hint": "偶尔划过夜空的流星",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "cabin",
+              "label": "小木屋",
+              "hint": "岸边亮着暖光、冒着炊烟的小木屋，会自动躲开图标",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            }
+          ]
+        }
+      ]
     }
   ]
 }

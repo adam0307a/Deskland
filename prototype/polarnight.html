@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deskland · 极光（原型）</title>
+<!--
+  Deskland · 极地夜湖主题原型 v1.0（Canvas2D；静态图层进缓存，动态小物体逐帧直画，目标核显 30fps）
+  - 天空（每帧重画，只画上半屏）：夜空渐变 → 星星（闪烁）→ 月亮 → 极光（大幕 + 3 条飘带 + 幕布纹理）→ 流星
+  - 山与雪原（静态图层，只在改尺寸时重画）：远山 / 近山（山顶雪帽、山脊雪光）、雪地、湖底和倒过来的山影
+  - 湖面（动态）：把天空倒过来贴进湖里（分片错位做出水波），再叠月光碎光和水波纹
+  - 松树林（自适应）：林子长在雪原上，图标周围的空地里不长树；图标移动后树按带滞回的距离场重新长出 / 隐去
+  - 小木屋：岸边的小木屋自动躲开图标，窗户有暖光和炊烟
+  - 雪：缓缓落下的雪片；点湖面有涟漪
+  画布按屏幕实际像素绘制（cv.width = 显示宽 × 缩放，显示尺寸带小数），所有绘制坐标都按 CSS 像素乘缩放。
+-->
+<style>
+  :root { --taskbar: 48px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1329; }
+  body { font-family: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif; }
+  #art { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #desktop { position: fixed; left: 0; top: 0; right: 0; bottom: var(--taskbar); }
+
+  .icon {
+    position: absolute; width: 76px; padding: 4px 2px 5px;
+    display: flex; flex-direction: column; align-items: center;
+    border: 1px solid transparent; border-radius: 4px;
+    user-select: none; touch-action: none; cursor: default;
+  }
+  .icon:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.22); }
+  .icon.sel { background: rgba(0,120,215,.34); border-color: rgba(140,200,255,.7); }
+  .icon.drag { opacity: .88; z-index: 10; transform: scale(1.04); }
+  .icon.settle { transition: left .22s cubic-bezier(.2,.8,.3,1), top .22s cubic-bezier(.2,.8,.3,1); }
+  .icon.born { animation: born .45s cubic-bezier(.2,.9,.3,1.2); }
+  @keyframes born { from { opacity: 0; transform: scale(.6); } }
+  .glyph { width: 48px; height: 48px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)) drop-shadow(3px 6px 4px rgba(0,20,40,.35)); pointer-events: none; }
+  .glyph svg { width: 100%; height: 100%; display: block; }
+  .label {
+    margin-top: 3px; max-width: 72px; font-size: 12px; line-height: 15px; color: #fff; text-align: center;
+    text-shadow: 0 0 2px rgba(0,0,0,.95), 0 1px 3px rgba(0,0,0,.85);
+    word-break: break-all; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    pointer-events: none;
+  }
+
+  #taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--taskbar);
+    background: rgba(16,24,38,.6); backdrop-filter: blur(28px) saturate(1.6); -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    border-top: 1px solid rgba(255,255,255,.08);
+    display: flex; align-items: center; justify-content: center; z-index: 40;
+  }
+  #taskbar .apps { display: flex; gap: 4px; }
+  #taskbar .app { width: 40px; height: 40px; border-radius: 4px; display: grid; place-items: center; }
+  #taskbar .app:hover { background: rgba(255,255,255,.08); }
+  #taskbar .app svg { width: 24px; height: 24px; }
+  #clock { position: absolute; right: 14px; color: #fff; font-size: 12px; line-height: 16px; text-align: right; }
+
+  #panel {
+    position: fixed; top: 14px; right: 14px; width: 284px; max-height: calc(100vh - var(--taskbar) - 28px); overflow: auto;
+    background: rgba(10,20,38,.74); backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    color: #e8f0fa; border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+    font-size: 12px; line-height: 1.4; box-shadow: 0 12px 32px rgba(0,0,0,.35); z-index: 50;
+  }
+  #panel, #panel.hidden { display: none; }
+  /* 壁纸模式（?wallpaper=1，由桌面宿主程序加载）：真实图标和任务栏由 Windows 自己画 */
+  body.wall #panel, body.wall #taskbar, body.wall #desktop { display: none; }
+  /* 预览模式（?preview=1，设置窗口里）：用半透明的方块示意真实图标的位置 */
+  #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
+  body.preview #ghosts { display: block; }
+  .ghost { position: absolute; }
+  .ghost i { position: absolute; left: 50%; top: 4px; width: 48px; height: 48px; margin-left: -24px; border-radius: 9px;
+    background: rgba(255,255,255,.88); box-shadow: 3px 6px 8px rgba(20,40,70,.28); }
+  .ghost b { position: absolute; left: 14%; right: 14%; top: 60px; height: 10px; border-radius: 5px; background: rgba(255,255,255,.75); }
+  #panel header { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+  #panel header b { font-size: 14px; letter-spacing: .06em; }
+  #panel header span { margin-left: 8px; opacity: .55; }
+  #panel.collapsed .body { display: none; }
+  .ibtn { background: none; border: 0; color: inherit; opacity: .6; cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 4px; }
+  .ibtn:hover { opacity: 1; }
+  #panel .body { padding: 0 14px 14px; }
+  .sec { margin-top: 12px; }
+  .sec > .t { opacity: .6; margin-bottom: 6px; }
+  .seg { display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(255,255,255,.06); border-radius: 7px; padding: 2px; gap: 2px; }
+  .seg button { background: none; border: 0; color: inherit; padding: 5px 0; border-radius: 5px; cursor: pointer; font: inherit; opacity: .75; white-space: nowrap; }
+  .seg button:hover { opacity: 1; }
+  .seg button.on { background: rgba(255,255,255,.17); opacity: 1; }
+  .slider { margin-top: 9px; }
+  .slider .row { display: flex; justify-content: space-between; }
+  .slider .row span:last-child { opacity: .6; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: #9fe8c8; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggles input { accent-color: #9fe8c8; margin: 0; }
+  .btns { display: flex; gap: 6px; }
+  .btns button {
+    flex: 1; font: inherit; color: inherit; cursor: pointer; padding: 7px 0; border-radius: 7px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.1);
+  }
+  .btns button:hover { background: rgba(255,255,255,.18); }
+  #stats { margin-top: 12px; padding: 8px 10px; border-radius: 7px; background: rgba(0,0,0,.3); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11px; line-height: 1.6; color: #d4e4e2; }
+  #stats .live { color: #9fe8c8; }
+  .hint { margin-top: 10px; opacity: .5; font-size: 11px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<canvas id="art"></canvas>
+<div id="desktop"></div>
+
+<div id="taskbar">
+  <div class="apps">
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="2" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="2" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/><rect x="12.5" y="12.5" width="9.5" height="9.5" fill="#4cc2ff"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="#fff" stroke-width="2"/><path d="M15 15l5 5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v1H2z" fill="#e09b1d"/><path d="M2 9h20v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" fill="#ffc83d"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1b8fd6"/><path d="M6 13c1-5 11-6 12 0-3-2-8-2-9 2 0 2 2 3 4 3-4 1-7-1-7-5z" fill="#6fe37a" opacity=".9"/></svg></div>
+    <div class="app"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2.5" fill="#2b2b2b" stroke="#777"/><path d="M6 9l3 3-3 3M11 15h6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></div>
+  </div>
+  <div id="clock"></div>
+</div>
+
+<aside id="panel" hidden>
+  <header>
+    <div><b>Deskland</b><span>极光 · 原型 v1.0</span></div>
+    <div><button class="ibtn" id="collapse" title="折叠">–</button></div>
+  </header>
+  <div class="body">
+    <div class="sec"><div class="t">桌面布局</div>
+      <div class="seg">
+        <button data-v="mine">仿你的桌面</button><button data-v="arranged">自动排列</button><button data-v="messy">杂乱</button><button data-v="minimal">极简</button>
+      </div>
+    </div>
+    <div class="sec" id="sliders"></div>
+    <div class="sec toggles">
+      <label><input type="checkbox" data-key="snap">对齐网格</label>
+      <label><input type="checkbox" data-key="cap30">限帧 30fps</label>
+    </div>
+    <div class="sec btns">
+      <button id="btnAdd">＋ 新建文件</button>
+      <button id="btnSeed">换一种林子</button>
+    </div>
+    <div id="stats"></div>
+    <div class="hint">拖动图标，松手后树林会重新让出空地<br>点击湖面有涟漪 · Del 删除 · H 隐藏面板</div>
+  </div>
+</aside>
+
+<script>
+'use strict';
+
+/* ======================================================================
+   参数（默认值要和 themes.json 里极光主题的 default 保持一致）
+   ====================================================================== */
+const CELL_W = 76, CELL_H = 100, GRID_X0 = 4, GRID_Y0 = 6, TASKBAR = 48;
+
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has('wallpaper');      // 壁纸模式：桌面宿主加载，消息来自宿主
+const PREVIEW = QS.has('preview');     // 预览模式：设置窗口里的缩略预览（iframe），消息来自父页面
+const P = {
+  sigma: 90,        // 图标四周空地的半径
+  density: 0.6,     // 空地之外的林子密度
+  glow: 0.75,       // 极光亮度
+  flow: 1,          // 流动速度
+  palette: 0,       // 极光配色（0 绿粉 / 1 紫青 / 2 金绿）
+  snow: 110,        // 雪片数量
+  meteor: 1,        // 流星（0 隐藏 / 1 显示）
+  cabin: 1,         // 小木屋（0 隐藏 / 1 显示）
+  snap: true, cap30: true,
+};
+const DEFAULTS = Object.assign({}, P);
+const SLIDERS = [
+  { key: 'sigma',   label: '空地大小',   min: 40, max: 200, step: 1,    fmt: v => v + ' px', act: 'field' },
+  { key: 'density', label: '森林密度',   min: 0,  max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%', act: 'field' },
+  { key: 'glow',    label: '极光亮度',   min: 0,  max: 1,   step: 0.01, fmt: v => Math.round(v * 100) + '%' },
+  { key: 'flow',    label: '流动速度',   min: 0,  max: 3,   step: 0.05, fmt: v => v + '×' },
+  { key: 'snow',    label: '落雪',       min: 0,  max: 240, step: 1,    fmt: v => v + ' 片', act: 'snow' },
+];
+const OPTIONS = [
+  { key: 'palette', label: '极光配色', opts: ['绿粉', '紫青', '金绿'] },
+  { key: 'meteor',  label: '流星',     opts: ['隐藏', '显示'] },
+  { key: 'cabin',   label: '小木屋',   opts: ['隐藏', '显示'] },
+];
+
+/* ======================================================================
+   随机数与噪声
+   ====================================================================== */
+let seed = (Math.random() * 1e6) | 0;
+function mulberry32(a) {
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+function hash2(x, y, k = 0) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(seed + k, 2246822519);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function vnoise(x, y, k = 0) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, k), b = hash2(ix + 1, iy, k), c = hash2(ix, iy + 1, k), d = hash2(ix + 1, iy + 1, k);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+function fbm(x, y, k = 0) {
+  let a = 0.5, s = 0;
+  for (let i = 0; i < 4; i++) { s += a * vnoise(x, y, k + i * 7); x = x * 2.03 + 17.1; y = y * 2.03 + 17.1; a *= 0.5; }
+  return s;
+}
+// #rrggbb + 透明度 → rgba(...)
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ======================================================================
+   画布与场景布局
+   ====================================================================== */
+const cv = document.getElementById('art');
+const ctx = cv.getContext('2d');
+let W = 1, H = 1, S = 1;                 // 显示尺寸（带小数）与缩放（= cv._scale）
+let skyH = 1, lakeTop = 1, lakeH = 1, groundTop = 1, groundH = 1;
+
+function layout() {
+  lakeH = clamp(H * 0.2, 120, 250);
+  lakeTop = H - lakeH;
+  skyH = lakeTop;
+  groundH = clamp(H * 0.15, 96, 190);
+  groundTop = lakeTop - groundH;
+}
+function mkLayer(w, h) {                // 离屏图层（按主画布的实际像素建）
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * S)); c.height = Math.max(1, Math.round(h * S));
+  const g = c.getContext('2d');
+  g.setTransform(S, 0, 0, S, 0, 0);
+  return { c, g };
+}
+
+/* ======================================================================
+   静态图层：山、雪原、湖底（只在改尺寸 / 换种子时重画）
+   ====================================================================== */
+let shoreCv = null, lakeCv = null;
+// 一条山脊的折线：x 从 -40 到 W+40，步长 34；返回 y 数组（同时给雪帽用）
+function ridge(k, baseY, amp, sharp) {
+  const pts = [];
+  for (let x = -40; x <= W + 40; x += 34) {
+    const n = fbm(x * 0.0035, k * 13.7, k) * 0.62 + Math.pow(1 - Math.abs(Math.sin(x * 0.0042 + k * 2.1)), 2.4) * 0.5 * sharp;
+    pts.push([x, baseY - amp * n, n]);
+  }
+  return pts;
+}
+function strokeRidge(g, pts, closeY, fill, rim) {
+  g.beginPath();
+  pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+  g.lineTo(W + 40, closeY); g.lineTo(-40, closeY); g.closePath();
+  g.fillStyle = fill; g.fill();
+  if (rim) {
+    g.beginPath();
+    pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+    g.strokeStyle = rim; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
+    for (let i = 1; i < pts.length - 1; i++) {           // 高峰上的雪帽
+      if (pts[i][2] > 0.72 && pts[i][2] >= pts[i - 1][2] && pts[i][2] >= pts[i + 1][2]) {
+        g.fillStyle = 'rgba(226,238,250,0.4)';
+        g.beginPath();
+        g.ellipse(pts[i][0], pts[i][1] + 2, 10 + pts[i][2] * 10, 4, 0, 0, 7);
+        g.fill();
+      }
+    }
+  }
+}
+function buildStatic() {
+  const rng = mulberry32(seed ^ 0x9e3779b9);
+  // ---- 湖底（画在倒影下面）----
+  const L = mkLayer(W, H); lakeCv = L.c;
+  const lg = L.g.createLinearGradient(0, lakeTop, 0, H);
+  lg.addColorStop(0, '#1b3c5e'); lg.addColorStop(0.4, '#132c49'); lg.addColorStop(1, '#0c1f36');
+  L.g.fillStyle = lg; L.g.fillRect(0, lakeTop, W, H - lakeTop);
+  // 倒扣在湖里的山影（把近山的山脊倒过来，淡淡的）
+  const rp = ridge(3, 0, groundH * 0.55, 1);
+  L.g.beginPath();
+  rp.forEach(([x, y], i) => { const yy = lakeTop + y * 0.5 + 2; i ? L.g.lineTo(x, yy) : L.g.moveTo(x, yy); });
+  L.g.lineTo(W + 40, lakeTop); L.g.lineTo(-40, lakeTop); L.g.closePath();
+  L.g.fillStyle = 'rgba(9,20,38,0.55)'; L.g.fill();
+
+  // ---- 岸上（画在倒影上面）：远山、近山、雪原 ----
+  const A = mkLayer(W, H); shoreCv = A.c; const g = A.g;
+  strokeRidge(g, ridge(1, groundTop - groundH * 0.28, groundH * 0.9, 0.4), groundTop + 20, 'rgba(38,60,88,0.85)', null);   // 远山（带雾感）
+  strokeRidge(g, ridge(2, groundTop + 6, groundH * 0.72, 1), groundTop + 40, '#1d3049', 'rgba(214,230,246,0.3)');          // 近山 + 山脊雪光
+  // 雪原
+  const sg = g.createLinearGradient(0, groundTop, 0, lakeTop);
+  sg.addColorStop(0, '#aebcd8'); sg.addColorStop(0.7, '#9caecc'); sg.addColorStop(1, '#8ea2c6');
+  g.fillStyle = sg; g.fillRect(0, groundTop, W, groundH);
+  // 远处山脚下的一排森林剪影（不随图标变，只是背景里的远树）
+  for (let x = -20; x < W + 20;) {
+    const w2 = 10 + rng() * 16, h2 = 10 + rng() * 20, y0 = groundTop + 14 + rng() * 8;
+    g.fillStyle = 'rgba(31,49,68,0.9)';
+    g.beginPath();
+    g.moveTo(x, y0 + h2 * 0.3);
+    g.lineTo(x + w2 * 0.5, y0 - h2);
+    g.lineTo(x + w2, y0 + h2 * 0.3);
+    g.closePath(); g.fill();
+    if (rng() < 0.5) {                                   // 部分树尖带一点雪
+      g.fillStyle = 'rgba(222,234,247,0.3)';
+      g.beginPath(); g.arc(x + w2 * 0.5, y0 - h2 + 2, 1.6, 0, 7); g.fill();
+    }
+    x += w2 * 0.6 + 2;
+  }
+  // 雪地上的静态闪光（小颗粒，画一次就缓存住）
+  for (let i = 0; i < groundH * W / 1400; i++) {
+    const x = rng() * W, y = groundTop + rng() * groundH;
+    g.fillStyle = `rgba(240,248,255,${0.08 + rng() * 0.3})`;
+    g.fillRect(x, y, 1.4, 1.4);
+  }
+  // 岸边一线浅色 + 雪堆
+  g.strokeStyle = 'rgba(226,238,250,0.35)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(0, lakeTop); g.lineTo(W, lakeTop); g.stroke();
+  for (let i = 0; i < W / 90; i++) {
+    const x = rng() * W, r = 5 + rng() * 9, y = lakeTop - 2 - rng() * 5;
+    g.fillStyle = 'rgba(214,228,244,0.9)';
+    g.beginPath(); g.arc(x, y, r, Math.PI, 0); g.fill();
+  }
+}
+
+/* ======================================================================
+   小物体的贴图：松树、月亮、小木屋、暖光、极光幕布纹理（都先画进小画布缓存）
+   ====================================================================== */
+let TREE_SPRITES = [], moonSpr = null, cabinSpr = null, glowSpr = null, streakSpr = null;
+function mkSprite(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * 2); c.height = Math.round(h * 2);   // 2 倍分辨率，缩着画也清楚
+  const g = c.getContext('2d'); g.scale(2, 2);
+  draw(g, w, h);
+  return c;
+}
+// 松树贴图：夜里发暗的蓝绿剪影 + 积雪的高光边。w×h 里画，底部中心是 (w/2, h)
+function drawPine(g, w, h, variant) {
+  const cx = w / 2;
+  g.fillStyle = '#1c1410';
+  g.fillRect(cx - w * 0.045, h * 0.82, w * 0.09, h * 0.18);
+  const layers = variant === 1 ? 4 : 3;
+  for (let i = 0; i < layers; i++) {
+    const yb = h * (0.92 - i * (0.6 / layers));          // 这一层的底
+    const spread = variant === 2 ? 0.58 : 0.46;          // 矮胖的云杉更宽
+    const hw = w * spread * (1 - i * (0.22 / layers + 0.02));
+    const ya = yb - h * (variant === 2 ? 0.3 : 0.36);    // 这一层的尖
+    g.fillStyle = ['#15271f', '#12231d', '#101f1a', '#0e1c17'][i % 4];
+    g.beginPath();
+    g.moveTo(cx, ya);
+    g.quadraticCurveTo(cx - hw * 0.55, yb - h * 0.16, cx - hw, yb);
+    g.lineTo(cx + hw, yb);
+    g.quadraticCurveTo(cx + hw * 0.55, yb - h * 0.16, cx, ya);
+    g.fill();
+    // 积雪：从尖往两边沿上缘画一条淡白的边，越往上越白
+    g.strokeStyle = `rgba(222,234,247,${0.2 + 0.32 * (1 - i / layers)})`;
+    g.lineWidth = Math.max(1.2, w * 0.035);
+    g.beginPath();
+    g.moveTo(cx, ya); g.quadraticCurveTo(cx - hw * 0.55, yb - h * 0.16, cx - hw * 0.8, yb - h * 0.045);
+    g.moveTo(cx, ya); g.quadraticCurveTo(cx + hw * 0.55, yb - h * 0.16, cx + hw * 0.8, yb - h * 0.045);
+    g.stroke();
+  }
+  g.fillStyle = 'rgba(228,238,250,0.75)';                // 树尖上的雪
+  g.beginPath(); g.arc(cx, h * (0.92 - layers * (0.6 / layers)) + h * 0.02, w * 0.05, 0, 7); g.fill();
+}
+function buildSprites() {
+  TREE_SPRITES = [0, 1, 2].map(v => mkSprite(60, 96, (g, w, h) => drawPine(g, w, h, v)));
+  // 月亮：光晕 + 亮面 + 几个浅坑
+  moonSpr = mkSprite(110, 110, (g) => {
+    const rg = g.createRadialGradient(55, 55, 8, 55, 55, 52);
+    rg.addColorStop(0, 'rgba(244,238,216,0.5)'); rg.addColorStop(0.4, 'rgba(244,238,216,0.14)'); rg.addColorStop(1, 'rgba(244,238,216,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 110, 110);
+    g.fillStyle = '#f2eedd'; g.beginPath(); g.arc(55, 55, 17, 0, 7); g.fill();
+    g.fillStyle = 'rgba(214,208,184,0.7)';
+    g.beginPath(); g.arc(49, 50, 4, 0, 7); g.fill();
+    g.beginPath(); g.arc(60, 60, 3, 0, 7); g.fill();
+    g.beginPath(); g.arc(58, 47, 2.2, 0, 7); g.fill();
+  });
+  // 小木屋：原木墙 + 厚雪顶 + 烟囱（窗户的暖光是动态的，不在贴图里）
+  cabinSpr = mkSprite(140, 110, (g) => {
+    g.fillStyle = '#171310';                              // 落影
+    g.beginPath(); g.ellipse(72, 104, 56, 6, 0, 0, 7); g.fill();
+    g.fillStyle = '#3a2c22';                              // 墙
+    g.fillRect(30, 58, 80, 46);
+    g.strokeStyle = 'rgba(0,0,0,0.3)'; g.lineWidth = 1;
+    for (let y = 66; y < 104; y += 8) { g.beginPath(); g.moveTo(30, y); g.lineTo(110, y); g.stroke(); }
+    g.fillStyle = '#e9eff8';                              // 雪顶
+    g.beginPath(); g.moveTo(20, 60); g.lineTo(70, 26); g.lineTo(120, 60);
+    g.quadraticCurveTo(70, 68, 20, 60); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(180,196,216,0.5)'; g.lineWidth = 1.4;
+    g.beginPath(); g.moveTo(20, 60); g.lineTo(70, 26); g.lineTo(120, 60); g.stroke();
+    g.fillStyle = '#2a201a';                              // 烟囱
+    g.fillRect(88, 32, 10, 22);
+    g.fillStyle = '#e9eff8'; g.fillRect(86, 30, 14, 5);   // 烟囱口的雪
+    g.fillStyle = '#241a12';                              // 门
+    g.fillRect(64, 74, 16, 30);
+    g.fillStyle = 'rgba(255,205,130,0.16)';               // 门缝透出的光
+    g.fillRect(65, 76, 14, 28);
+  });
+  // 窗户暖光的光晕（画的时候叠在窗户位置，加闪烁）
+  glowSpr = mkSprite(120, 120, (g) => {
+    const rg = g.createRadialGradient(60, 60, 2, 60, 60, 58);
+    rg.addColorStop(0, 'rgba(255,186,110,0.5)'); rg.addColorStop(0.35, 'rgba(255,170,90,0.16)'); rg.addColorStop(1, 'rgba(255,170,90,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, 120, 120);
+  });
+  // 极光幕布的竖向纹理：一整条横向平铺的小图，随时间慢慢平移（"lighter" 叠加）
+  streakSpr = mkSprite(256, 160, (g, w, h) => {
+    const rng = mulberry32(7331);
+    for (let i = 0; i < 26; i++) {
+      const x = rng() * w, bw = 3 + rng() * 11, a = 0.12 + rng() * 0.3;
+      const lg = g.createLinearGradient(0, 0, 0, h);
+      lg.addColorStop(0, 'rgba(255,255,255,0)');
+      lg.addColorStop(0.55, `rgba(255,255,255,${a})`);
+      lg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = lg; g.fillRect(x, 0, bw, h);
+    }
+  });
+}
+
+/* ======================================================================
+   星空（位置固定，亮度随时间闪烁；亮星带十字光）
+   ====================================================================== */
+let stars = [];
+function buildStars() {
+  const rng = mulberry32(seed ^ 0x51ed270b);
+  const n = clamp(Math.round(W * skyH / 9000), 60, 170);
+  stars = [];
+  for (let i = 0; i < n; i++) {
+    stars.push({
+      x: rng() * W, y: rng() * Math.min(skyH * 0.9, groundTop + 30),
+      r: 0.5 + rng() * 1.2, big: rng() < 0.08,
+      ph: rng() * 7, sp: 0.6 + rng() * 1.6, a: 0.45 + rng() * 0.5,
+    });
+  }
+}
+
+/* ======================================================================
+   极光：一大片淡幕 + 3 条飘带（下缘亮、往上淡出），再叠幕布纹理
+   ====================================================================== */
+const PALETTES = [
+  [['#5affb4', '#d9ffee'], ['#ff9fd4', '#ffd9ee'], ['#5fd8ff', '#d4f4ff']],
+  [['#a97bff', '#e6d8ff'], ['#5fd8ff', '#d4f4ff'], ['#ff9fd4', '#ffd9ee']],
+  [['#ffd257', '#ffefc0'], ['#5affb4', '#d9ffee'], ['#ffab6b', '#ffdcbe']],
+];
+let RIB = [];
+function buildRibbons() {
+  const rng = mulberry32(seed ^ 0x2c1b3c6d);
+  RIB = [0, 1, 2].map(i => ({
+    fy0: 0.3 + i * 0.14 + (rng() - 0.5) * 0.08,
+    a1: 30 + rng() * 38, f1: 0.0022 + rng() * 0.0017, s1: 0.22 + rng() * 0.3,
+    a2: 10 + rng() * 14, f2: 0.0009 + rng() * 0.0008, s2: -(0.1 + rng() * 0.2),
+    ph: rng() * 7, ph2: rng() * 7, ph3: rng() * 7,
+    th: 84 + rng() * 80, f3: 0.0024 + rng() * 0.002,
+    core: 9 + rng() * 7,
+    am: i === 0 ? 1 : i === 1 ? 0.72 : 0.55,          // 越靠后的飘带越淡
+  }));
+}
+// 一条飘带：y(x) = fy0*skyH + 两列正弦；th(x) 厚度起伏
+function ribbonEdge(R, x, t, fl) {
+  return R.fy0 * skyH + R.a1 * Math.sin(x * R.f1 + t * R.s1 * fl + R.ph) +
+    R.a2 * Math.sin(x * R.f2 + t * R.s2 * fl + R.ph2);
+}
+function ribbonTh(R, x, t, fl) {
+  return R.th * (0.55 + 0.45 * Math.sin(x * R.f3 + t * 0.35 * fl + R.ph3));
+}
+function drawRibbon(g, R, colors, t, fl, glow, extra, coreK) {
+  const step = 30, y0 = R.fy0 * skyH;
+  const bot = [], top = [];
+  for (let x = -40; x <= W + 40; x += step) {
+    const yb = ribbonEdge(R, x, t, fl);
+    bot.push([x, yb]); top.push([x, yb - ribbonTh(R, x, t, fl) - (extra || 0)]);
+  }
+  g.beginPath();
+  bot.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+  for (let i = top.length - 1; i >= 0; i--) g.lineTo(top[i][0], top[i][1]);
+  g.closePath();
+  const grad = g.createLinearGradient(0, y0 - R.th - 40, 0, y0 + R.a1 + 18);
+  grad.addColorStop(0, hexA(colors[0], 0));
+  grad.addColorStop(0.55, hexA(colors[0], 0.1 * glow));
+  grad.addColorStop(0.85, hexA(colors[0], 0.3 * glow));
+  grad.addColorStop(1, hexA(colors[0], 0.42 * glow));
+  g.fillStyle = grad; g.fill();
+  if (!coreK) return;                                    // 大片淡幕不要亮边
+  // 下缘的亮边：两条描边（宽而淡 + 窄而亮）
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  g.beginPath();
+  bot.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+  g.strokeStyle = hexA(colors[1], 0.26 * glow * coreK); g.lineWidth = R.core * 2.8; g.stroke();
+  g.strokeStyle = hexA(colors[1], 0.5 * glow * coreK); g.lineWidth = R.core * 0.9; g.stroke();
+}
+
+/* ======================================================================
+   自适应松树林
+   候选树按带抖动的网格长在雪原上（越靠湖越大，像近景）；
+   到最近图标的距离大于空地半径才长出来，带 ±12px 滞回避免在边界上抖来抖去；
+   生长 / 隐去用 grow 从 0 到 1 缓动（结束时精确等于 want，供分享录制的"画面稳定"判断用）。
+   ====================================================================== */
+const trees = [];
+let iconsSeen = !(WALL || PREVIEW);
+function buildTrees() {
+  trees.length = 0;
+  const rng = mulberry32(seed ^ 0x11a5f3d);
+  for (let y = groundTop + 10; y < lakeTop - 4; y += 26) {
+    const depth = (y - groundTop) / (lakeTop - groundTop);          // 0 远 → 1 近
+    for (let x = 10; x < W; x += 38) {
+      const jx = x + (rng() - 0.5) * 30, jy = y + (rng() - 0.5) * 22;
+      if (jy > lakeTop - 6) continue;
+      trees.push({
+        x: jx, y: jy,
+        v: (rng() * 3) | 0,
+        s: lerp(0.42, 1.05, depth) * (0.82 + rng() * 0.36),          // 树的大小
+        r: rng(), r2: rng(),                                        // 边缘参差 + 密度门槛
+        ph: rng() * 7,                                              // 摇摆相位
+        d0: rng() * 0.5, delay: 0,                                  // 生长的错峰
+        grow: 0, want: 0,
+      });
+    }
+  }
+  if (iconsSeen) commit(true);
+}
+// 到最近图标矩形的距离（没有图标时是无穷远）
+function iconDist(x, y) {
+  let d = Infinity;
+  for (const ic of icons) {
+    const dx = Math.max(ic.x - x, 0, x - (ic.x + ic.w));
+    const dy = Math.max(ic.y - y, 0, y - (ic.y + ic.h));
+    const q = Math.hypot(dx, dy);
+    if (q < d) d = q;
+  }
+  return d;
+}
+function updateWants() {
+  if (!iconsSeen) { for (const t of trees) t.want = 0; return; }   // 还不知道图标在哪：先别长树
+  for (const t of trees) {
+    const plantable = t.r2 <= P.density;
+    const thr = P.sigma * (0.72 + 0.4 * t.r);
+    const d = plantable ? iconDist(t.x, t.y) : -1;
+    // 滞回：已经长着的往里多留 12px，还没长的往外多要 12px
+    t.want = d > thr + (t.want ? -12 : 12) ? 1 : 0;
+    if (!plantable) t.want = 0;
+  }
+}
+function commit(fromEmpty = false) {
+  updateWants();
+  if (fromEmpty) for (const t of trees) { t.grow = 0; t.delay = t.d0; }
+  placeCabin();
+}
+function stepTrees(dt) {
+  for (const t of trees) {
+    if (t.grow === t.want) continue;
+    if (t.delay > 0) { t.delay -= dt; continue; }
+    t.grow += (t.want ? 1 : -1) * dt * 1.5;
+    t.grow = clamp(t.grow, 0, 1);
+    if (Math.abs(t.grow - t.want) < 0.01) t.grow = t.want;          // 精确停住（画面稳定的判断靠它）
+  }
+}
+function drawTrees(g, now) {
+  const fl = 0.4 + 0.6 * P.flow;
+  for (const t of trees) {
+    if (t.grow <= 0.01) continue;
+    const k = t.grow < 1 ? 1 - Math.pow(1 - t.grow, 2.2) : 1;       // 出来时先快后慢
+    const sw = Math.sin(now * 0.0011 * fl + t.ph) * 0.022 * fl;     // 风里的轻微摇摆
+    const spr = TREE_SPRITES[t.v];
+    const w = 60 * t.s * (0.6 + 0.4 * k), h = 96 * t.s * k;
+    g.save();
+    g.translate(t.x, t.y);
+    g.rotate(sw);
+    g.globalAlpha = 0.25 + 0.75 * k;
+    g.drawImage(spr, -w / 2, -h, w, h);
+    g.restore();
+  }
+}
+
+/* ======================================================================
+   小木屋：自动挑一个离图标最远的岸边位置；暖光闪烁 + 炊烟
+   ====================================================================== */
+let cabinX = 0, cabinOn = true;
+function placeCabin() {
+  cabinOn = !!P.cabin;
+  if (!cabinOn) return;
+  const spots = [0.14, 0.5, 0.86].map(f => f * W);
+  let best = 0, bd = -1;
+  for (let i = 0; i < spots.length; i++) {
+    const d = iconDist(spots[i], lakeTop - 40);
+    if (d > bd) { bd = d; best = i; }
+  }
+  cabinX = spots[best];
+}
+function drawCabin(g, now) {
+  if (!cabinOn) return;
+  const bx = cabinX, by = lakeTop - 34;                              // 屋底的位置
+  g.drawImage(cabinSpr, bx - 70, by - 88, 140, 110);
+  // 窗户暖光（贴图里窗户的位置在左墙）
+  const fl = 0.72 + 0.16 * Math.sin(now * 0.007) + 0.08 * Math.sin(now * 0.0131 + 1.7);
+  g.save(); g.globalAlpha = fl; g.globalCompositeOperation = 'lighter';
+  g.drawImage(glowSpr, bx - 40, by - 60, 96, 96);
+  g.restore();
+  // 炊烟：三团循环上升的烟（烟囱在贴图里 x=88 的位置）
+  for (let i = 0; i < 3; i++) {
+    const age = (now * 0.001 * (0.5 + 0.12 * P.flow) + i / 3) % 1;
+    const x = bx + 23 + age * 26 + Math.sin(age * 9 + i) * 4;
+    const y = by - 58 - age * 74;
+    g.fillStyle = `rgba(215,224,238,${(1 - age) * 0.26})`;
+    g.beginPath(); g.ellipse(x, y, 3.5 + age * 11, 4 + age * 9, 0, 0, 7); g.fill();
+  }
+}
+
+/* ======================================================================
+   落雪 / 流星 / 涟漪
+   ====================================================================== */
+let snow = [];
+function syncSnow() {
+  const want = Math.round(P.snow);
+  while (snow.length > want) snow.pop();
+  while (snow.length < want) {
+    const r = 0.8 + Math.random() * 1.5;
+    snow.push({ x: Math.random() * W, y: Math.random() * H, r, vy: (13 + Math.random() * 20) * r, ph: Math.random() * 7, sw: 5 + Math.random() * 14 });
+  }
+}
+function buildSnow() { snow = []; syncSnow(); }
+function stepSnow(dt, now) {
+  const fs = 0.5 + 0.9 * P.flow;
+  for (const f of snow) {
+    f.y += f.vy * fs * dt;
+    f.x += Math.sin(now * 0.0007 + f.ph) * f.sw * fs * dt;
+    if (f.y > H + 4) { f.y = -4; f.x = Math.random() * W; }
+    if (f.x > W + 6) f.x -= W + 12; else if (f.x < -6) f.x += W + 12;
+  }
+}
+function drawSnow(g) {
+  for (const f of snow) {
+    g.fillStyle = `rgba(238,246,255,${0.35 + 0.4 * f.r / 2.3})`;
+    g.beginPath(); g.arc(f.x, f.y, f.r, 0, 7); g.fill();
+  }
+}
+let meteors = [], nextMeteor = 4 + Math.random() * 8;
+function stepMeteors(dt, now, t) {
+  if (P.meteor && t > nextMeteor && meteors.length < 2) {
+    meteors.push({ x: W * (0.15 + Math.random() * 0.7), y: skyH * (0.05 + Math.random() * 0.25), vx: -(200 + Math.random() * 160), vy: 90 + Math.random() * 70, t0: now });
+    nextMeteor = t + 7 + Math.random() * 9;
+  }
+  meteors = meteors.filter(m => now - m.t0 < 900);
+}
+function drawMeteors(g, now) {
+  for (const m of meteors) {
+    const a = now - m.t0;
+    const k = a / 900;
+    const x = m.x + m.vx * a / 1000, y = m.y + m.vy * a / 1000;
+    const fade = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;
+    const lg = g.createLinearGradient(x, y, x - m.vx * 0.28, y - m.vy * 0.28);
+    lg.addColorStop(0, `rgba(240,248,255,${0.9 * fade})`);
+    lg.addColorStop(1, 'rgba(240,248,255,0)');
+    g.strokeStyle = lg; g.lineWidth = 2; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x - m.vx * 0.28, y - m.vy * 0.28); g.stroke();
+  }
+}
+const ripples = [];
+function addRipple(x, y) {
+  ripples.push({ x, y, t0: performance.now() });
+  if (ripples.length > 6) ripples.shift();
+}
+function drawRipples(g, now) {
+  for (const r of ripples) {
+    const age = (now - r.t0) / 1800;
+    if (age >= 1) continue;
+    g.strokeStyle = `rgba(214,232,250,${(1 - age) * 0.4})`;
+    g.lineWidth = 1.6;
+    g.beginPath(); g.ellipse(r.x, r.y, age * 60, age * 22, 0, 0, 7); g.stroke();
+    g.strokeStyle = `rgba(214,232,250,${(1 - age) * 0.2})`;
+    g.beginPath(); g.ellipse(r.x, r.y, age * 34, age * 12, 0, 0, 7); g.stroke();
+  }
+}
+
+/* ======================================================================
+   天空图层（每帧重画，只画上半屏）：夜空 → 星星 → 月亮 → 极光 → 流星
+   湖里的倒影直接把这层翻过来用，所以天上有什么水里就映什么
+   ====================================================================== */
+let skyCv = null;
+let skyGrad = null;
+function drawSky(now, t) {
+  if (!skyCv || Math.abs(skyCv._w - W) > 0.5 || Math.abs(skyCv._h - skyH) > 0.5 || skyCv._s !== S) {
+    const L = mkLayer(W, skyH); skyCv = L.c; skyCv._w = W; skyCv._h = skyH; skyCv._s = S;
+    const g0 = L.g.createLinearGradient(0, 0, 0, skyH);
+    g0.addColorStop(0, '#050a1c'); g0.addColorStop(0.4, '#0b1733');
+    g0.addColorStop(0.78, '#152c4c'); g0.addColorStop(1, '#24435f');
+    skyGrad = g0;
+  }
+  const g = skyCv.getContext('2d');
+  g.setTransform(S, 0, 0, S, 0, 0);
+  g.fillStyle = skyGrad; g.fillRect(0, 0, W, skyH);
+  // 星星
+  for (const s of stars) {
+    const tw = 0.55 + 0.45 * Math.sin(t * s.sp + s.ph);
+    g.globalAlpha = s.a * tw;
+    g.fillStyle = '#eef4ff';
+    g.beginPath(); g.arc(s.x, s.y, s.r, 0, 7); g.fill();
+    if (s.big && tw > 0.75) {
+      g.globalAlpha = (tw - 0.75) * 2.4 * s.a;
+      g.strokeStyle = '#eef4ff'; g.lineWidth = 0.8;
+      g.beginPath();
+      g.moveTo(s.x - s.r * 5, s.y); g.lineTo(s.x + s.r * 5, s.y);
+      g.moveTo(s.x, s.y - s.r * 5); g.lineTo(s.x, s.y + s.r * 5);
+      g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+  // 月亮（位置按种子固定）
+  const mR = mulberry32(seed ^ 0x7eea11);
+  const mx = (0.2 + mR() * 0.6) * W, my = (0.1 + mR() * 0.18) * skyH;
+  g.drawImage(moonSpr, mx - 55, my - 55, 110, 110);
+  // 极光：一大片淡幕 + 3 条飘带 + 幕布纹理
+  const pal = PALETTES[P.palette] || PALETTES[0];
+  const fl = 0.4 + 0.6 * P.flow, glow = P.glow;
+  drawRibbon(g, { fy0: RIB[0].fy0 * 1.06, a1: RIB[0].a1 * 1.5, f1: RIB[0].f1 * 0.6, s1: RIB[0].s1 * 0.6, a2: RIB[0].a2, f2: RIB[0].f2, s2: RIB[0].s2, ph: RIB[0].ph + 2.2, ph2: RIB[0].ph2, th: skyH * 0.55, f3: RIB[0].f3, ph3: RIB[0].ph3, core: 0 }, pal[0], t, fl, glow * 0.35, 0, 0);
+  for (let i = 0; i < 3; i++) drawRibbon(g, RIB[i], pal[i], t, fl, glow * RIB[i].am, 0, 1);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  g.globalAlpha = 0.1 * glow;
+  const off = (t * 26 * fl) % 256, off2 = (-t * 14 * fl) % 256;
+  for (let x = -off; x < W; x += 256) g.drawImage(streakSpr, x, skyH * 0.12, 256, skyH * 0.5);
+  for (let x = -256 - off2; x < W; x += 256) g.drawImage(streakSpr, x, skyH * 0.2, 256, skyH * 0.42);
+  g.restore();
+  // 流星
+  drawMeteors(g, now);
+}
+
+/* ======================================================================
+   主画面
+   ====================================================================== */
+let T0 = performance.now(), lastT = 0, fpsEMA = 0, frameN = 0, frameMs = 0;
+let paused = false;                                // 宿主通知：前台窗口最大化 / 全屏 → 暂停
+function draw(now) {
+  const S2 = cv._scale || S;
+  ctx.setTransform(S2, 0, 0, S2, 0, 0);
+  const t = (now - T0) / 1000;
+  drawSky(now, t);                                 // 天空（上半屏）
+  ctx.drawImage(skyCv, 0, 0, W, skyH);
+  // ---- 湖面：湖底（静态）→ 倒过来的天空（分片错位）→ 波光 → 涟漪 ----
+  ctx.drawImage(lakeCv, 0, 0, W, H);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, lakeTop, W, H - lakeTop); ctx.clip();
+  const squash = 0.3, slices = 10, sh = (H - lakeTop) / slices;
+  ctx.globalAlpha = 0.55;
+  for (let j = 0; j < slices; j++) {               // 一小条一小条贴，每条左右错开一点 = 水波
+    const dy = lakeTop + j * sh;
+    const sy = skyH - (j * sh + sh) / squash;
+    const sx = Math.sin(t * 1.4 + j * 0.9) * (2 + j * 0.5) * (0.3 + 0.7 * P.flow);
+    if (sy < -sh / squash) continue;
+    ctx.drawImage(skyCv, 0, clamp(sy, 0, skyH) * S, skyCv.width, Math.min(sh / squash, skyH) * S,
+      sx, dy, W, sh + 0.6);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(10,26,46,0.22)';           // 压暗一点，像深水
+  ctx.fillRect(0, lakeTop, W, H - lakeTop);
+  // 波光：几条横着的碎光 + 月光柱
+  for (let i = 0; i < 6; i++) {
+    const yy = lakeTop + (i + 0.4) * (H - lakeTop) / 6.4 + Math.sin(t * (0.8 + i * 0.13) + i * 1.7) * 2;
+    const xw = 60 + hash2(i, 3) * 150, xx = hash2(i, 7) * (W - xw);
+    ctx.fillStyle = `rgba(205,228,250,${0.05 + 0.05 * Math.sin(t * 1.6 + i * 1.3) + 0.03})`;
+    ctx.fillRect(xx, yy, xw, 1.6);
+  }
+  const mR = mulberry32(seed ^ 0x7eea11);
+  const mx = (0.2 + mR() * 0.6) * W;
+  for (let i = 0; i < 5; i++) {                    // 月光在水里碎成一串短横
+    const yy = lakeTop + 8 + i * (H - lakeTop) / 9, w2 = 16 + hash2(i, 9) * 30;
+    ctx.fillStyle = `rgba(244,238,216,${(0.3 - i * 0.05) * (0.6 + 0.4 * Math.sin(t * 2 + i))})`;
+    ctx.fillRect(mx - w2 / 2 + Math.sin(t * 1.1 + i * 2.2) * 12, yy, w2, 2);
+  }
+  drawRipples(ctx, now);
+  ctx.restore();
+  // ---- 岸上：山与雪原（静态）→ 小木屋 → 树林 ----
+  ctx.drawImage(shoreCv, 0, 0, W, H);
+  drawCabin(ctx, now);
+  drawTrees(ctx, now);
+  // ---- 落雪在最前面 ----
+  drawSnow(ctx);
+}
+
+/* ======================================================================
+   尺寸 / 主循环
+   ====================================================================== */
+function resize() {
+  const box = cv.getBoundingClientRect();
+  W = box.width || innerWidth; H = box.height || innerHeight;    // 显示尺寸带小数
+  S = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * S); cv.height = Math.round(H * S); cv._scale = S;
+  layout();
+  buildStatic();
+  skyCv = null;                                                  // 天空图层下一帧按新尺寸重建
+  buildStars();
+  buildTrees();
+  buildSnow();
+  placeCabin();
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused) { lastT = 0; return; }
+  if (P.cap30 && now - lastT < 31) return;
+  const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
+  if (lastT) fpsEMA = fpsEMA ? fpsEMA * 0.9 + (1 / dt) * 0.1 : 1 / dt;
+  lastT = now;
+  const t = (now - T0) / 1000;
+  stepTrees(dt);
+  stepSnow(dt, now);
+  stepMeteors(dt, now, t);
+  const measure = frameN % 20 === 0, t0 = performance.now();
+  draw(now);
+  if (measure) frameMs = performance.now() - t0;
+  ++frameN;
+}
+
+/* ======================================================================
+   桌面图标（DOM，仅独立打开时的示例；壁纸 / 预览模式用真实图标）
+   ====================================================================== */
+const desktop = document.getElementById('desktop');
+let icons = [], layoutKind = 'mine', selected = null, drag = null, extraIdx = 0, layoutCapacity = 0;
+const grid = { cols: 1, rows: 1 };
+let DW = innerWidth, DH = innerHeight - TASKBAR;
+function computeGrid() {
+  DW = innerWidth; DH = innerHeight - TASKBAR;
+  grid.cols = Math.max(1, Math.floor((DW - GRID_X0) / CELL_W));
+  grid.rows = Math.max(1, Math.floor((DH - GRID_Y0) / CELL_H));
+}
+const cellPos = (c, r) => ({ x: GRID_X0 + c * CELL_W, y: GRID_Y0 + r * CELL_H });
+const occupied = (x, y, self) => icons.some(ic => ic !== self && Math.abs(ic.x - x) < CELL_W / 2 && Math.abs(ic.y - y) < CELL_H / 2);
+function nearestFreeCell(cx, cy, self) {
+  let best = null, bd = Infinity;
+  for (let c = 0; c < grid.cols; c++) for (let r = 0; r < grid.rows; r++) {
+    const pos = cellPos(c, r);
+    if (occupied(pos.x, pos.y, self)) continue;
+    const dd = Math.hypot(pos.x + CELL_W / 2 - cx, pos.y + CELL_H / 2 - cy);
+    if (dd < bd) { bd = dd; best = pos; }
+  }
+  return best;
+}
+const isLake = (x, y) => y > lakeTop + 8;
+function addIcon([name, type], pos, born = false) {
+  const el = document.createElement('div');
+  el.className = 'icon' + (born ? ' born' : '');
+  el.innerHTML = `<div class="glyph"><svg viewBox="0 0 48 48">${glyphOf(name, type)}</svg></div><div class="label">${name}</div>`;
+  el.style.left = pos.x + 'px'; el.style.top = pos.y + 'px';
+  desktop.appendChild(el);
+  const ic = { name, type, x: pos.x, y: pos.y, w: el.offsetWidth, h: el.offsetHeight, el };
+  icons.push(ic); bindDrag(ic);
+  return ic;
+}
+function setPos(ic, x, y) { ic.x = x; ic.y = y; ic.el.style.left = x + 'px'; ic.el.style.top = y + 'px'; }
+function select(ic) {
+  if (selected) selected.el.classList.remove('sel');
+  selected = ic;
+  if (ic) ic.el.classList.add('sel');
+}
+function bindDrag(ic) {
+  const el = ic.el;
+  el.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation(); select(ic);
+    el.setPointerCapture(e.pointerId); el.classList.remove('settle');
+    drag = { ic, sx: e.clientX, sy: e.clientY, ox: ic.x, oy: ic.y, moved: false };
+  });
+  el.addEventListener('pointermove', e => {
+    if (!drag || drag.ic !== ic) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    drag.moved = true; el.classList.add('drag');
+    el.style.left = drag.ox + dx + 'px'; el.style.top = drag.oy + dy + 'px';
+  });
+  const end = (e, cancel) => {
+    if (!drag || drag.ic !== ic) return;
+    const d = drag; drag = null;
+    el.classList.remove('drag');
+    if (!d.moved) return;
+    let nx = cancel ? d.ox : d.ox + (e.clientX - d.sx), ny = cancel ? d.oy : d.oy + (e.clientY - d.sy);
+    nx = Math.min(Math.max(nx, 0), DW - ic.w); ny = Math.min(Math.max(ny, 0), DH - ic.h);
+    if (P.snap && !cancel) { const c = nearestFreeCell(nx + ic.w / 2, ny + ic.h / 2, ic); if (c) { nx = c.x; ny = c.y; } }
+    if (Math.hypot(nx - d.ox, ny - d.oy) < 0.5) { setPos(ic, nx, ny); return; }
+    const cx = nx + ic.w / 2, cy = ny + ic.h / 2;
+    if (isLake(cx, cy)) addRipple(cx, cy);
+    el.classList.add('settle'); setPos(ic, nx, ny);
+    commit();
+  };
+  el.addEventListener('pointerup', e => end(e, false));
+  el.addEventListener('pointercancel', e => end(e, true));
+}
+function applyLayout(kind) {
+  layoutKind = kind;
+  icons.forEach(ic => ic.el.remove()); icons = []; selected = null; extraIdx = 0;
+  computeGrid();
+  layoutCapacity = grid.cols * grid.rows;
+  if (kind === 'mine') {
+    for (const [c, r, name, type] of mineCells()) {
+      const pos = cellPos(Math.round(c * (grid.cols - 1) / 21), Math.round(r * (grid.rows - 1) / 9));
+      if (!occupied(pos.x, pos.y, null)) addIcon([name, type], pos);
+    }
+  } else if (kind === 'arranged') {
+    FILES.forEach((f, i) => { const c = Math.floor(i / grid.rows), r = i % grid.rows; if (c < grid.cols) addIcon(f, cellPos(c, r)); });
+  } else if (kind === 'messy') {
+    const rnd = mulberry32(20260928);
+    for (const f of FILES) for (let t = 0; t < 300; t++) {
+      const c = rnd() < 0.45 ? Math.floor(rnd() * Math.min(3, grid.cols)) : Math.floor(rnd() * grid.cols);
+      const pos = cellPos(c, Math.floor(rnd() * grid.rows));
+      if (!occupied(pos.x, pos.y, null)) { addIcon(f, pos); break; }
+    }
+  } else {
+    Array.from({ length: 10 }, (_, r) => [[0, r], [1, r]]).flat().concat([[2, 0], [2, 1], [2, 2], [3, 0], [3, 1], [3, 2], [Math.floor(grid.cols * 0.45), Math.floor(grid.rows * 0.5)]])
+      .forEach(([c, r], i) => addIcon(FILES[i], cellPos(Math.min(c, grid.cols - 1), Math.min(r, grid.rows - 1))));
+  }
+  commit(true);
+}
+
+/* ---- 示例图标的样子与数据（和沙滩 / 草地主题共用一套，仅独立打开时显示） ---- */
+const PAGE = '<path d="M12 4h17l9 9v29a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fbfbfb" stroke="#c4c4c4"/><path d="M29 4v7a2 2 0 0 0 2 2h7z" fill="#dedede"/>';
+const LINES = '<path d="M24 20h10M24 25h10M24 30h10M24 35h10" stroke="#c9c9c9" stroke-width="1.6"/>';
+const badge = (color, text, size = 11) => `<rect x="4" y="21" width="19" height="19" rx="3" fill="${color}"/><text x="13.5" y="34.5" text-anchor="middle" font-family="Segoe UI,Arial" font-weight="700" font-size="${size}" fill="#fff">${text}</text>`;
+const SVG = {
+  folder: '<path d="M4 12a3 3 0 0 1 3-3h11l4 4h19a3 3 0 0 1 3 3v2H4z" fill="#e09b1d"/><path d="M4 17h40v20a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3z" fill="#ffc83d"/><path d="M4 17h40v2.5H4z" fill="#ffd978"/>',
+  docx: PAGE + LINES + badge('#185abd', 'W'),
+  xlsx: PAGE + '<path d="M24 19h11v17H24zM24 24.5h11M24 30h11M29.5 19v17" stroke="#9ac9a9" stroke-width="1.3" fill="none"/>' + badge('#107c41', 'X'),
+  pdf:  PAGE + LINES + badge('#d33a2c', 'PDF', 7.5),
+  txt:  PAGE + '<path d="M16 18h16M16 23h16M16 28h16M16 33h10" stroke="#9a9a9a" stroke-width="1.6"/>',
+  png:  PAGE + '<rect x="14" y="17" width="20" height="17" rx="1.5" fill="#8fd0f5"/><path d="M14 30l6-6 5 5 3-3 6 6v1.5a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 14 34z" fill="#3fa35a"/><circle cx="29" cy="21.5" r="2" fill="#fff4b8"/>',
+  shot: '<rect x="3" y="13" width="42" height="25" rx="1" fill="#1d2129" stroke="#f2f2f2" stroke-width="1.5"/><rect x="6" y="16" width="14" height="3" fill="#5b8def"/><rect x="6" y="21" width="22" height="2" fill="#6c7280"/><rect x="6" y="25" width="18" height="2" fill="#2e3440"/>',
+  zip:  PAGE + '<path d="M22 4v4h3v3h-3v3h3v3h-3v3h3v3h-3" stroke="#8a6d3b" stroke-width="2" fill="none"/><rect x="20" y="26" width="7" height="8" rx="1" fill="#8a6d3b"/>',
+  bin:  '<path d="M12 14h24l-2.5 27a3 3 0 0 1-3 2.7H17.5a3 3 0 0 1-3-2.7z" fill="rgba(215,235,250,.55)" stroke="rgba(255,255,255,.9)" stroke-width="1.2"/><path d="M10 12.5h28" stroke="rgba(255,255,255,.95)" stroke-width="2.4" stroke-linecap="round"/><path d="M19 19l1 19M24 19v19M29 19l-1 19" stroke="rgba(255,255,255,.7)" stroke-width="1.2"/>',
+  pc:   '<rect x="5" y="8" width="38" height="26" rx="2" fill="#1f8fe0" stroke="#bfe3ff" stroke-width="1.5"/><path d="M5 30h38" stroke="#0d5fa8" stroke-width="3"/><path d="M19 34l-2 6h14l-2-6z" fill="#9aa7b4"/>',
+};
+const APP_COLORS = ['#e8553e','#2f7de1','#18a058','#8b5cf6','#f59e0b','#0ea5a4','#db2777','#334155','#16a34a','#2563eb'];
+function appSVG(name) {
+  let h = 0; for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return `<rect x="5" y="5" width="38" height="38" rx="9" fill="${APP_COLORS[h % APP_COLORS.length]}"/><path d="M5 14a9 9 0 0 1 9-9h20a9 9 0 0 1 9 9v6H5z" fill="#fff" opacity=".14"/>` +
+    `<text x="24" y="31.5" text-anchor="middle" font-family="Segoe UI,Microsoft YaHei,Arial" font-weight="700" font-size="18" fill="#fff">${[...name][0]}</text>`;
+}
+const glyphOf = (name, type) => type === 'app' ? appSVG(name) : SVG[type];
+const FILES = [
+  ['回收站','bin'], ['项目资料','folder'], ['2026 报价单.xlsx','xlsx'], ['产品需求.docx','docx'],
+  ['截图_0927.png','png'], ['合同扫描件.pdf','pdf'], ['新建文件夹','folder'], ['设计素材','folder'],
+  ['旅行照片','folder'], ['安装包.zip','zip'], ['会议纪要.docx','docx'], ['壁纸灵感','folder'],
+  ['周报.xlsx','xlsx'], ['草图.png','png'], ['旧备份','folder'], ['微信图片.png','png'], ['说明书.pdf','pdf'], ['简历.docx','docx'], ['支出表.xlsx','xlsx'], ['压缩备份.zip','zip'], ['素材图.png','png'], ['下载','folder'], ['表情包.png','png'], ['工资条.xlsx','xlsx'], ['租房合同.pdf','pdf'], ['日记.docx','docx'], ['桌面截图.png','png'],
+];
+const EXTRA = [
+  ['新建文本文档.txt','txt'], ['新建文件夹 (2)','folder'], ['发票.pdf','pdf'], ['数据导出.xlsx','xlsx'],
+  ['截图_0928.png','png'], ['备忘.txt','txt'], ['归档.zip','zip'], ['新建文件夹 (3)','folder'],
+];
+const APPS = ['回收站','此电脑','微信','飞书','钉钉','腾讯会议','网易云音乐','剪映','Photoshop','Obsidian','VS Code','Krita',
+  'AutoCAD','Rhino','KeyShot','百度网盘','Chrome','Blender','Figma','Notion','QQ','Steam','Eagle','OBS','Kimi','PureRef','EV录屏','NX 12.0','MarkText','Codex'];
+const MISC = [['projects','folder'],['游戏','folder'],['todolist','folder'],['OKR管理.xlsx','xlsx'],['固定成本.xlsx','xlsx'],
+  ['pdfarrange','app'],['stp.log','txt'],['零件.stp','txt'],['零件.3dm','png'],['预览','folder']];
+const RIGHT = [['plot.log','txt'],['工具','folder'],['归档.rar','zip'],['1685x128.png','png'],['微信图片.jpg','png'],['0914.png','png'],
+  ['微信图片 2.jpg','png'],['images.png','png'],['目录.docx','docx'],['api.txt','txt'],['c4ef.png','png'],['0918.png','png'],
+  ['板调整.pdf','pdf'],['recommend.txt','txt'],['button.stp','txt'],['新建文本 (2).txt','txt'],['ugstep21','txt'],['新建文本 (3).txt','txt'],
+  ['工作计划.txt','txt'],['微信图片 3.jpg','png'],['新建 DOCX.docx','docx'],['SEO.txt','txt'],['resend.txt','txt'],['产品介绍.txt','txt'],
+  ['USER.pdf','pdf'],['新建文本.txt','txt'],['餐椅.pur','png'],['PAP-20.pdf','pdf'],['演示文稿.pptx','pdf'],['问题点.txt','txt']];
+function mineCells() {
+  const out = []; let a = 0, m = 0, rgt = 0, sh = 0;
+  for (let c = 0; c < 3; c++) for (let r = 0; r < 10; r++) {
+    const name = APPS[a++];
+    out.push([c, r, name, name === '回收站' ? 'bin' : name === '此电脑' ? 'pc' : 'app']);
+  }
+  for (let r = 0; r < 10; r++) out.push([3, r, ...MISC[m++]]);
+  for (let r = 0; r < 5; r++) out.push([5, r, `零件结构 ${r + 1}.dwg`, 'cad']);
+  out.push([6, 0, '腿测试.bak', 'txt']);
+  for (const [c, r] of [[6,4],[6,5],[6,6],[6,7],[6,8],[7,3],[7,4],[7,5],[7,6],[7,7],[8,4],[8,5],[8,6],[9,2],[9,3],[9,4],[9,5],[9,6]])
+    out.push([c, r, `ScreenShot ${++sh}.png`, 'shot']);
+  for (const [c, r] of [[11,1],[11,2],[11,3],[12,1],[12,2],[12,3],[12,4],[13,1],[13,2],[13,3],[13,4],[14,1],[14,3],[14,4],[15,1],[15,6],
+    [16,4],[16,6],[17,4],[17,5],[17,6],[17,7],[19,4],[19,5],[19,8],[20,0],[20,4],[20,6],[21,0],[21,5],[21,6]]) {
+    const f = RIGHT[rgt++ % RIGHT.length]; out.push([c, r, f[0], f[1]]);
+  }
+  return out;
+}
+
+/* ======================================================================
+   面板（独立打开时才有）
+   ====================================================================== */
+const statsEl = document.getElementById('stats');
+function updateStats() {
+  statsEl.innerHTML =
+    `<span class="live">● 动画中 · ${fpsEMA.toFixed(0)} fps</span><br>` +
+    `单帧 ${frameMs.toFixed(1)} ms<br>` +
+    `画布 ${cv.width}×${cv.height} · 图标 ${icons.length} · 树 ${trees.reduce((n, t) => n + (t.grow > 0.5 ? 1 : 0), 0)}`;
+}
+function syncPanel() {
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
+  document.querySelectorAll('.toggles input').forEach(inp => { inp.checked = P[inp.dataset.key]; });
+  document.querySelectorAll('#optseg button').forEach(b => b.classList.toggle('on', P[b.dataset.key] === +b.dataset.i));
+}
+const slidersEl = document.getElementById('sliders');
+for (const s of SLIDERS) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slider';
+  wrap.innerHTML = `<div class="row"><span>${s.label}</span><span></span></div><input type="range" min="${s.min}" max="${s.max}" step="${s.step}" value="${P[s.key]}">`;
+  const out = wrap.querySelector('.row span:last-child'), inp = wrap.querySelector('input');
+  out.textContent = s.fmt(P[s.key]);
+  inp.addEventListener('input', () => {
+    P[s.key] = +inp.value; out.textContent = s.fmt(P[s.key]);
+    if (s.act === 'field') { updateWants(); placeCabin(); }
+    else if (s.act === 'snow') syncSnow();
+  });
+  slidersEl.appendChild(wrap);
+}
+const optWrap = document.createElement('div');
+optWrap.className = 'sec';
+optWrap.innerHTML = `<div class="t">开关</div>` + OPTIONS.map(o =>
+  `<div class="slider"><div class="row"><span>${o.label}</span></div><div class="seg" id="optseg" style="grid-template-columns:repeat(3,1fr)">` +
+  o.opts.map((nm, i) => `<button data-key="${o.key}" data-i="${i}">${nm}</button>`).join('') + `</div></div>`).join('');
+slidersEl.after(optWrap);
+optWrap.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  P[b.dataset.key] = +b.dataset.i;
+  if (b.dataset.key === 'palette') skyCv = null;
+  if (b.dataset.key === 'cabin') placeCabin();
+  syncPanel();
+});
+document.querySelector('.seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !b.dataset.v) return;
+  applyLayout(b.dataset.v); syncPanel();
+});
+document.querySelectorAll('.toggles input').forEach(inp => inp.addEventListener('change', () => {
+  P[inp.dataset.key] = inp.checked;
+}));
+document.getElementById('collapse').addEventListener('click', () => {
+  const p = document.getElementById('panel');
+  p.classList.toggle('collapsed');
+  document.getElementById('collapse').textContent = p.classList.contains('collapsed') ? '+' : '–';
+});
+// 换一张：新的种子（设置窗口的"刷新"）。已经知道图标在哪了就让树林从头长一遍
+function reseed(v) {
+  seed = v >>> 0;
+  buildStars(); buildRibbons(); buildTrees();
+  skyCv = null;
+  if (iconsSeen) commit(true); else updateWantsAll();
+  placeCabin();
+}
+function updateWantsAll() { for (const t of trees) t.want = 0; }
+document.getElementById('btnSeed').addEventListener('click', () => reseed((Math.random() * 1e6) | 0));
+document.getElementById('btnAdd').addEventListener('click', () => {
+  const f = EXTRA[extraIdx++ % EXTRA.length];
+  let pos = null;
+  for (let t = 0; t < 300 && !pos; t++) {
+    const c = cellPos(Math.floor(Math.random() * grid.cols), Math.floor(Math.random() * grid.rows));
+    if (!occupied(c.x, c.y, null)) pos = c;
+  }
+  if (!pos) return;
+  const ic = addIcon(f, pos, true);
+  select(ic);
+  if (isLake(pos.x + ic.w / 2, pos.y + ic.h / 2)) addRipple(pos.x + ic.w / 2, pos.y + ic.h / 2);
+  commit();
+});
+desktop.addEventListener('pointerdown', e => {
+  select(null);
+  if (isLake(e.clientX, e.clientY)) addRipple(e.clientX, e.clientY);
+});
+addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+    const ic = selected; select(null); ic.el.remove(); icons = icons.filter(x => x !== ic); commit();
+  } else if (e.key === 'h' || e.key === 'H') document.getElementById('panel').classList.toggle('hidden');
+});
+let resizeT = 0;
+addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => {
+    if (WALL || PREVIEW) { resize(); return; }
+    resize(); computeGrid();
+    if (grid.cols * grid.rows > layoutCapacity && layoutCapacity < 40) { applyLayout(layoutKind); syncPanel(); return; }
+    for (const ic of icons) setPos(ic, Math.min(ic.x, Math.max(0, DW - ic.w)), Math.min(ic.y, Math.max(0, DH - ic.h)));
+    updateWants(); placeCabin();
+  }, 100);
+});
+function tickClock() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  document.getElementById('clock').innerHTML = `${z(d.getHours())}:${z(d.getMinutes())}<br>${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+setInterval(tickClock, 15000); tickClock();
+
+/* ======================================================================
+   托管模式：画面由外部驱动
+   - 壁纸模式（?wallpaper=1）：桌面宿主 host/Deskland.exe 通过 WebView2 发消息
+   - 预览模式（?preview=1）：设置窗口（settings.html）通过 iframe 的 postMessage 发消息
+   消息：icons（真实图标矩形，物理像素）/ settings（参数，部分更新）/ reset（恢复默认）/ pause
+   ====================================================================== */
+function applySettings(v) {
+  if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);   // 设置窗口的"刷新"：换一张
+  let forest = false;
+  for (const k in v) {
+    if (!(k in P) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    P[k] = v[k];
+    if (k === 'sigma' || k === 'density') forest = true;
+    else if (k === 'snow') syncSnow();
+    else if (k === 'cabin') placeCabin();
+    else if (k === 'palette') skyCv = null;
+  }
+  if (forest && iconsSeen) { updateWants(); placeCabin(); }
+}
+function drawGhosts() {
+  const box = document.getElementById('ghosts');
+  box.innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
+}
+function startHostedMode() {
+  document.body.classList.add('wall');
+  if (PREVIEW) {
+    document.body.classList.add('preview');
+    const g = document.createElement('div'); g.id = 'ghosts'; document.body.appendChild(g);
+  }
+  icons = [];
+  commit(true);                                   // 先是一片空雪原，等图标来了树再长出来
+  let first = true;
+  const settlePaused = () => {
+    if (!paused || !iconsSeen) return;
+    for (const t of trees) { t.grow = t.want; t.delay = 0; }   // 暂停只冻结动画，首次地形仍要完成
+    draw(performance.now());
+  };
+  const handle = m => {
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; settlePaused(); return; }
+    if (m.t === 'settings') { applySettings(m.v || {}); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t !== 'icons') return;
+    const k = window.devicePixelRatio || 1;       // 物理像素 → CSS 像素
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
+    if (PREVIEW) drawGhosts();
+    iconsSeen = true;
+    commit(first);                                // 第一次：树从雪里长出来；之后：空地跟着图标挪
+    if (first) first = false;
+    settlePaused();
+  };
+  if (PREVIEW) {
+    addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+    parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    return;
+  }
+  const host = window.chrome && window.chrome.webview;
+  if (!host) return;
+  host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
+  host.postMessage('ready');
+}
+
+/* ---------- 启动 ---------- */
+window.__dbg = {
+  P, applyLayout, trees, reseed,
+  bench() {
+    const ts = [];
+    for (let i = 0; i < 10; i++) { const a = performance.now(); draw(performance.now()); ts.push(performance.now() - a); }
+    ts.sort((a, b) => a - b);
+    return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height, trees: trees.length };
+  },
+};
+buildSprites();
+buildRibbons();
+resize();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+</script>
+<script src="share.js"></script>   <!-- 分享图片 / 分享动画（示例图标、名字是色块） -->
+</body>
+</html>

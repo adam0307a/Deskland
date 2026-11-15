@@ -518,6 +518,63 @@
           "hint": "Speed of swaying blossoms and drifting rose petals"
         }
       }
+    },
+    "polarnight": {
+      "name": "Polar Night Aurora",
+      "desc": "A polar night by a frozen lake: the aurora ripples across the sky and reflects on the ice, and your icons rest in a clearing of the snowy pine woods",
+      "groups": [
+        "Around icons",
+        "Aurora",
+        "Winter night"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Clearing size",
+          "hint": "How far the open snow around your icons extends before the trees begin"
+        },
+        "density": {
+          "label": "Forest density",
+          "hint": "How thick the pine woods grow beyond the clearing; 0 hides the trees"
+        },
+        "glow": {
+          "label": "Aurora brightness",
+          "hint": "How brightly the three ribbons burn in the sky"
+        },
+        "flow": {
+          "label": "Flow speed",
+          "hint": "How fast the aurora ripples, the ice shimmers and the snow falls"
+        },
+        "palette": {
+          "label": "Aurora colors",
+          "hint": "The colors of the ribbons",
+          "options": [
+            "Green & pink",
+            "Purple & teal",
+            "Gold & green"
+          ]
+        },
+        "snow": {
+          "label": "Snowfall",
+          "hint": "How many snowflakes drift down; 0 stops the snow",
+          "unit": ""
+        },
+        "meteor": {
+          "label": "Shooting stars",
+          "hint": "Meteors that now and then streak across the night sky",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "cabin": {
+          "label": "Cabin",
+          "hint": "A little shore cabin with warm windows and chimney smoke that keeps away from your icons",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        }
+      }
     }
   }
 }
