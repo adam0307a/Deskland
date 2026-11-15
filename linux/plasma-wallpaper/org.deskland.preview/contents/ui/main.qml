@@ -43,6 +43,7 @@ WallpaperItem {
         backgroundColor: "#000000"
         settings.localContentCanAccessFileUrls: true
         settings.localStorageEnabled: true
+        settings.playbackRequiresUserGesture: false
         settings.errorPageEnabled: false
 
         Component.onCompleted: {

@@ -128,6 +128,13 @@
       </div>
     </div>
     <div class="sec"><div class="t">街景与居民</div><div id="sliders"></div></div>
+    <div class="sec"><div class="t">剧场声音</div>
+      <div class="seg" id="soundSeg">
+        <button data-s="0">静音</button>
+        <button data-s="1">角色音效</button>
+        <button data-s="2">全声景</button>
+      </div>
+    </div>
     <div class="sec"><div class="t">显示与性能</div>
       <div class="toggles">
         <label><input type="checkbox" data-key="adaptive">跟着图标长</label>
@@ -157,12 +164,13 @@ const PREVIEW = QS.has('preview');
 
 const P = {
   sigma: 78, warp: 24, glow: 0.78,
-  crowd: 12, speed: 1.0, props: 0.9, vibe: 0,
+  crowd: 12, speed: 1.0, props: 0.9, vibe: 0, sound: 1,
   adaptive: 1, cap30: true, debug: false,
 };
 if (PREVIEW) { P.cap30 = false; }
 const DEFAULTS = Object.assign({}, P);
 const DISPLAY_KEYS = ['adaptive'];
+const OPTION_KEYS = { sound: 3 };
 const SLIDERS = [
   { key: 'sigma', label: '人行道范围', min: 40,  max: 200, step: 1,    fmt: v => Math.round(v) + ' px', act: 'field' },
   { key: 'warp',  label: '砖缝起伏',   min: 0,   max: 80,  step: 1,    fmt: v => Math.round(v),         act: 'field' },
@@ -725,7 +733,8 @@ function updateStats() {
     `画布 ${cv.width}×${cv.height} · 居民 ${cnt} 只`;
 }
 function syncPanel() {
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
+  document.querySelectorAll('.seg button[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
+  document.querySelectorAll('#soundSeg button').forEach(b => b.classList.toggle('on', +b.dataset.s === P.sound));
   document.querySelectorAll('.toggles input').forEach(inp => { inp.checked = !!P[inp.dataset.key]; });
 }
 const slidersEl = document.getElementById('sliders');
@@ -745,6 +754,13 @@ for (const s of SLIDERS) {
 document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyLayout(b.dataset.v); syncPanel();
+});
+document.getElementById('soundSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  P.sound = +b.dataset.s;
+  saveState();
+  syncPanel();
+  if (typeof setRoachSoundMode === 'function') setRoachSoundMode(P.sound, true);
 });
 document.querySelectorAll('.toggles input').forEach(inp => inp.addEventListener('change', () => {
   const k = inp.dataset.key;
@@ -820,18 +836,22 @@ requestAnimationFrame(frame);
    ====================================================================== */
 function applySettings(v) {
   if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
-  let field = false, crowdChanged = false, adaptiveChanged = false;
+  let field = false, crowdChanged = false, adaptiveChanged = false, soundChanged = false;
   for (const k in v) {
-    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k)) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    const isOpt = Object.prototype.hasOwnProperty.call(OPTION_KEYS, k);
+    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k) && !isOpt) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
     if (DISPLAY_KEYS.includes(k) && v[k] !== 0 && v[k] !== 1) continue;
+    if (isOpt && (v[k] < 0 || v[k] >= OPTION_KEYS[k] || Math.floor(v[k]) !== v[k])) continue;
     P[k] = v[k];
     if (k === 'adaptive') adaptiveChanged = true;
     if (k === 'sigma' || k === 'warp') field = true;
     if (k === 'crowd' || k === 'props') crowdChanged = true;
+    if (k === 'sound') soundChanged = true;
   }
   if (adaptiveChanged && FB) commit();
   else if (field && FB) refresh();
   if (crowdChanged && FB && typeof syncRoachProps === 'function') syncRoachProps();
+  if (soundChanged && typeof setRoachSoundMode === 'function') setRoachSoundMode(P.sound);
 }
 
 function drawGhosts() {
@@ -849,7 +869,11 @@ function startHostedMode() {
   commit(true);
   let first = true;
   const handle = m => {
-    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; return; }
+    if (m.t === 'pause') {
+      paused = PREVIEW ? false : m.v;
+      if (typeof setRoachAudioPaused === 'function') setRoachAudioPaused(paused);
+      return;
+    }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
     if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
     if (m.t !== 'icons') return;

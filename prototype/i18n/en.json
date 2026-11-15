@@ -797,6 +797,15 @@
         "props": {
           "label": "Streetlamps & props",
           "hint": "Density of wrought-iron streetlamps, juice boxes, and tulip tea glasses"
+        },
+        "sound": {
+          "label": "Theater audio",
+          "hint": "Choose character sound effects or full cobblestone street ambience",
+          "options": [
+            "Off",
+            "Effects",
+            "Full ambience"
+          ]
         }
       }
     }
