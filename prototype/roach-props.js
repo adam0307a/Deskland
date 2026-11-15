@@ -1511,9 +1511,9 @@ function syncRoachProps() {
 }
 
 function rPushBubble(x, y, col, row, dur, force) {
-  // Balanced desktop chatter: max 3 bubbles on screen and 3.2-6.0s gap between ambient lines
-  if (!force && (bubbleCooldown > 0 || bubbles.length >= 3)) return;
-  if (!force) bubbleCooldown = 3.2 + Math.random() * 2.8;
+  // Lively desktop chatter: max 4 bubbles on screen and 2.4-4.6s gap between ambient lines
+  if (!force && (bubbleCooldown > 0 || bubbles.length >= 4)) return;
+  if (!force) bubbleCooldown = 2.4 + Math.random() * 2.2;
   bubbles.push({ x, y, age: 0, dur: dur || 2.1, col, row: row == null ? 2 : row });
 }
 
@@ -1562,12 +1562,12 @@ function stepRoachProps(dt, timeSec) {
     if (r.kind === 12 || r.kind === 13) crazies.push(r);
   }
 
-  // Occupied bed patients shout "LÜLÜLÜLÜ!" periodically; empty beds stay quiet
+  // Occupied bed patients shout "LÜLÜLÜLÜ!" often; empty beds stay quiet
   for (const b of beds) {
     if (!b.occupant) continue;
     b.shoutTimer -= dt * spdMul;
     if (b.shoutTimer <= 0) {
-      b.shoutTimer = 6.5 + Math.random() * 6.5;
+      b.shoutTimer = 3.2 + Math.random() * 3.2;
       rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.3);
     }
   }
@@ -1653,7 +1653,7 @@ function stepRoachProps(dt, timeSec) {
         r.callMood = Math.max(0, r.callMood - dt / 0.85);
         if (r.callMood <= 0) {
           r.callPhase = 'idle';
-          r.callTimer = 24 + Math.random() * 14;
+          r.callTimer = 11 + Math.random() * 7;
         }
         continue;
       }
@@ -1745,13 +1745,14 @@ function stepRoachProps(dt, timeSec) {
       if (Math.random() < 0.44) {
         r.stopTimer = (r.kind === 12 || r.kind === 13) ? (1.1 + Math.random() * 1.4) : (1.5 + Math.random() * 2.1);
         r.moveTimer = 3.0 + Math.random() * 4.0;
-        if (r.kind !== 16 && Math.random() < 0.45) {
+        const shoutProb = (r.kind === 12 || r.kind === 13) ? 0.72 : 0.45;
+        if (r.kind !== 16 && Math.random() < shoutProb) {
           if (r.kind === 11) {
             rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.2);
           } else if (r.kind === 5) {
             rPushBubble(r.x, r.y - r.size * 0.54, 3, 4, 2.2);
           } else if (r.kind === 12 || r.kind === 13) {
-            const textCol = Math.random() < 0.72 ? 1 : 2;
+            const textCol = Math.random() < 0.88 ? 1 : 2;
             rPushBubble(r.x, r.y - r.size * 0.54, textCol, 3, 2.2);
           } else {
             const sym = (r.kind === 9 || r.kind === 8) ? 3 : 5;
@@ -1856,17 +1857,19 @@ function stepRoachProps(dt, timeSec) {
     if (explosions[i].age >= explosions[i].dur) explosions.splice(i, 1);
   }
 
-  // Ambient speech & reaction bubbles (talkative cast with 3.2-6s cooldown)
+  // Ambient speech & reaction bubbles (extra LÜLÜLÜLÜ weight + 2.4-4.6s cooldown)
   bubbleTimer += dt * spdMul;
-  if (bubbleTimer > 1.8 && roaches.length) {
+  if (bubbleTimer > 1.35 && roaches.length) {
     bubbleTimer = 0;
-    const star = roaches[Math.floor(Math.random() * roaches.length)];
+    const star = (crazies.length && Math.random() < 0.42)
+      ? crazies[Math.floor(Math.random() * crazies.length)]
+      : roaches[Math.floor(Math.random() * roaches.length)];
     if (star.kind === 11) {
       rPushBubble(star.x, star.y - star.size * 0.52, 2, 3, 2.3);
     } else if (star.kind === 5) {
       rPushBubble(star.x, star.y - star.size * 0.54, 3, 4, 2.3);
     } else if (star.kind === 12 || star.kind === 13) {
-      rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.72 ? 1 : 2, 3, 2.3);
+      rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.88 ? 1 : 2, 3, 2.3);
     } else if (star.kind === 15 && star.chargeTimer > 0) {
       rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.1);
     } else if (star.kind !== 16) {
