@@ -18,20 +18,30 @@ val computedVersionCode = (versionParts.getOrElse(0) { 0 } * 10000) +
     (versionParts.getOrElse(1) { 2 } * 100) +
     versionParts.getOrElse(2) { 0 }
 
+val generatedAssetsDir = layout.buildDirectory.dir("generated/prototypeAssets")
+
 val syncPrototypeAssets by tasks.registering(Sync::class) {
     from(rootProject.file("../prototype")) {
         exclude("serve.mjs", ".DS_Store")
+        into("prototype")
     }
-    into(layout.projectDirectory.dir("src/main/assets/prototype"))
+    into(generatedAssetsDir)
 }
 
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+tasks.matching {
+    it.name != "syncPrototypeAssets" &&
+        ((it.name.startsWith("merge") && it.name.endsWith("Assets")) || it.name.contains("Lint"))
+}.configureEach {
     dependsOn(syncPrototypeAssets)
 }
 
 android {
     namespace = "com.diyardesk.tablet"
     compileSdk = 35
+
+    sourceSets.named("main") {
+        assets.srcDir(generatedAssetsDir)
+    }
 
     defaultConfig {
         applicationId = "com.diyardesk.tablet"
