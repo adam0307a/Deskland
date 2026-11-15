@@ -99,6 +99,7 @@ class BridgeWebView:
             ("set_enable_accelerated_2d_canvas", True),
             ("set_enable_html5_local_storage", True),
             ("set_enable_html5_database", True),
+            ("set_media_playback_requires_user_gesture", False),
             ("set_enable_developer_extras", bool(os.environ.get("DESKLAND_DEBUG"))),
         ):
             fn = getattr(settings, name, None)

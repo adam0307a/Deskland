@@ -179,6 +179,14 @@
   .opts button { flex: 1; min-width: 0; padding: 6px 3px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
   .opts button:hover { background: var(--accent-soft); }
   .opts button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .audio-actions { display: flex; gap: 6px; margin: 8px 0 2px; }
+  .audio-btn { flex: 1; min-width: 0; padding: 7px 8px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--panel-2); color: var(--text); font: inherit; font-size: 11px; font-weight: 500; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .audio-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .audio-btn.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .audio-btn:disabled { opacity: .45; cursor: not-allowed; }
+  #v-audioName { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
   .track { position: relative; }
   input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 2px 0 0; background: transparent; cursor: pointer; }
   input[type=range]:focus { outline: none; }
@@ -309,6 +317,7 @@
       <div class="stage" id="stage"><div class="preview" id="previewBox"><iframe id="preview" data-i18n-title="livePreview" title="实时预览" tabindex="-1"></iframe></div></div>
       <p class="preview-foot"><span class="live-dot"></span><span id="previewFoot">实时预览</span></p>
       <div class="preview-actions">
+        <input type="file" id="audioFileInput" accept="audio/*" hidden>
         <button class="ghost-btn share" id="reseed" data-i18n-title="refreshTitle" title="重新生成这个主题的画面">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75"/><path d="M13.4 2.6v3.2h-3.2"/></svg>
           <span data-i18n="refresh">刷新</span></button>
@@ -480,7 +489,11 @@ function defaultsOf(theme) {
   return d;
 }
 function valuesOf(theme) { return Object.assign(defaultsOf(theme), state.params[theme.id] || {}); }
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 function fmt(p, v) {
+  if (p.type === 'audio') return '';
   if (p.options) return p.options[v] || '';
   if (p.format === 'times') return '×' + v.toFixed(2);
   if (p.format === 'percent') return Math.round(v * 100) + '%';
@@ -544,7 +557,24 @@ function renderControls() {
   if (!theme.groups) { $('controls').innerHTML = '<div class="empty">' + t('noParams') + '</div>'; return; }
   $('controls').innerHTML = theme.groups.map(g => `
     <div class="group"><h3>${g.name}</h3>
-      ${g.params.map(p => `
+      ${g.params.map(p => {
+        if (p.type === 'audio') {
+          const hasAudio = !!(vals.audioFile || vals.audioSrc);
+          const playing = hasAudio && vals.audioPlay === 1;
+          return `
+        <div class="param${hasAudio ? ' changed' : ''}" id="p-${p.key}">
+          <div class="row"><span class="label">${p.label}${p.hint ? `<span class="hint">${p.hint}</span>` : ''}</span>
+            <span class="right">
+              <button class="undo" data-reset-audio="1" title="${t('resetOne', { v: t('audioNone') })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
+              <span class="value" id="v-audioName">${escHtml(vals.audioName || t('audioNone'))}</span>
+            </span></div>
+          <div class="audio-actions">
+            <button type="button" class="audio-btn" id="btnPickAudio">${t('audioPick')}</button>
+            <button type="button" class="audio-btn${playing ? ' on' : ''}" id="btnPlayAudio" ${hasAudio ? '' : 'disabled'}>${playing ? t('audioPause') : t('audioPlay')}</button>
+          </div>
+        </div>`;
+        }
+        return `
         <div class="param${vals[p.key] !== p.default ? ' changed' : ''}" id="p-${p.key}">
           <div class="row"><span class="label">${p.label}${p.hint ? `<span class="hint">${p.hint}</span>` : ''}</span>
             <span class="right">
@@ -556,10 +586,24 @@ function renderControls() {
           <div class="track" title="${t('dblclickReset', { v: fmt(p, p.default) })}">
             <input type="range" data-key="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${vals[p.key]}" aria-label="${p.label}">
           </div>`}
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
       ${g.soon ? `<div class="soon">${t('comingSoon')}${g.soon.map(s => `<span class="chip">${s}</span>`).join('')}</div>` : ''}
     </div>`).join('');
   $('controls').querySelectorAll('input[type=range]').forEach(fill);
+}
+function syncAudioUi() {
+  const cur = state.params[state.theme] || {};
+  const hasAudio = !!(cur.audioFile || cur.audioSrc);
+  const playing = hasAudio && cur.audioPlay === 1;
+  const row = $('p-audio'), nameEl = $('v-audioName'), playEl = $('btnPlayAudio');
+  if (row) row.classList.toggle('changed', hasAudio);
+  if (nameEl) nameEl.textContent = cur.audioName || t('audioNone');
+  if (playEl) {
+    playEl.disabled = !hasAudio;
+    playEl.classList.toggle('on', playing);
+    playEl.textContent = playing ? t('audioPause') : t('audioPlay');
+  }
 }
 function fill(inp) { inp.style.setProperty('--p', ((inp.value - inp.min) / (inp.max - inp.min) * 100) + '%'); }
 const paramOf = key => themeById(state.theme).groups.flatMap(g => g.params).find(x => x.key === key);
@@ -589,11 +633,51 @@ function setParam(key, v) {
 }
 $('controls').addEventListener('input', e => { if (e.target.dataset.key) setParam(e.target.dataset.key, +e.target.value); });
 // 单项恢复默认：点 ↺，或双击滑块
+let previewAudioBlobUrl = '';
 $('controls').addEventListener('click', e => {
   const b = e.target.closest('[data-reset]');
   if (b) setParam(b.dataset.reset, paramOf(b.dataset.reset).default);
+  const ra = e.target.closest('[data-reset-audio]');
+  if (ra) {
+    const cur = (state.params[state.theme] = state.params[state.theme] || {});
+    cur.audioFile = ''; cur.audioSrc = ''; cur.audioName = ''; cur.audioPlay = 0;
+    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: 0 });
+    send({ t: 'set', theme: state.theme, key: 'audioFile', value: '' });
+    send({ t: 'set', theme: state.theme, key: 'audioName', value: '' });
+    toPreview({ t: 'settings', v: { audioFile: '', audioSrc: '', audioPlay: 0 } });
+    syncAudioUi();
+    flashSaved();
+    return;
+  }
+  if (e.target.closest('#btnPickAudio')) {
+    if (host) send({ t: 'pickAudio', theme: state.theme });
+    else { $('audioFileInput').value = ''; $('audioFileInput').click(); }
+    return;
+  }
+  if (e.target.closest('#btnPlayAudio')) {
+    const cur = (state.params[state.theme] = state.params[state.theme] || {});
+    if (!(cur.audioFile || cur.audioSrc)) return;
+    cur.audioPlay = cur.audioPlay === 1 ? 0 : 1;
+    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: cur.audioPlay });
+    if (!host) toPreview({ t: 'settings', v: { audioPlay: cur.audioPlay, audioAllow: 1 } });
+    syncAudioUi();
+    flashSaved();
+    return;
+  }
   const o = e.target.closest('[data-opt]');
   if (o) setParam(o.closest('.opts').dataset.key, +o.dataset.opt);
+});
+$('audioFileInput').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  if (previewAudioBlobUrl) URL.revokeObjectURL(previewAudioBlobUrl);
+  previewAudioBlobUrl = URL.createObjectURL(f);
+  const cur = (state.params[state.theme] = state.params[state.theme] || {});
+  cur.audioSrc = previewAudioBlobUrl;
+  cur.audioName = f.name;
+  cur.audioPlay = 1;
+  toPreview({ t: 'settings', v: { audioSrc: previewAudioBlobUrl, audioName: f.name, audioPlay: 1, audioAllow: 1 } });
+  syncAudioUi();
 });
 $('controls').addEventListener('dblclick', e => {
   const inp = e.target.closest('.track') && e.target.closest('.track').querySelector('input');
@@ -678,7 +762,7 @@ addEventListener('message', e => {
   if (e.source !== frame.contentWindow) return;
   const m = JSON.parse(e.data);
   if (m.t === 'ready') {                 // 预览页面加载好了：先给设置，再给图标
-    toPreview({ t: 'settings', v: valuesOf(themeById(state.theme)) });
+    toPreview({ t: 'settings', v: Object.assign(valuesOf(themeById(state.theme)), { audioAllow: host ? 0 : 1 }) });
     if (state.icons) toPreview(state.icons);
   }
 });
@@ -824,6 +908,16 @@ function onHost(m) {
     shareProgress(m.p);
   } else if (m.t === 'shareResult') {
     showShare(m);
+  } else if (m.t === 'audioPicked') {
+    const thId = m.theme || state.theme;
+    const cur = (state.params[thId] = state.params[thId] || {});
+    cur.audioFile = m.file || '';
+    cur.audioName = m.name || '';
+    cur.audioPlay = m.play ? 1 : 0;
+    if (thId === state.theme) {
+      syncAudioUi();
+      flashSaved();
+    }
   }
 }
 

@@ -1517,26 +1517,14 @@ function syncRoachProps() {
   }
 }
 
-function rBubbleSoundTag(col, row) {
-  if (row === 3 && col === 1) return 'lulu';
-  if (row === 3 && col === 2) return 'duktur';
-  if (row === 3 && col === 3) return 'charge';
-  if (row === 4 && col === 3) return 'diva';
-  if (row === 3 && col === 5) return 'angry';
-  return 'chatter';
-}
-
 function rPushBubble(x, y, col, row, dur, force) {
   // Lively desktop chatter: max 4 bubbles on screen and 2.4-4.6s gap between ambient lines
   if (!force && (bubbleCooldown > 0 || bubbles.length >= 4)) return;
   if (!force) bubbleCooldown = 2.4 + Math.random() * 2.2;
-  const finalRow = row == null ? 2 : row;
-  bubbles.push({ x, y, age: 0, dur: dur || 2.1, col, row: finalRow });
-  rPlaySfx(rBubbleSoundTag(col, finalRow));
+  bubbles.push({ x, y, age: 0, dur: dur || 2.1, col, row: row == null ? 2 : row });
 }
 
 function spawnRoachJetStrike(caller) {
-  rPlaySfx('jet');
   const targets = roaches
     .filter(r => r !== caller && r.kind !== 16)
     .slice(0, 5)
@@ -1564,7 +1552,6 @@ function spawnRoachJetStrike(caller) {
 
 function stepRoachProps(dt, timeSec) {
   if (!FB) return;
-  rStepAudio(dt);
   const spdMul = Math.max(0.15, P.speed == null ? 1.0 : P.speed);
   if (bubbleCooldown > 0) bubbleCooldown -= dt;
 
@@ -1853,7 +1840,6 @@ function stepRoachProps(dt, timeSec) {
     const b = bombs[i];
     b.age += dt;
     if (b.age >= b.dur) {
-      rPlaySfx('boom');
       explosions.push({ x: b.tx, y: b.ty, age: 0, dur: 0.96, size: 176 });
       for (const r of roaches) {
         if (r.kind === 16 || r.dragged) continue;
@@ -2167,7 +2153,6 @@ function roachDragStart(px, py, pointerId) {
   if (r.kind === 12 || r.kind === 13) rPushBubble(r.x, r.y - r.size * 0.56 - r.z, 1, 3, 2.0, true);
   else if (r.kind === 11) rPushBubble(r.x, r.y - r.size * 0.56 - r.z, 2, 3, 2.0, true);
   else rPushBubble(r.x, r.y - r.size * 0.52 - r.z, 1, 2, 1.4, true);
-  rPlaySfx('grab');
   return true;
 }
 
@@ -2216,7 +2201,6 @@ function roachDragEnd(pointerId) {
     r.spinVel = (r.phase % 2 > 1 ? 1 : -1) * 1.4;
   }
   r.moveTimer = 1.4 + Math.random() * 1.6;
-  rPlaySfx('toss');
   return true;
 }
 
@@ -2236,7 +2220,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.roachPointerMove = roachDragMove;
   window.roachPointerUp = roachDragEnd;
   window.roachHostPointer = (kind, px, py) => {
-    rEnsureAudio();
     if (kind === 'down') return roachDragStart(px, py, 'host');
     if (kind === 'move') return roachDragMove(px, py, 'host');
     if (kind === 'up' || kind === 'cancel') return roachDragEnd('host');
@@ -2245,7 +2228,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.getRoachDragState = () => dragState;
 
   window.addEventListener('pointerdown', e => {
-    rEnsureAudio();
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (isUiTarget(e.target)) return;
     const [px, py] = toCanvasXY(e);
@@ -2276,227 +2258,4 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.addEventListener('blur', () => {
     if (roachDragEnd()) setGrabCursor('');
   });
-}
-
-/* ======================================================================
-   剧场音效引擎（Web Audio API）：角色反应音效、喷气音爆与可选街景氛围音
-   ====================================================================== */
-let rAudioCtx = null;
-let rAudioBus = null;
-let rMasterRef = null;
-let rNoiseBuf = null;
-let rAmbGain = null;
-let rAmbSource = null;
-let rAudioPaused = false;
-let rTramTimer = 8.0;
-const rSfxLastAt = Object.create(null);
-
-function rSoundMode() {
-  if (typeof P !== 'undefined' && typeof P.sound === 'number') return P.sound | 0;
-  return 1;
-}
-
-function rEnsureAudio() {
-  if (typeof window === 'undefined' || rAudioPaused || rSoundMode() <= 0) return null;
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return null;
-  if (!rAudioCtx) {
-    try {
-      rAudioCtx = new AC();
-      const lpf = rAudioCtx.createBiquadFilter();
-      lpf.type = 'lowpass';
-      lpf.frequency.value = 3800;
-      const master = rAudioCtx.createGain();
-      master.gain.value = 0.28;
-      lpf.connect(master);
-      master.connect(rAudioCtx.destination);
-      rAudioBus = lpf;
-      rMasterRef = master;
-    } catch (e) {
-      rAudioCtx = null;
-      return null;
-    }
-  }
-  if (rAudioCtx.state === 'suspended') {
-    rAudioCtx.resume().catch(() => {});
-  }
-  return rAudioCtx;
-}
-
-function rGetNoiseBuffer(ctx) {
-  if (rNoiseBuf) return rNoiseBuf;
-  const len = Math.floor(ctx.sampleRate * 1.6);
-  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const ch = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
-  rNoiseBuf = buf;
-  return buf;
-}
-
-function rScheduleTone(ctx, type, f0, f1, dur, peakGain, delay) {
-  const t0 = ctx.currentTime + (delay || 0);
-  const osc = ctx.createOscillator();
-  const g = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(Math.max(25, f0), t0);
-  if (f1 && f1 !== f0) {
-    osc.frequency.exponentialRampToValueAtTime(Math.max(25, f1), t0 + dur);
-  }
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(peakGain, t0 + Math.min(0.015, dur * 0.25));
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g);
-  g.connect(rAudioBus);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
-
-function rScheduleNoise(ctx, f0, f1, q, dur, peakGain, delay) {
-  const t0 = ctx.currentTime + (delay || 0);
-  const src = ctx.createBufferSource();
-  src.buffer = rGetNoiseBuffer(ctx);
-  src.loop = true;
-  const filt = ctx.createBiquadFilter();
-  filt.type = 'bandpass';
-  filt.Q.value = q || 1.2;
-  filt.frequency.setValueAtTime(Math.max(60, f0), t0);
-  if (f1 && f1 !== f0) {
-    filt.frequency.exponentialRampToValueAtTime(Math.max(60, f1), t0 + dur);
-  }
-  const g = ctx.createGain();
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(peakGain, t0 + Math.min(0.03, dur * 0.2));
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(filt);
-  filt.connect(g);
-  g.connect(rAudioBus);
-  src.start(t0);
-  src.stop(t0 + dur + 0.03);
-}
-
-function rSyncAmbient() {
-  if (!rAudioCtx || !rAudioBus) return;
-  const wantAmb = !rAudioPaused && rSoundMode() >= 2 && rAudioCtx.state === 'running';
-  if (wantAmb && !rAmbSource) {
-    const src = rAudioCtx.createBufferSource();
-    src.buffer = rGetNoiseBuffer(rAudioCtx);
-    src.loop = true;
-    const filt = rAudioCtx.createBiquadFilter();
-    filt.type = 'lowpass';
-    filt.frequency.value = 340;
-    const g = rAudioCtx.createGain();
-    g.gain.value = 0.035;
-    src.connect(filt);
-    filt.connect(g);
-    g.connect(rAudioBus);
-    src.start();
-    rAmbSource = src;
-    rAmbGain = g;
-  } else if (rAmbGain) {
-    rAmbGain.gain.setTargetAtTime(wantAmb ? 0.035 : 0.0, rAudioCtx.currentTime, 0.08);
-  }
-}
-
-function setRoachSoundMode(mode, interactive) {
-  if (typeof P !== 'undefined') P.sound = mode | 0;
-  if (mode <= 0) {
-    if (rAudioCtx && rMasterRef) {
-      rMasterRef.gain.setTargetAtTime(0.0, rAudioCtx.currentTime, 0.04);
-    }
-    rSyncAmbient();
-    return;
-  }
-  const ctx = rEnsureAudio();
-  if (!ctx) return;
-  if (rMasterRef) rMasterRef.gain.setTargetAtTime(0.28, ctx.currentTime, 0.04);
-  rSyncAmbient();
-  if (interactive) rPlaySfx(mode >= 2 ? 'tram' : 'chatter');
-}
-
-function setRoachAudioPaused(pausedState) {
-  rAudioPaused = !!pausedState;
-  if (!rAudioCtx) return;
-  if (rAudioPaused || rSoundMode() <= 0) {
-    rSyncAmbient();
-    if (rAudioCtx.state === 'running') rAudioCtx.suspend().catch(() => {});
-  } else {
-    rAudioCtx.resume().then(() => rSyncAmbient()).catch(() => {});
-  }
-}
-
-const R_SFX_COOLDOWN = {
-  lulu: 750,
-  duktur: 850,
-  charge: 650,
-  diva: 1200,
-  angry: 1200,
-  jet: 1400,
-  boom: 180,
-  grab: 120,
-  toss: 140,
-  chatter: 550,
-  tram: 4000,
-};
-
-function rPlaySfx(tag) {
-  if (rAudioPaused || rSoundMode() <= 0) return;
-  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const minGap = R_SFX_COOLDOWN[tag] || 300;
-  if (rSfxLastAt[tag] && now - rSfxLastAt[tag] < minGap) return;
-  const ctx = rEnsureAudio();
-  if (!ctx || ctx.state !== 'running') return;
-  rSfxLastAt[tag] = now;
-
-  if (tag === 'lulu') {
-    const notes = [420, 580, 440, 620, 460];
-    for (let i = 0; i < notes.length; i++) {
-      rScheduleTone(ctx, 'triangle', notes[i], notes[i] * 1.16, 0.075, 0.22, i * 0.068);
-    }
-  } else if (tag === 'duktur') {
-    rScheduleTone(ctx, 'sine', 520, 740, 0.11, 0.24, 0);
-    rScheduleTone(ctx, 'sine', 540, 780, 0.12, 0.24, 0.15);
-  } else if (tag === 'charge') {
-    rScheduleTone(ctx, 'sawtooth', 95, 115, 0.24, 0.12, 0);
-    rScheduleNoise(ctx, 2200, 3400, 4.0, 0.09, 0.20, 0.02);
-    rScheduleNoise(ctx, 2600, 1800, 3.5, 0.09, 0.18, 0.14);
-  } else if (tag === 'diva') {
-    rScheduleTone(ctx, 'triangle', 523, 554, 0.12, 0.22, 0);
-    rScheduleTone(ctx, 'triangle', 659, 659, 0.12, 0.22, 0.12);
-    rScheduleTone(ctx, 'triangle', 784, 880, 0.22, 0.25, 0.24);
-  } else if (tag === 'angry') {
-    rScheduleNoise(ctx, 1800, 1100, 2.5, 0.08, 0.22, 0);
-    rScheduleTone(ctx, 'sawtooth', 110, 98, 0.42, 0.16, 0.05);
-    rScheduleTone(ctx, 'triangle', 165, 147, 0.42, 0.16, 0.05);
-    rScheduleNoise(ctx, 2100, 1600, 3.0, 0.06, 0.18, 0.46);
-  } else if (tag === 'jet') {
-    rScheduleNoise(ctx, 280, 1450, 1.4, 0.48, 0.24, 0);
-    rScheduleNoise(ctx, 1450, 240, 1.4, 0.62, 0.22, 0.46);
-    rScheduleTone(ctx, 'sawtooth', 180, 92, 0.95, 0.08, 0.05);
-  } else if (tag === 'boom') {
-    rScheduleTone(ctx, 'sine', 165, 38, 0.36, 0.34, 0);
-    rScheduleNoise(ctx, 460, 120, 0.9, 0.28, 0.26, 0);
-    rScheduleTone(ctx, 'triangle', 210, 620, 0.24, 0.18, 0.06);
-  } else if (tag === 'grab') {
-    rScheduleTone(ctx, 'sine', 330, 590, 0.09, 0.24, 0);
-  } else if (tag === 'toss') {
-    rScheduleTone(ctx, 'triangle', 460, 220, 0.09, 0.18, 0);
-    rScheduleTone(ctx, 'sine', 260, 640, 0.13, 0.18, 0.06);
-  } else if (tag === 'chatter') {
-    rScheduleTone(ctx, 'sine', 440, 560, 0.065, 0.14, 0);
-  } else if (tag === 'tram') {
-    rScheduleTone(ctx, 'sine', 1318, 1315, 0.36, 0.16, 0);
-    rScheduleTone(ctx, 'sine', 1568, 1564, 0.42, 0.14, 0.18);
-  }
-}
-
-function rStepAudio(dt) {
-  if (rAudioPaused || rSoundMode() < 2) return;
-  if (!rAudioCtx) rEnsureAudio();
-  if (!rAudioCtx || rAudioCtx.state !== 'running') return;
-  rSyncAmbient();
-  rTramTimer -= dt;
-  if (rTramTimer <= 0) {
-    rTramTimer = 14 + Math.random() * 8;
-    rPlaySfx('tram');
-  }
 }

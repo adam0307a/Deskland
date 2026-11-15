@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -62,7 +64,8 @@ class DesklandHost:
         self.settings.load()
         self.i18n = I18n(prototype_dir(), self.settings.lang, self.log)
         self.themes = ThemeRegistry(prototype_dir(), self.log)
-        self.server = LocalServer(prototype_dir(), pictures_dir() / "Deskland Preview")
+        self.audio_dir = config_dir() / "audio"
+        self.server = LocalServer(prototype_dir(), pictures_dir() / "Deskland Preview", self.audio_dir)
         self.server.start()
         self.wallpaper: Wallpaper | None = None
         self.settings_window: SettingsWindow | None = None
@@ -248,6 +251,8 @@ class DesklandHost:
             self._send_init()
         elif kind == "set":
             self._on_set(message)
+        elif kind == "pickAudio":
+            self._on_pick_audio(message)
         elif kind == "reset":
             self._on_reset(message)
         elif kind == "theme":
@@ -294,6 +299,72 @@ class DesklandHost:
         if self.last_icons is not None:
             self._post_settings(self.last_icons)
 
+    def _cleanup_audio_file(self, old_name: Any) -> None:
+        if not isinstance(old_name, str) or not old_name:
+            return
+        try:
+            target = (self.audio_dir / Path(old_name).name).resolve()
+            target.relative_to(self.audio_dir.resolve())
+            if target.is_file():
+                target.unlink()
+        except Exception:
+            pass
+
+    def _on_pick_audio(self, message: dict[str, Any]) -> None:
+        theme = message.get("theme")
+        if not isinstance(theme, str) or not self.themes.allowed(theme):
+            return
+        parent = self.settings_window.window if self.settings_window is not None else None
+        dialog = Gtk.FileChooserDialog(
+            title=self.i18n.t("audioPick") or "Choose audio",
+            transient_for=parent,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL,
+            Gtk.ResponseType.CANCEL,
+            Gtk.STOCK_OPEN,
+            Gtk.ResponseType.OK,
+        )
+        flt = Gtk.FileFilter()
+        flt.set_name("Audio")
+        for pat in ("*.mp3", "*.wav", "*.ogg", "*.opus", "*.flac", "*.m4a", "*.aac", "*.webm"):
+            flt.add_pattern(pat)
+        dialog.add_filter(flt)
+        resp = dialog.run()
+        chosen = dialog.get_filename()
+        dialog.destroy()
+        if resp != Gtk.ResponseType.OK or not chosen:
+            return
+        src = Path(chosen)
+        if not src.is_file():
+            return
+        ext = src.suffix.lower() or ".audio"
+        safe_name = f"{theme}_{int(time.time() * 1000)}{ext}"
+        try:
+            self.audio_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, self.audio_dir / safe_name)
+        except OSError as exc:
+            self.log.write(f"Audio kopyalanamadı: {exc}")
+            return
+        params = self.settings.for_theme(theme)
+        self._cleanup_audio_file(params.get("audioFile"))
+        params["audioFile"] = safe_name
+        params["audioName"] = src.name
+        params["audioPlay"] = 1
+        self.schedule_save()
+        self._post_settings(
+            {
+                "t": "audioPicked",
+                "theme": theme,
+                "file": safe_name,
+                "name": src.name,
+                "play": 1,
+            }
+        )
+        if theme == self.settings.theme and self.wallpaper is not None:
+            self.wallpaper.set_settings({"audioFile": safe_name, "audioName": src.name, "audioPlay": 1})
+
     def _on_set(self, message: dict[str, Any]) -> None:
         theme = message.get("theme")
         key = message.get("key")
@@ -301,7 +372,10 @@ class DesklandHost:
             return
         if not self.themes.allowed(theme):
             return
-        self.settings.for_theme(theme)[key] = message.get("value")
+        params = self.settings.for_theme(theme)
+        if key == "audioFile" and not message.get("value"):
+            self._cleanup_audio_file(params.get("audioFile"))
+        params[key] = message.get("value")
         if theme == self.settings.theme and self.wallpaper is not None:
             self.wallpaper.set_settings({key: message.get("value")})
         self.schedule_save()

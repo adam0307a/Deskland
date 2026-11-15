@@ -485,12 +485,21 @@ class HostContext : ApplicationContext
             {
                 string theme = m["theme"] as string, key = m["key"] as string;
                 if (theme == null || key == null) return;
-                Settings.For(theme)[key] = m["value"];
+                var p = Settings.For(theme);
+                if (key == "audioFile" && string.IsNullOrEmpty(m["value"] as string))
+                {
+                    object oldVal;
+                    if (p.TryGetValue("audioFile", out oldVal)) CleanupAudioFile(oldVal as string);
+                }
+                p[key] = m["value"];
                 if (theme == Settings.Theme && form != null)
                     form.Post(Json.Stringify(Json.Obj("t", "settings", "v", Json.Obj(key, m["value"]))));
                 SaveSoon();
                 break;
             }
+            case "pickAudio":
+                PickAudio(m["theme"] as string);
+                break;
             case "reset":
             {
                 string theme = m["theme"] as string;
@@ -557,6 +566,63 @@ class HostContext : ApplicationContext
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "autostart", "v", IsAutoStart())));
                 break;
         }
+    }
+
+    static string AudioDir()
+    {
+        return Path.Combine(InstallProfile.DataDir, "audio");
+    }
+
+    static void CleanupAudioFile(string oldName)
+    {
+        if (string.IsNullOrEmpty(oldName)) return;
+        try
+        {
+            string dir = Path.GetFullPath(AudioDir());
+            string target = Path.GetFullPath(Path.Combine(dir, Path.GetFileName(oldName)));
+            if (target.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) && File.Exists(target))
+                File.Delete(target);
+        }
+        catch { }
+    }
+
+    void PickAudio(string theme)
+    {
+        if (string.IsNullOrEmpty(theme) || !ThemeAllowed(theme)) return;
+        string chosen = null;
+        using (var dlg = new OpenFileDialog())
+        {
+            dlg.Filter = "Audio (*.mp3;*.wav;*.ogg;*.opus;*.flac;*.m4a;*.aac;*.webm)|*.mp3;*.wav;*.ogg;*.opus;*.flac;*.m4a;*.aac;*.webm|All Files (*.*)|*.*";
+            dlg.RestoreDirectory = true;
+            if (dlg.ShowDialog(settingsWin) != DialogResult.OK) return;
+            chosen = dlg.FileName;
+        }
+        if (string.IsNullOrEmpty(chosen) || !File.Exists(chosen)) return;
+        string dir = AudioDir();
+        string ext = (Path.GetExtension(chosen) ?? "").ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext)) ext = ".audio";
+        string safeName = theme + "_" + DateTime.UtcNow.Ticks.ToString() + ext;
+        string origName = Path.GetFileName(chosen);
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.Copy(chosen, Path.Combine(dir, safeName), true);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("复制音频失败：" + ex.Message);
+            return;
+        }
+        var p = Settings.For(theme);
+        object prev;
+        if (p.TryGetValue("audioFile", out prev)) CleanupAudioFile(prev as string);
+        p["audioFile"] = safeName;
+        p["audioName"] = origName;
+        p["audioPlay"] = 1;
+        SaveSoon();
+        settingsWin.Post(Json.Stringify(Json.Obj("t", "audioPicked", "theme", theme, "file", safeName, "name", origName, "play", 1)));
+        if (theme == Settings.Theme && form != null)
+            form.Post(Json.Stringify(Json.Obj("t", "settings", "v", Json.Obj("audioFile", safeName, "audioName", origName, "audioPlay", 1))));
     }
 
     // ---- 一键分享：壁纸页面画好的图 → 存到"图片\Deskland"，复制到剪贴板，缩略图发回设置页 ----
@@ -913,6 +979,7 @@ class SettingsForm : Form
         web.DefaultBackgroundColor = BackColor;
         web.CreationProperties = new CoreWebView2CreationProperties();
         web.CreationProperties.UserDataFolder = Path.Combine(Log.DataDir, "WebView2");
+        web.CreationProperties.AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required";
         Controls.Add(web);
     }
 
@@ -948,6 +1015,9 @@ class SettingsForm : Form
             if (IsDisposed) return;
             var core = web.CoreWebView2;
             core.SetVirtualHostNameToFolderMapping("app.local", pageDir, CoreWebView2HostResourceAccessKind.Allow);
+            string audioDir = Path.Combine(InstallProfile.DataDir, "audio");
+            Directory.CreateDirectory(audioDir);
+            core.SetVirtualHostNameToFolderMapping("audio.local", audioDir, CoreWebView2HostResourceAccessKind.Allow);
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
@@ -1021,6 +1091,7 @@ class WallpaperForm : Form
         web.DefaultBackgroundColor = BackColor;
         web.CreationProperties = new CoreWebView2CreationProperties();
         web.CreationProperties.UserDataFolder = Path.Combine(Log.DataDir, "WebView2");
+        web.CreationProperties.AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required";
         Controls.Add(web);
 
         iconTimer = new System.Windows.Forms.Timer();
@@ -1149,6 +1220,9 @@ class WallpaperForm : Form
             if (shuttingDown || IsDisposed) return;
             var core = web.CoreWebView2;
             core.SetVirtualHostNameToFolderMapping("app.local", pageDir, CoreWebView2HostResourceAccessKind.Allow);
+            string audioDir = Path.Combine(InstallProfile.DataDir, "audio");
+            Directory.CreateDirectory(audioDir);
+            core.SetVirtualHostNameToFolderMapping("audio.local", audioDir, CoreWebView2HostResourceAccessKind.Allow);
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = true;
             core.Settings.IsStatusBarEnabled = false;

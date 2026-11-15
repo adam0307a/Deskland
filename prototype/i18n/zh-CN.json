@@ -106,7 +106,11 @@
     "purchaseTheme": "“{name}”是壁纸版主题。",
     "purchaseMessage": "体验版可永久使用沙滩和草地。壁纸版可解锁更多主题，并在同一个 Deskland 中使用。",
     "purchaseLater": "继续体验",
-    "purchaseWebsite": "前往官网"
+    "purchaseWebsite": "前往官网",
+    "audioNone": "未选择文件",
+    "audioPick": "选择音频…",
+    "audioPlay": "▶ 播放",
+    "audioPause": "⏸ 暂停"
   },
   "host": {
     "traySettings": "设置…",

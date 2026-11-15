@@ -111,7 +111,16 @@
         return;
       }
       var params = (data.params && data.params[theme]) || {};
-      var msg = JSON.stringify({ t: 'settings', v: params });
+      var resolved = {};
+      for (var k in params) {
+        if (Object.prototype.hasOwnProperty.call(params, k)) resolved[k] = params[k];
+      }
+      if (typeof resolved.audioFile === 'string') {
+        resolved.audioSrc = resolved.audioFile
+          ? 'file://' + HOME + '/.config/deskland/audio/' + encodeURIComponent(resolved.audioFile)
+          : '';
+      }
+      var msg = JSON.stringify({ t: 'settings', v: resolved });
       window.__desklandLastSettings = msg;   /* debug aid */
       if (msg !== lastSettings) {
         lastSettings = msg;

@@ -106,7 +106,11 @@
     "purchaseTheme": "“{name}” is included in the Wallpaper edition.",
     "purchaseMessage": "The preview includes Beach and Meadow forever. Get the Wallpaper edition to unlock more themes in the same Deskland app.",
     "purchaseLater": "Keep exploring",
-    "purchaseWebsite": "Visit website"
+    "purchaseWebsite": "Visit website",
+    "audioNone": "No file selected",
+    "audioPick": "Choose audio…",
+    "audioPlay": "▶ Play",
+    "audioPause": "⏸ Pause"
   },
   "host": {
     "traySettings": "Settings…",
@@ -798,14 +802,9 @@
           "label": "Streetlamps & props",
           "hint": "Density of wrought-iron streetlamps, juice boxes, and tulip tea glasses"
         },
-        "sound": {
-          "label": "Theater audio",
-          "hint": "Choose character sound effects or full cobblestone street ambience",
-          "options": [
-            "Off",
-            "Effects",
-            "Full ambience"
-          ]
+        "audio": {
+          "label": "Background audio",
+          "hint": "Choose a local audio file for Roach Town and play or pause it anytime"
         }
       }
     }

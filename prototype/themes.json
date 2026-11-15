@@ -761,15 +761,11 @@
               "format": "percent"
             },
             {
-              "key": "sound",
-              "label": "剧场声音",
-              "hint": "选择小强角色的互动音效，或开启带街区环境音的完整声景",
-              "options": [
-                "静音",
-                "角色音效",
-                "全声景"
-              ],
-              "default": 1
+              "key": "audio",
+              "type": "audio",
+              "label": "背景音乐",
+              "hint": "选择本地音频文件作为小强街区背景音，可在旁点击播放或暂停",
+              "default": 0
             }
           ]
         }

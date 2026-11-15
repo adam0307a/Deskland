@@ -128,13 +128,6 @@
       </div>
     </div>
     <div class="sec"><div class="t">街景与居民</div><div id="sliders"></div></div>
-    <div class="sec"><div class="t">剧场声音</div>
-      <div class="seg" id="soundSeg">
-        <button data-s="0">静音</button>
-        <button data-s="1">角色音效</button>
-        <button data-s="2">全声景</button>
-      </div>
-    </div>
     <div class="sec"><div class="t">显示与性能</div>
       <div class="toggles">
         <label><input type="checkbox" data-key="adaptive">跟着图标长</label>
@@ -148,11 +141,20 @@
         <button id="btnAdd">+ 加一个图标</button>
       </div>
     </div>
+    <div class="sec"><div class="t">背景声音</div>
+      <input type="file" id="panelAudioInput" accept="audio/*" hidden>
+      <div class="btns">
+        <button id="panelAudioPick">选择音频…</button>
+        <button id="panelAudioPlay" disabled>播放</button>
+      </div>
+      <div id="panelAudioName" class="hint" style="margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">未选择音频</div>
+    </div>
     <div id="stats"></div>
     <div class="hint">拖拽桌面图标时人行道砖块同步重建；点“换一条街”更换街道砖缝、小强站位与路灯布局。按 H 隐藏面板。</div>
   </div>
 </aside>
 
+<audio id="bgAudio" loop preload="auto"></audio>
 <div id="nogl">需要 WebGL 2 才能渲染</div>
 
 <script>
@@ -164,13 +166,12 @@ const PREVIEW = QS.has('preview');
 
 const P = {
   sigma: 78, warp: 24, glow: 0.78,
-  crowd: 12, speed: 1.0, props: 0.9, vibe: 0, sound: 1,
+  crowd: 12, speed: 1.0, props: 0.9, vibe: 0,
   adaptive: 1, cap30: true, debug: false,
 };
 if (PREVIEW) { P.cap30 = false; }
 const DEFAULTS = Object.assign({}, P);
 const DISPLAY_KEYS = ['adaptive'];
-const OPTION_KEYS = { sound: 3 };
 const SLIDERS = [
   { key: 'sigma', label: '人行道范围', min: 40,  max: 200, step: 1,    fmt: v => Math.round(v) + ' px', act: 'field' },
   { key: 'warp',  label: '砖缝起伏',   min: 0,   max: 80,  step: 1,    fmt: v => Math.round(v),         act: 'field' },
@@ -733,8 +734,7 @@ function updateStats() {
     `画布 ${cv.width}×${cv.height} · 居民 ${cnt} 只`;
 }
 function syncPanel() {
-  document.querySelectorAll('.seg button[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
-  document.querySelectorAll('#soundSeg button').forEach(b => b.classList.toggle('on', +b.dataset.s === P.sound));
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.v === layoutKind));
   document.querySelectorAll('.toggles input').forEach(inp => { inp.checked = !!P[inp.dataset.key]; });
 }
 const slidersEl = document.getElementById('sliders');
@@ -754,13 +754,6 @@ for (const s of SLIDERS) {
 document.querySelector('.seg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   applyLayout(b.dataset.v); syncPanel();
-});
-document.getElementById('soundSeg').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  P.sound = +b.dataset.s;
-  saveState();
-  syncPanel();
-  if (typeof setRoachSoundMode === 'function') setRoachSoundMode(P.sound, true);
 });
 document.querySelectorAll('.toggles input').forEach(inp => inp.addEventListener('change', () => {
   const k = inp.dataset.key;
@@ -834,24 +827,90 @@ requestAnimationFrame(frame);
 /* ======================================================================
    托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
    ====================================================================== */
+const bgAudioEl = document.getElementById('bgAudio');
+const bgAudioState = { file: '', src: '', name: '', play: 0, allow: WALL ? 1 : (PREVIEW ? 0 : 1), blobUrl: '', lastUrl: '' };
+function resolveRoachAudioUrl() {
+  if (bgAudioState.src) return bgAudioState.src;
+  if (bgAudioState.file) {
+    return (location.hostname === 'app.local' ? 'https://audio.local/' : '/__audio/') + encodeURIComponent(bgAudioState.file);
+  }
+  return '';
+}
+function syncRoachAudio() {
+  const url = resolveRoachAudioUrl();
+  if (!url) {
+    if (!bgAudioEl.paused) bgAudioEl.pause();
+    if (bgAudioState.lastUrl) {
+      bgAudioEl.removeAttribute('src');
+      bgAudioEl.load();
+      bgAudioState.lastUrl = '';
+    }
+  } else {
+    if (url !== bgAudioState.lastUrl) {
+      bgAudioState.lastUrl = url;
+      bgAudioEl.src = url;
+      bgAudioEl.load();
+    }
+    const shouldPlay = bgAudioState.play === 1 && bgAudioState.allow === 1 && !paused;
+    if (shouldPlay && bgAudioEl.paused) {
+      const p = bgAudioEl.play();
+      if (p && p.catch) p.catch(() => {});
+    } else if (!shouldPlay && !bgAudioEl.paused) {
+      bgAudioEl.pause();
+    }
+  }
+  if (!(WALL || PREVIEW)) {
+    const pickPlay = document.getElementById('panelAudioPlay');
+    const nameEl = document.getElementById('panelAudioName');
+    if (nameEl) nameEl.textContent = bgAudioState.name || '未选择音频';
+    if (pickPlay) {
+      pickPlay.disabled = !url;
+      pickPlay.textContent = (url && bgAudioState.play === 1) ? '暂停' : '播放';
+    }
+  }
+}
+document.getElementById('panelAudioPick').addEventListener('click', () => {
+  const inp = document.getElementById('panelAudioInput');
+  inp.value = '';
+  inp.click();
+});
+document.getElementById('panelAudioInput').addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  if (bgAudioState.blobUrl) URL.revokeObjectURL(bgAudioState.blobUrl);
+  bgAudioState.blobUrl = URL.createObjectURL(f);
+  bgAudioState.src = bgAudioState.blobUrl;
+  bgAudioState.file = '';
+  bgAudioState.name = f.name;
+  bgAudioState.play = 1;
+  syncRoachAudio();
+});
+document.getElementById('panelAudioPlay').addEventListener('click', () => {
+  if (!resolveRoachAudioUrl()) return;
+  bgAudioState.play = bgAudioState.play === 1 ? 0 : 1;
+  syncRoachAudio();
+});
+
 function applySettings(v) {
   if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
-  let field = false, crowdChanged = false, adaptiveChanged = false, soundChanged = false;
+  let field = false, crowdChanged = false, adaptiveChanged = false, audioChanged = false;
   for (const k in v) {
-    const isOpt = Object.prototype.hasOwnProperty.call(OPTION_KEYS, k);
-    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k) && !isOpt) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
+    if (k === 'audioAllow') { bgAudioState.allow = v[k] ? 1 : 0; audioChanged = true; continue; }
+    if (k === 'audioSrc') { bgAudioState.src = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
+    if (k === 'audioFile') { bgAudioState.file = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
+    if (k === 'audioName') { bgAudioState.name = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
+    if (k === 'audioPlay') { bgAudioState.play = v[k] ? 1 : 0; audioChanged = true; continue; }
+    if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k)) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
     if (DISPLAY_KEYS.includes(k) && v[k] !== 0 && v[k] !== 1) continue;
-    if (isOpt && (v[k] < 0 || v[k] >= OPTION_KEYS[k] || Math.floor(v[k]) !== v[k])) continue;
     P[k] = v[k];
     if (k === 'adaptive') adaptiveChanged = true;
     if (k === 'sigma' || k === 'warp') field = true;
     if (k === 'crowd' || k === 'props') crowdChanged = true;
-    if (k === 'sound') soundChanged = true;
   }
   if (adaptiveChanged && FB) commit();
   else if (field && FB) refresh();
   if (crowdChanged && FB && typeof syncRoachProps === 'function') syncRoachProps();
-  if (soundChanged && typeof setRoachSoundMode === 'function') setRoachSoundMode(P.sound);
+  if (audioChanged) syncRoachAudio();
 }
 
 function drawGhosts() {
@@ -869,13 +928,9 @@ function startHostedMode() {
   commit(true);
   let first = true;
   const handle = m => {
-    if (m.t === 'pause') {
-      paused = PREVIEW ? false : m.v;
-      if (typeof setRoachAudioPaused === 'function') setRoachAudioPaused(paused);
-      return;
-    }
+    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; syncRoachAudio(); return; }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
-    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, { audioFile: '', audioSrc: '', audioName: '', audioPlay: 0 }, m.v || {})); return; }
     if (m.t !== 'icons') return;
     const k = window.devicePixelRatio || 1;
     icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
