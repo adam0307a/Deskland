@@ -99,8 +99,11 @@
   .collection-head { flex: none; padding: 2px 4px 22px; }
   .collection-head { margin-bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .collection-head-copy { min-width: 0; }
+  .import-actions { display: flex; align-items: center; gap: 6px; flex: none; }
   .import-btn { gap: 6px; padding: 8px 13px; border-radius: 12px; font-size: 12px; flex: none; }
   .import-btn svg { width: 14px; height: 14px; }
+  .ghost-btn.import-help-btn { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 14px; font-weight: 750; line-height: 1; color: var(--muted); flex: none; }
+  .ghost-btn.import-help-btn:hover { color: var(--text); }
   .preview-head-right { display: flex; align-items: center; gap: 10px; }
   .remove-theme-btn { padding: 5px 10px; border-radius: 9px; font-size: 11px; color: var(--muted); }
   .remove-theme-btn:hover { color: #c43e3e; border-color: rgba(196,62,62,.35); }
@@ -232,7 +235,9 @@
   .help-article h4 { margin: 0; font-size: 14px; line-height: 1.5; }
   .help-article p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; user-select: text; }
   .help-article ol { margin: 12px 0 0; padding-left: 21px; color: var(--text); font-size: 12px; line-height: 1.7; user-select: text; }
+  .help-article ul { margin: 12px 0 0; padding-left: 18px; color: var(--text); font-size: 12px; line-height: 1.7; user-select: text; }
   .help-article li + li { margin-top: 6px; }
+  .help-article ul li + li { margin-top: 8px; }
   .feedback-field { display: block; margin-top: 14px; color: var(--muted); font-size: 11px; font-weight: 600; }
   .feedback-input { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 11px;
     outline: none; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; font-weight: 400; user-select: text; }
@@ -302,10 +307,13 @@
         <h1 data-i18n="collectionTitle">选一片风景。</h1>
         <p data-i18n="collectionSubtitle">让图标成为风景的一部分。</p>
       </div>
-      <button class="ghost-btn import-btn" id="importTheme" data-i18n-title="importThemeTitle" title="导入主题包（.zip / .deskland）、HTML、图片或视频">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.5v11M2.5 8h11"/></svg>
-        <span data-i18n="importTheme">导入主题…</span>
-      </button>
+      <div class="import-actions">
+        <button class="ghost-btn import-btn" id="importTheme" data-i18n-title="importThemeTitle" title="导入主题包（.zip / .deskland）、HTML、图片或视频">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.5v11M2.5 8h11"/></svg>
+          <span data-i18n="importTheme">导入主题…</span>
+        </button>
+        <button class="ghost-btn import-help-btn" id="importHelpOpen" data-i18n-title="importHelpBtnTitle" title="查看支持的导入格式与说明" aria-label="Import guide">?</button>
+      </div>
     </div>
     <div class="update-notice" id="updateNotice" hidden role="status" aria-live="polite">
       <span class="update-symbol" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5"/><path d="M4 12v3.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V12"/></svg></span>
@@ -375,6 +383,37 @@
       </ol>
     </section>
     <div class="actions"><button class="ghost-btn primary" id="helpDone" data-i18n="gotIt">知道了</button></div>
+  </div>
+</div>
+
+<div class="modal" id="importHelpModal" hidden role="dialog" aria-modal="true" aria-labelledby="importHelpTitle">
+  <div class="box help-box">
+    <button class="auth-close" id="importHelpCloseX" data-i18n-title="close" title="关闭" aria-label="Close">×</button>
+    <h3 id="importHelpTitle" data-i18n="importHelpTitle">导入主题说明</h3>
+    <p class="sub" data-i18n="importHelpSubtitle">点击“+ 导入主题…”即可选择本地文件，以下类型均已支持并会自动验证与包装：</p>
+    <section class="help-article">
+      <h4 data-i18n="importHelpHowTitle">支持的格式与导入方式</h4>
+      <ul>
+        <li>
+          <strong data-i18n="importHelpZipTitle">主题包（.zip / .deskland）</strong> —
+          <span data-i18n="importHelpZipDesc">多文件 HTML/JS/CSS/资源包。若包含 manifest.json 或 theme.json，将自动读取名称、入口文件与参数分组；否则默认使用 index.html 或首个 .html 作为入口，并拦截路径穿越（zip-slip）与异常软链接。</span>
+        </li>
+        <li>
+          <strong data-i18n="importHelpHtmlTitle">单个网页（.html / .htm）</strong> —
+          <span data-i18n="importHelpHtmlDesc">单文件交互式着色器或网页主题，会自动读取 &lt;title&gt; 标签作为主题名称。</span>
+        </li>
+        <li>
+          <strong data-i18n="importHelpImageTitle">图片壁纸（.png / .jpg / .jpeg / .webp / .gif / .svg / .avif / .bmp）</strong> —
+          <span data-i18n="importHelpImageDesc">自动包装为壁纸页面，附带柔和环境缩放/漂移、亮度（brightness）、动效强度（motion）、图标背板光晕（dimIcons）与自适应/截图分享能力（desklandSnapshot）。</span>
+        </li>
+        <li>
+          <strong data-i18n="importHelpVideoTitle">视频壁纸（.mp4 / .webm / .mkv / .mov）</strong> —
+          <span data-i18n="importHelpVideoDesc">自动循环静音播放，提供亮度（brightness）、播放速度（speed）与图标背板光晕（dimIcons）调节。</span>
+        </li>
+      </ul>
+      <p data-i18n="importHelpNote">导入前会校验压缩包完整性（单包上限 150 MB / 2000 个文件）；已导入的主题保存在用户目录中，随时可在右侧预览栏点击“移除”。</p>
+    </section>
+    <div class="actions"><button class="ghost-btn primary" id="importHelpDone" data-i18n="gotIt">知道了</button></div>
   </div>
 </div>
 
@@ -859,7 +898,23 @@ $('helpCloseX').addEventListener('click', closeHelp);
 $('helpDone').addEventListener('click', closeHelp);
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) closeHelp(); });
 
-addEventListener('keydown', e => { if (e.key === 'Escape') { closeShare(); closeHelp(); } });
+let importHelpReturnFocus = null;
+function openImportHelp() {
+  importHelpReturnFocus = document.activeElement;
+  $('importHelpModal').hidden = false;
+  $('importHelpCloseX').focus();
+}
+function closeImportHelp() {
+  if ($('importHelpModal').hidden) return;
+  $('importHelpModal').hidden = true;
+  if (importHelpReturnFocus) importHelpReturnFocus.focus();
+}
+$('importHelpOpen').addEventListener('click', openImportHelp);
+$('importHelpCloseX').addEventListener('click', closeImportHelp);
+$('importHelpDone').addEventListener('click', closeImportHelp);
+$('importHelpModal').addEventListener('click', e => { if (e.target === $('importHelpModal')) closeImportHelp(); });
+
+addEventListener('keydown', e => { if (e.key === 'Escape') { closeShare(); closeHelp(); closeImportHelp(); } });
 $('shareOpen').addEventListener('click', () => send({ t: 'openShare' }));
 $('shareReveal').addEventListener('click', () => send({ t: 'revealShare' }));
 
