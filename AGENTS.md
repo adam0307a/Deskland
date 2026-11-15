@@ -1,19 +1,167 @@
-# Deskland 开源体验版开发指南
+# Deskland Preview — Repository & Development Guide (`AGENTS.md`)
 
-- 用中文与项目负责人沟通。
-- 本仓库包含基础宿主、共用界面与框架、沙滩和草地两个免费主题；其他主题只保留带锁的名称、简介和缩略图，不包含页面、参数、脚本或其他实现代码。
-- 界面只保留简体中文和英文，不跟随主程序增加其他语言。
-- 不提供账号登录、购买恢复或自动检查更新功能，不接入授权服务、官网更新清单或商店更新接口。
-- 保持 `themes.json`、主题参数默认值和中英文文案一致；锁定主题没有 `page` 和 `groups`，点击只打开购买说明，不能切换当前壁纸。
-- 修改主题后检查图标移动、预览、暂停和分享；所有画布按实际像素与小数显示尺寸绘制。
-- 壁纸常驻后台，以核显 30fps 为目标。静态绘图进入缓存，小物体使用局部图层，不在全屏着色器中逐个计算大量物体。
-- `prototype/thumbs/` 是人工设计的缩略图，未经要求不要重新生成或覆盖。
-- 主程序：`powershell -ExecutionPolicy Bypass -File host\build.ps1`；产物 `host/bin/Deskland.exe`。
-- 浏览器预览：`node prototype\serve.mjs`，访问 `http://localhost:5178/settings.html`。
-- Windows 宿主：`host/DesktopHost.cs`；改主题 HTML/JS 不需要重新编译宿主，托盘“重新载入”即可。
-- 产品显示名为 `Deskland Preview`；程序读写 `%LOCALAPPDATA%\DesklandPreview`，安装到 `Programs\Deskland Preview`，启动项和运行实例标识也与开发版分开，不要改回共用身份。
-- 不提交 `host/bin/`、`host/lib/`、个人数据、凭证或本机路径。
-- 发布或修改商标相关内容前须获得项目负责人的明确指示。
-- 许可见 `LICENSE`，名称和图标的说明见 `TRADEMARKS.md`。
-- 2026-11-06：已发布 GitHub Release `v0.1.2`，包含 Windows x64 安装包、对应源码 ZIP、SHA256 和文件清单；README 提供最新 Release 下载入口。仓库已公开，安装包未签名。
-- 2026-11-07：本地0.1.3同步启动与缩略图修复：壁纸不抢占前台并排除自身、不可见及 cloaked 窗口，沙滩在暂停与首次图标消息相邻到达时仍完成地形；设置页按版本刷新缓存，13张缩略图以内嵌 data URI 和真实 `<img>` 显示，容器 `width:100%`。真实 Preview 宿主验证13图均解码且宽约211px、高112px，暂停注入后沙滩完成、恢复后帧数增长。安装包43个文件且不含马尔代夫源码，SHA256 `e253cad56f1ea0ee2fb9d13ebe8a44f7dbe7232a506ba752cbe54c939c17bf44`；GitHub Release `v0.1.3` 已发布安装包、对应源码ZIP、SHA256和43文件清单，远端资产哈希核对一致，`releases/latest` 已指向0.1.3。缓存 NSIS ZIP 校验失败，构建复用正式版仓库已验证的 NSIS 3.13 编译器。
+> Canonical architectural reference and contributor/agent guide for the **Deskland Preview** repository.
+> Communicate with the repository owner in **Turkish** when working interactively on this fork.
+
+---
+
+## 1. Project Overview
+
+**Deskland Preview** renders adaptive HTML5/Canvas/WebGL desktop wallpapers that react in real time to desktop icon positions (`icons` messages with icon bounding rectangles) without AI, cloud accounts, telemetry, purchase flows, or auto-updater endpoints.
+
+This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and includes:
+1. **Shared Web Prototype (`prototype/`)** — All wallpaper theme pages, parameter definitions (`themes.json`), settings UI (`settings.html`), snapshot/video sharing (`share.js`), and UI translations (`i18n/en.json`, `i18n/zh-CN.json`).
+2. **Linux Desktop Host (`linux/`)** — Python 3 + GTK3 + WebKit2GTK host with X11/Wayland layer-shell wallpaper support, static wallpaper fallback, KDE Plasma wallpaper plugin + IconSpy integration, system tray, fullscreen auto-pause, theme importer, and `.deb`/Arch packaging.
+3. **Windows Desktop Host (`host/` & `tools/`)** — Upstream C#/WinForms/WebView2 host (`host/DesktopHost.cs`), PowerShell build script (`host/build.ps1`), and NSIS installer scripts (`tools/build-installer.ps1`, `tools/installer.nsi`).
+
+---
+
+## 2. Repository Layout
+
+| Path | Purpose |
+| --- | --- |
+| `prototype/` | Shared HTML/JS/CSS wallpaper themes, settings UI, i18n JSONs, assets, thumbnails |
+| `prototype/themes.json` | Canonical theme registry (`meadow`, `beach`, `aurora`, `glade`, `rift`, `strike`, `pocket`, `roach`, `rosebrook`) |
+| `prototype/settings.html` | Settings window UI (theme grid, live preview iframe, controls, import button & `?` guide modal, snapshot/video share) |
+| `prototype/share.js` | Shared privacy-safe snapshot/video capture helpers (sample icons & color blocks, never real user filenames) |
+| `prototype/i18n/` | UI & theme localization dictionaries (`en.json`, `zh-CN.json` only) |
+| `prototype/assets/` | Sprite artwork and audio assets (palms, kite boy, black cat, `roach-default.mp3`) |
+| `prototype/thumbs/` | Hand-crafted theme thumbnails (`beach.webp`, `meadow.webp`) and inline data (`thumbs-data.js`) |
+| `prototype/serve.mjs` | Zero-dependency Node dev server (`http://localhost:5178/settings.html`) |
+| `linux/deskland_linux/` | Modular Python Linux host package |
+| `linux/deskland_linux/app.py` | Main `Gtk.Application` (`DesklandHost`), message dispatch, settings/wallpaper lifecycle |
+| `linux/deskland_linux/config.py` | XDG paths (`~/.config/deskland`), `SettingsStore`, `ThemeRegistry` merge, `I18n`, `Log` |
+| `linux/deskland_linux/server.py` | Loopback HTTP server (`127.0.0.1:<port>`) serving `prototype/`, `/__share/`, `/__audio/`, and `/__custom/` |
+| `linux/deskland_linux/bridge.py` | WebKitGTK `UserScript` bridge translating `window.chrome.webview` ↔ `window.webkit.messageHandlers` |
+| `linux/deskland_linux/icons.py` | Desktop icon position adapters (GVfs/`gio info`, Xfce RC, KDE Plasma config + IconSpy, fallback grid) |
+| `linux/deskland_linux/wallpaper.py` | Wallpaper renderer window (`X11 DESKTOP`, `gtk-layer-shell`, or transparent render surface for static/Plasma) |
+| `linux/deskland_linux/static_wallpaper.py` | Fallback frame-to-PNG setter via `gsettings`, `qdbus` Plasma scripting, `xfconf-query`, `feh` |
+| `linux/deskland_linux/importer.py` | Custom theme validation & import/removal engine (`.zip`/`.deskland`, `.html`, images, videos) |
+| `linux/deskland_linux/pause.py` | Fullscreen / maximized window detector (X11 `xdotool`/`xprop`, `swaymsg`, Hyprland IPC) |
+| `linux/deskland_linux/settings_window.py` | Dedicated WebKitGTK settings dialog |
+| `linux/deskland_linux/tray.py` | AppIndicator3 / `Gtk.StatusIcon` system tray menu |
+| `linux/deskland_linux/share.py` | PNG/WebM share decoding, file saving (`~/Pictures/Deskland Preview`), GTK clipboard & reveal |
+| `linux/deskland_linux/autostart.py` | XDG autostart desktop entry manager (`~/.config/autostart/deskland.desktop`) |
+| `linux/plasma-wallpaper/org.deskland.preview/` | Native KDE Plasma 6 WebEngine wallpaper plugin (`main.qml`, `inject.js`) |
+| `linux/kde-iconspy/org.deskland.iconspy/` | KDE Plasma companion helper for live desktop icon coordinates |
+| `linux/packaging/` | Desktop file, SVG icon, `build-deb.sh`, and Arch `arch/PKGBUILD` |
+| `linux/tests/` | Pytest unit test suite (`test_autostart.py`, `test_config.py`, `test_icons.py`, `test_importer.py`, `test_share.py`) |
+| `host/` | Windows C# WebView2 host (`DesktopHost.cs`, `Themes.cs`, `build.ps1`, `app.manifest`, icon) |
+| `tools/` | `version.json` and Windows NSIS installer packaging scripts |
+| `dist/` | Built release artifacts (`.exe`, `.deb`, `.pkg.tar.zst`, `.tar.gz`, manifests, SHA256 checksums) |
+
+---
+
+## 3. Themes & Prototype Rules
+
+### Built-in Themes (`prototype/themes.json`)
+All 9 built-in themes in this fork have `status: "ready"` and full source code (no locked placeholder themes):
+- **`meadow`** (`meadow.html`, adaptive): Ink-and-wash meadow, icon-hugging clouds & shadows, animated kite boy and black cat.
+- **`beach`** (`flat.html`, non-adaptive coastline around icons): Animated shoreline, waves, kayaks, seabirds, and coconut palms.
+- **`aurora`** (`aurora.html`, adaptive): Aurora borealis ribbons and pines (`aurora-pines.js`).
+- **`glade`** (`glade.html`, adaptive): Forest glade canopy & trees (`glade-trees.js`).
+- **`rift`** (`rift.html`, adaptive): Interactive geometric rift/chasm (`rift-props.js`).
+- **`strike`** (`strike.html`, adaptive): Lightning/storm reaction around icons (`strike-props.js`).
+- **`pocket`** (`pocket.html`, adaptive): Cozy desktop pocket world (`pocket-props.js`).
+- **`roach`** (`roach.html`, adaptive): Reactive crawling roach world (`roach-props.js`) with optional audio (`prototype/assets/roach-default.mp3`) — keeps default audio **paused (`audioPlay: 0`)** until the user explicitly presses Play.
+- **`rosebrook`** (`rosebrook.html`, adaptive): Blooming flowers/roses around icons over lush green grass & brook (`rosebrook-blooms.js`).
+
+### Localization & Consistency
+- **Supported UI languages**: **Simplified Chinese (`zh-CN`) and English (`en`) ONLY**. Do not add extra languages.
+- `settings.html` resolves `t(key)` as `lang -> 'en' -> 'zh-CN' -> key`, while `el.textContent` is written by `applyStatic()` (do not embed HTML markup inside `i18n` values).
+- Keep defaults in `prototype/themes.json` synchronized with fallback defaults in each theme page HTML and translations in both `prototype/i18n/en.json` and `prototype/i18n/zh-CN.json`.
+- **Plasma bridge registration**: When adding or renaming a theme HTML page, verify `linux/plasma-wallpaper/org.deskland.preview/contents/ui/inject.js` handles/recognizes it alongside icon injection.
+- **Thumbnails**: `prototype/thumbs/` and `prototype/thumbs-data.js` are hand-crafted; never regenerate or overwrite existing thumbnails unless explicitly requested.
+
+### Rendering & Performance Targets
+- Wallpapers run continuously in the background and target **30 fps on integrated GPUs**.
+- Cache static terrain/background drawing in offscreen layers; avoid per-pixel full-screen fragment shader loops over large object counts.
+- Draw canvases using physical pixels paired with fractional CSS display dimensions (`devicePixelRatio`).
+- After editing any theme, verify: **icon movement response**, **settings iframe preview**, **fullscreen/window pause & resume**, and **privacy-safe snapshot/video share**.
+
+---
+
+## 4. Host ↔ Prototype Message Contract
+
+Both Windows (`window.chrome.webview`) and Linux (`linux/deskland_linux/bridge.py`) use the same JSON/string message protocol:
+
+- **Host → Wallpaper page**:
+  - `{ t: 'settings', theme, params }` — apply active theme settings
+  - `{ t: 'reset' }` — restore defaults
+  - `{ t: 'icons', vis, r: [[left, top, right, bottom], ...] }` — icon bounding rects in **physical pixels** (`scale * logicalCoords`, unless `DESKLAND_ICON_POS_PHYSICAL=1`)
+  - `{ t: 'pause', v: boolean }` — pause/resume animation
+  - `{ t: 'snapshot' }` / `{ t: 'record' }` — trigger `desklandSnapshot()` / `desklandRecord()`
+- **Wallpaper page → Host**:
+  - `'ready'`
+  - `'snapshot|<thumbDataUrl>|<fullPngDataUrl>'`
+  - `'recprogress|<0..1>'`
+  - `'record|<mime>|<posterDataUrl>|<videoDataUrl>'`
+- **Settings UI → Host**:
+  - `hello`, `set`, `reset`, `theme`, `lang`, `autostart`, `autostartWarnSeen`
+  - `pickAudio`, `importTheme`, `removeTheme`
+  - `share`, `shareVideo`, `openShare`, `revealShare`, `openWebsite`
+- **Host → Settings UI**:
+  - `init`, `icons`, `themeChanged`, `lang`, `autostart`, `recProgress`, `shareResult`, `audioPicked`, `themeImported`, `themeRemoved`, `importError`
+
+---
+
+## 5. Custom Theme Importer (`linux/deskland_linux/importer.py`)
+
+Settings UI exposes `+ Import theme…` alongside an in-app **`?` format guide modal** (`#importHelpModal`).
+
+- **Storage**: Imported themes live in `$XDG_CONFIG_HOME/deskland/themes/` (`~/.config/deskland/themes/`, override via `DESKLAND_CUSTOM_THEMES_DIR`), indexed in `registry.json` and served at `/__custom/<theme_id>/`. `ThemeRegistry.merged_json_bytes()` appends them seamlessly to `/themes.json`.
+- **Supported Formats**:
+  1. **Theme Packages (`.zip`, `.deskland`)**: Up to **150 MB** (`MAX_ARCHIVE_BYTES`) and **2,000 files** (`MAX_ARCHIVE_FILES`). Validates ZIP CRC integrity, rejects symlinks, absolute paths, and zip-slip `..` traversal. Strips a single wrapping directory if present. Reads `manifest.json` or `theme.json` for `name`, `desc`, `entry`/`page`, `adaptive`, `groups`; otherwise falls back to `index.html` or the first `.html` file.
+  2. **Single Web Page (`.html`, `.htm`)**: Single-file HTML/Canvas/Shader wallpaper wrapped into `index.html`, reading `<title>` as default name.
+  3. **Image Wallpapers (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg`, `.avif`, `.bmp`)**: Auto-wrapped into a responsive page with ambient zoom/pan, `brightness`, `motion`, `dimIcons`, `adaptive`, and `desklandSnapshot` support.
+  4. **Video Wallpapers (`.mp4`, `.webm`, `.mkv`, `.mov`)**: Muted looping `<video>` wrapper with `brightness`, `speed`, and `dimIcons` controls.
+- **UI Removal**: Clicking `Remove` (`#removeTheme`) on an imported theme invokes `remove_custom_theme`, removes its directory and `registry.json` entry, and switches back safely to a built-in theme if it was active.
+
+---
+
+## 6. Linux Architecture & KDE Plasma Notes
+
+- **Wallpaper Surface Strategy (`wallpaper.py`, `static_wallpaper.py`)**:
+  - **X11**: Uses a `Gdk.WindowTypeHint.DESKTOP` GTK window with empty input region, kept below desktop icon windows (`Nautilus`/`xfdesktop`/etc.).
+  - **wlroots Wayland (Sway, Hyprland, river)**: Attaches to `wlr-layer-shell` `background` layer via `gtk3-layer-shell` (`gir1.2-gtklayershell-0.1`).
+  - **KDE Plasma / GNOME Wayland**: Compositor shell/desktop containment covers standard layer-shell `background`, so Linux host uses either the native Plasma wallpaper plugin (`org.deskland.preview`) + `org.deskland.iconspy`, or `--static` fallback rendering frames on an unintrusive render surface (`DesklandRender`, muted when offscreen/render-only) and applying snapshots natively (`qdbus` / `gsettings`). Do not steal foreground focus or track own/invisible/cloaked helper windows in fullscreen pause checks.
+- **Installed Runtime Paths (local Fedora/Arch/Debian deployment)**:
+  - Code & prototype assets: `/usr/lib/deskland/deskland_linux/` and `/usr/lib/deskland/prototype/`
+  - User config, logs, audio copies, custom themes, rendered static frames: `~/.config/deskland/`
+  - User autostart unit (systemd-managed setups): `systemctl --user restart app-deskland@autostart.service`
+
+---
+
+## 7. Build, Preview, Test & Verification Commands
+
+### Browser Preview (UI & Theme Development)
+```bash
+node prototype/serve.mjs
+# Open http://localhost:5178/settings.html (or ?lang=en)
+```
+Browser preview uses sample icon coordinates; real desktop icon tracking runs under Windows or Linux host.
+
+### Linux Host Run & Unit Tests
+```bash
+# Run from source on Linux:
+./linux/run.sh
+
+# Run Python unit tests (22 tests covering autostart, config, icons, importer, share):
+PYTHONPATH=linux uv run --with pytest pytest -v linux/tests
+# (or `PYTHONPATH=linux pytest -v linux/tests` if pytest is installed in system Python)
+```
+
+### Windows Host & Installer (on Windows)
+```powershell
+powershell -ExecutionPolicy Bypass -File host\build.ps1          # builds host/bin/Deskland.exe
+powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1  # NSIS installer -> dist/
+```
+Note: Editing `prototype/` HTML/JS/CSS/JSON does **not** require recompiling `host/DesktopHost.cs`; reload via tray menu **Reload** (or restart `app-deskland@autostart.service` on Linux).
+
+---
+
+## 8. Product Identity, Security & Licensing Guardrails
+
+- **Product identity**: Display name is **`Deskland Preview`** (separate data/install paths: `%LOCALAPPDATA%\DesklandPreview` / `Programs\Deskland Preview` on Windows, `~/.config/deskland` and `/usr/lib/deskland` on Linux). Keep Preview identity separate from any upstream retail Deskland build.
+- **Never commit** build/binary caches or secrets: `host/bin/`, `host/lib/`, `__pycache__/`, `.pytest_cache/`, personal config/credentials, or hardcoded user-local paths in runtime code.
+- **Security & Legal**: Preserve `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and `TRADEMARKS.md`. Obtain explicit confirmation from the project owner before modifying trademark/branding assets or publishing releases. Do not add external auth/telemetry/store/update endpoints.
