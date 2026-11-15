@@ -1,10 +1,10 @@
 # Maintainer: Deskland Linux port contributors
 pkgname=deskland-preview
-pkgver=0.1.3
+pkgver=0.1.4
 pkgrel=1
 pkgdesc="Adaptive wallpaper that follows desktop icons"
 arch=('any')
-url="https://deskland.app/"
+url="https://github.com/adam0307a/Deskland"
 license=('GPL-3.0-only')
 depends=(
   'python'
@@ -19,21 +19,25 @@ optdepends=(
   'gtk-layer-shell: Wayland layer-shell wallpaper backend'
   'xdotool: automatic pause on X11'
 )
-source=("$pkgname-$pkgver.tar.gz::https://github.com/BLEZZ0102/Deskland/archive/refs/heads/main.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/adam0307a/Deskland/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 package() {
-  local src="$srcdir/Deskland-main"
+  local src="$srcdir/Deskland-$pkgver"
 
   install -d "$pkgdir/usr/lib/deskland/linux/deskland_linux" \
              "$pkgdir/usr/lib/deskland/prototype" \
              "$pkgdir/usr/bin" \
              "$pkgdir/usr/share/applications" \
              "$pkgdir/usr/share/icons/hicolor/scalable/apps" \
+             "$pkgdir/usr/share/plasma/wallpapers" \
+             "$pkgdir/usr/share/plasma/plasmoids" \
              "$pkgdir/usr/share/licenses/$pkgname"
 
   cp -a "$src/linux/deskland_linux/." "$pkgdir/usr/lib/deskland/linux/deskland_linux/"
   cp -a "$src/prototype/." "$pkgdir/usr/lib/deskland/prototype/"
+  cp -a "$src/linux/plasma-wallpaper/org.deskland.preview" "$pkgdir/usr/share/plasma/wallpapers/"
+  cp -a "$src/linux/kde-iconspy/org.deskland.iconspy" "$pkgdir/usr/share/plasma/plasmoids/"
   install -m644 "$src/linux/packaging/deskland.desktop" \
     "$pkgdir/usr/share/applications/deskland.desktop"
   install -m644 "$src/linux/packaging/deskland.svg" \

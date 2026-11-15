@@ -6,7 +6,7 @@ set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 LINUX=$(CDPATH= cd -- "$HERE/.." && pwd)
 ROOT=$(CDPATH= cd -- "$LINUX/.." && pwd)
-VERSION="0.1.3~linux1"
+VERSION="0.1.4~linux1"
 ARCH="all"
 PKG="deskland-preview"
 STAGE=$(mktemp -d)
@@ -18,10 +18,14 @@ install -d "$STAGE/usr/lib/deskland/prototype"
 install -d "$STAGE/usr/bin"
 install -d "$STAGE/usr/share/applications"
 install -d "$STAGE/usr/share/icons/hicolor/scalable/apps"
+install -d "$STAGE/usr/share/plasma/wallpapers"
+install -d "$STAGE/usr/share/plasma/plasmoids"
 install -d "$STAGE/usr/share/doc/$PKG"
 
 cp -a "$LINUX/deskland_linux/." "$STAGE/usr/lib/deskland/linux/deskland_linux/"
 cp -a "$ROOT/prototype/." "$STAGE/usr/lib/deskland/prototype/"
+cp -a "$LINUX/plasma-wallpaper/org.deskland.preview" "$STAGE/usr/share/plasma/wallpapers/"
+cp -a "$LINUX/kde-iconspy/org.deskland.iconspy" "$STAGE/usr/share/plasma/plasmoids/"
 install -m 644 "$HERE/deskland.desktop" "$STAGE/usr/share/applications/deskland.desktop"
 install -m 644 "$HERE/deskland.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/deskland.svg"
 install -m 644 "$ROOT/LICENSE" "$STAGE/usr/share/doc/$PKG/copyright"
@@ -45,10 +49,21 @@ Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, gir1.2
 Recommends: gir1.2-gtklayershell-0.1, xdotool
 Description: Adaptive wallpaper that follows desktop icons
  Deskland Preview renders a WebGL scene behind the desktop and reshapes it
- around the real positions of desktop icons. Includes the Beach and Meadow
- themes, tray controls, session autostart and privacy-preserving sharing.
+ around the real positions of desktop icons. Includes free adaptive themes,
+ tray controls, session autostart, KDE Plasma 6 integration and sharing.
 EOF
 
 install -d "$ROOT/dist"
-dpkg-deb --build --root-owner-group "$STAGE" "$ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"
-echo "built: $ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"
+OUT="$ROOT/dist/${PKG}_${VERSION}_${ARCH}.deb"
+if command -v dpkg-deb >/dev/null 2>&1; then
+  dpkg-deb --build --root-owner-group "$STAGE" "$OUT"
+else
+  DEB_TMP=$(mktemp -d)
+  printf '2.0\n' > "$DEB_TMP/debian-binary"
+  tar --numeric-owner --owner=0 --group=0 -C "$STAGE/DEBIAN" -czf "$DEB_TMP/control.tar.gz" .
+  tar --numeric-owner --owner=0 --group=0 --exclude='./DEBIAN' -C "$STAGE" -czf "$DEB_TMP/data.tar.gz" .
+  rm -f "$OUT"
+  (cd "$DEB_TMP" && ar rc "$OUT" debian-binary control.tar.gz data.tar.gz)
+  rm -rf "$DEB_TMP"
+fi
+echo "built: $OUT"

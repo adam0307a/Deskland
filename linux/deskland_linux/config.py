@@ -12,7 +12,7 @@ from typing import Any
 
 APP_NAME = "Deskland Preview"
 APP_ID = "app.deskland.Preview"
-VERSION = "0.1.3-linux.1"
+VERSION = "0.1.4-linux.1"
 
 THEME_DEFAULT = "beach"
 LANG_DEFAULT = "auto"
