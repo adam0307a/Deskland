@@ -144,3 +144,30 @@ def test_pause_monitor_uses_gnome_extension_on_wayland(monkeypatch) -> None:
     monkeypatch.setattr(mon, "_gnome_extension", lambda: False)
     assert mon.should_pause() is False
 
+
+def test_wallpaper_url_for_disables_virtual_icons_on_static_backends():
+    class DummyServer:
+        def url(self, path):
+            return f"http://127.0.0.1:9999/{path}"
+
+    class DummyHost:
+        version = "0.1.5"
+
+    win = Wallpaper.__new__(Wallpaper)
+    win.server = DummyServer()
+    win.host = DummyHost()
+    win._page = "meadow.html"
+    win._audio_supported = True
+    win._safe_insets = (36, 0, 0, 0)
+
+    win.backend = "gnome-shell"
+    assert "vicons=0" not in win.url_for()
+    assert "safeTop=36" in win.url_for()
+
+    win.backend = "static"
+    assert "vicons=0" in win.url_for()
+    assert "mute=1" in win.url_for()
+
+    win.backend = "plasma-plugin"
+    assert "vicons=0" in win.url_for()
+

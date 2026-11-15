@@ -691,11 +691,12 @@ class Wallpaper:
             if self.backend in ("plasma-plugin", "static") or not self._audio_supported
             else ""
         )
+        vicons = "&vicons=0" if self.backend in ("plasma-plugin", "static") else ""
         safe = ""
         top, right, bottom, left = self._safe_insets
         if top or right or bottom or left:
             safe = f"&safeTop={top}&safeRight={right}&safeBottom={bottom}&safeLeft={left}"
-        return self.server.url(f"{page}?wallpaper=1{mute}{safe}&v={self.host.version}")
+        return self.server.url(f"{page}?wallpaper=1{mute}{vicons}{safe}&v={self.host.version}")
 
     def load_page(self, page: str) -> None:
         self._native_audio.stop()
@@ -744,9 +745,26 @@ class Wallpaper:
             self._on_ui_rect(message.get("r"))
         elif kind == "setAudioPlay":
             self.host.on_wallpaper_audio_play(bool(message.get("v")))
+        elif kind == "saveVirtualIcons":
+            self.host.on_virtual_icons_saved(message.get("v"))
+        elif kind == "saveVirtualBarCollapsed":
+            self.host.on_virtual_bar_collapsed(message.get("v"))
+
+    def send_virtual_state(self) -> None:
+        if self._closed or not self._ready:
+            return
+        self.bridge.post(
+            {
+                "t": "virtualState",
+                "icons": self.host.settings.virtual_icons,
+                "collapsed": self.host.settings.virtual_bar_collapsed,
+                "mode": self.host.settings.virtual_bar_mode,
+            }
+        )
 
     def _on_ready(self) -> None:
         self._ready = True
+        self.send_virtual_state()
         self.bridge.post(self.host.wallpaper_settings_message())
         self._sync_native_audio()
         self._last_icons = None

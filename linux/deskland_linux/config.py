@@ -130,6 +130,34 @@ class Log:
         self.write(f"{message}: {exc!r}")
 
 
+VIRTUAL_BAR_MODES = ("auto", "always", "off")
+_ALLOWED_ICON_TYPES = {"folder", "txt", "pdf", "xlsx", "png", "zip"}
+
+
+def sanitize_virtual_icons(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw[:64]:
+        if not isinstance(item, dict):
+            continue
+        try:
+            x = int(round(float(item.get("x", 0))))
+            y = int(round(float(item.get("y", 0))))
+            w = max(24, min(256, int(round(float(item.get("w", 76))))))
+            h = max(24, min(256, int(round(float(item.get("h", 86))))))
+        except (TypeError, ValueError):
+            continue
+        icon_type = item.get("type")
+        if icon_type not in _ALLOWED_ICON_TYPES:
+            icon_type = "folder"
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            name = "Yeni Klasör"
+        out.append({"name": name.strip()[:48], "type": icon_type, "x": x, "y": y, "w": w, "h": h})
+    return out
+
+
 class SettingsStore:
     """theme + per-theme parameter overrides, persisted as JSON."""
 
@@ -138,6 +166,9 @@ class SettingsStore:
         self.theme = THEME_DEFAULT
         self.lang = LANG_DEFAULT
         self.params: dict[str, dict[str, Any]] = {}
+        self.virtual_icons: list[dict[str, Any]] = []
+        self.virtual_bar_collapsed: bool | None = None
+        self.virtual_bar_mode: str = "auto"
         self._lock = threading.Lock()
 
     def load(self) -> None:
@@ -160,10 +191,20 @@ class SettingsStore:
                     for k, v in params.items()
                     if isinstance(v, dict)
                 }
+            self.virtual_icons = sanitize_virtual_icons(data.get("virtualIcons"))
+            collapsed = data.get("virtualBarCollapsed")
+            if isinstance(collapsed, bool) or collapsed is None:
+                self.virtual_bar_collapsed = collapsed
+            mode = data.get("virtualBarMode")
+            if isinstance(mode, str) and mode in VIRTUAL_BAR_MODES:
+                self.virtual_bar_mode = mode
         except (OSError, ValueError, TypeError):
             self.theme = THEME_DEFAULT
             self.lang = LANG_DEFAULT
             self.params = {}
+            self.virtual_icons = []
+            self.virtual_bar_collapsed = None
+            self.virtual_bar_mode = "auto"
 
     def save(self) -> None:
         with self._lock:
@@ -172,6 +213,9 @@ class SettingsStore:
                 "theme": self.theme,
                 "lang": self.lang,
                 "params": self.params,
+                "virtualIcons": self.virtual_icons,
+                "virtualBarCollapsed": self.virtual_bar_collapsed,
+                "virtualBarMode": self.virtual_bar_mode,
             }
             raw = json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8")
             try:

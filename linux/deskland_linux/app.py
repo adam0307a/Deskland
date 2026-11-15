@@ -280,6 +280,8 @@ class DesklandHost:
             self._on_theme(message)
         elif kind == "lang":
             self._on_lang(message)
+        elif kind == "virtualBarMode":
+            self._on_virtual_bar_mode(message)
         elif kind == "autostart":
             self.set_autostart(bool(message.get("v")))
             self._post_settings({"t": "autostart", "v": self.autostart_enabled()})
@@ -315,6 +317,7 @@ class DesklandHost:
                 "lang": self.settings.lang,
                 "langEff": self.i18n.code,
                 "langSys": self.i18n.system,
+                "virtualBarMode": self.settings.virtual_bar_mode,
             }
         )
         if self.last_icons is not None:
@@ -502,6 +505,26 @@ class DesklandHost:
                 "sys": self.i18n.system,
             }
         )
+
+    def _on_virtual_bar_mode(self, message: dict[str, Any]) -> None:
+        value = message.get("v")
+        if value not in ("auto", "always", "off"):
+            return
+        self.settings.virtual_bar_mode = value
+        self.schedule_save()
+        if self.wallpaper is not None:
+            self.wallpaper.send_virtual_state()
+
+    def on_virtual_icons_saved(self, raw: Any) -> None:
+        from .config import sanitize_virtual_icons
+
+        self.settings.virtual_icons = sanitize_virtual_icons(raw)
+        self.schedule_save()
+
+    def on_virtual_bar_collapsed(self, value: Any) -> None:
+        if isinstance(value, bool) or value is None:
+            self.settings.virtual_bar_collapsed = value
+            self.schedule_save()
 
     def _open_url(self, url: str) -> None:
         try:

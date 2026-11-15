@@ -1,6 +1,6 @@
 import json
 
-from deskland_linux.config import SettingsStore, ThemeRegistry, I18n
+from deskland_linux.config import SettingsStore, ThemeRegistry, I18n, sanitize_virtual_icons
 
 
 class DummyLog:
@@ -76,3 +76,24 @@ def test_i18n_fallback(tmp_path):
     i18n = I18n(tmp_path, "en", DummyLog())
     assert i18n.t("trayPause", name="now") == "Pause now"
     assert i18n.t("missingKey") == "missingKey"
+
+
+def test_virtual_icons_settings_roundtrip_and_sanitize(tmp_path):
+    store = SettingsStore(tmp_path)
+    store.virtual_icons = sanitize_virtual_icons([
+        {"name": "Yeni Klasör", "type": "folder", "x": 120.4, "y": 80.7, "w": 76, "h": 86},
+        {"name": "", "type": "unknown", "x": "bad"},
+        {"name": "Notlar.txt", "type": "txt", "x": 200, "y": 140, "w": 500, "h": 10},
+    ])
+    store.virtual_bar_collapsed = True
+    store.virtual_bar_mode = "always"
+    store.save()
+
+    loaded = SettingsStore(tmp_path)
+    loaded.load()
+    assert loaded.virtual_bar_collapsed is True
+    assert loaded.virtual_bar_mode == "always"
+    assert loaded.virtual_icons == [
+        {"name": "Yeni Klasör", "type": "folder", "x": 120, "y": 81, "w": 76, "h": 86},
+        {"name": "Notlar.txt", "type": "txt", "x": 200, "y": 140, "w": 256, "h": 24},
+    ]

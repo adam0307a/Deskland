@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deskland · 林间空地（原型）</title>
+<script src="wall-icons.js"></script>
 <!--
   Deskland · 林间空地主题（俯视；纯 WebGL2，2D）
   画风：淡彩草地空地 + 水粉卡通树林；图标落在阳光草地空地上，四周树木随图标移动生长与让路，微风轻拂树梢。
@@ -96,36 +97,6 @@
   #stats .live { color: #9be07a; }
   .hint { margin-top: 10px; opacity: .5; font-size: 11px; line-height: 1.6; }
   #nogl { position: fixed; inset: 0; display: none; place-items: center; color: #fff; font-size: 16px; }
-  #wall-ui-layer { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
-  body.wall:not(.preview) #wall-ui-layer { display: block; }
-  .wall-icon {
-    position: fixed; width: 76px; height: 86px; border-radius: 10px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-    cursor: grab; pointer-events: auto; user-select: none; color: #fff;
-    text-shadow: 0 1px 4px rgba(0,0,0,.9), 0 0 2px #000; font-size: 11px;
-  }
-  .wall-icon:hover { background: rgba(255,255,255,.12); }
-  .wall-icon:active { cursor: grabbing; }
-  .wall-icon .glyph { width: 46px; height: 46px; filter: drop-shadow(0 3px 6px rgba(0,0,0,.55)); }
-  .wall-icon .glyph svg { width: 100%; height: 100%; display: block; }
-  .wall-icon .label { max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }
-  #ctrl-bar {
-    position: fixed; right: 14px; bottom: 64px; z-index: 20; display: none; gap: 8px; align-items: center;
-    background: rgba(16,42,34,.84); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(155,224,122,.28); padding: 7px 11px; border-radius: 10px;
-    color: #e6f5ea; font-size: 12px; pointer-events: auto; box-shadow: 0 8px 24px rgba(0,0,0,.38);
-  }
-  body.wall:not(.preview) #ctrl-bar { display: flex; }
-  #ctrl-bar.collapsed { gap: 6px; padding: 6px 10px; }
-  #ctrl-bar.collapsed .ctrl-item { display: none; }
-  #ctrl-bar .ctrl-toggle { padding: 3px 7px; font-weight: 700; font-size: 13px; line-height: 1; min-width: 24px; display: inline-flex; align-items: center; justify-content: center; }
-  #ctrl-bar .ctrl-title { white-space: nowrap; user-select: none; }
-  #ctrl-bar button {
-    background: rgba(255,255,255,.1); color: #eef8f0; border: 1px solid rgba(255,255,255,.18);
-    border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; outline: none;
-  }
-  #ctrl-bar button:hover { background: rgba(155,224,122,.24); }
-  #ctrl-bar button.active { background: rgba(155,224,122,.28); border-color: rgba(155,224,122,.5); }
 </style>
 </head>
 <body>
@@ -169,15 +140,6 @@
     <div class="hint">拖动图标到树林里，树木会让出阳光空地<br>Del 删除 · H 隐藏面板</div>
   </div>
 </aside>
-<div id="wall-ui-layer"></div>
-<div id="ctrl-bar">
-  <button id="btnWallCollapse" class="ctrl-toggle" title="Collapse" aria-expanded="true">‹</button>
-  <span class="ctrl-title"><b>Woodland Glade</b></span>
-  <button id="btnWallAdd" class="ctrl-item">+ Icon</button>
-  <button id="btnWallShuffle" class="ctrl-item">Shuffle</button>
-  <button id="btnWallClear" class="ctrl-item">Clear</button>
-  <button id="btnWallHideUI" class="ctrl-item" title="Hide Added Icons">Hide UI</button>
-</div>
 <div id="nogl">当前浏览器不支持 WebGL2，无法运行原型。</div>
 
 <script>
@@ -828,128 +790,6 @@ function drawGhosts() {
   box.innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join('');
 }
 
-let hostIcons = [];
-let wallAddedIcons = [];
-let wallCommitRaf = 0;
-
-function syncWallIcons(fromEmpty = false) {
-  icons = hostIcons.concat(wallAddedIcons);
-  iconsSeen = true;
-  commit(!!fromEmpty);
-}
-
-function scheduleWallCommit() {
-  if (wallCommitRaf) return;
-  wallCommitRaf = requestAnimationFrame(() => {
-    wallCommitRaf = 0;
-    syncWallIcons(false);
-  });
-}
-
-function reportWallCtrlRect(host) {
-  const bar = document.getElementById('ctrl-bar');
-  if (!bar || !host?.postMessage) return;
-  const r = bar.getBoundingClientRect();
-  host.postMessage(JSON.stringify({
-    t: 'uiRect',
-    r: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]
-  }));
-}
-
-function renderWallAddedIcons() {
-  const layer = document.getElementById('wall-ui-layer');
-  layer.innerHTML = '';
-  for (const item of wallAddedIcons) {
-    const el = document.createElement('div');
-    el.className = 'wall-icon';
-    el.style.left = item.x + 'px';
-    el.style.top = item.y + 'px';
-    el.innerHTML = `<div class="glyph"><svg viewBox="0 0 48 48">${glyphOf(item.name, item.type)}</svg></div><div class="label">${item.name}</div>`;
-    let dragging = false, ox = 0, oy = 0;
-    el.addEventListener('pointerdown', e => {
-      if (e.button !== 0) return;
-      dragging = true;
-      ox = e.clientX - item.x;
-      oy = e.clientY - item.y;
-      el.setPointerCapture(e.pointerId);
-      e.stopPropagation();
-    });
-    el.addEventListener('pointermove', e => {
-      if (!dragging) return;
-      item.x = Math.max(12, Math.min(Math.max(12, DW - item.w - 12), e.clientX - ox));
-      item.y = Math.max(12, Math.min(Math.max(12, DH - item.h - 12), e.clientY - oy));
-      el.style.left = item.x + 'px';
-      el.style.top = item.y + 'px';
-      scheduleWallCommit();
-    });
-    const endDrag = () => { dragging = false; };
-    el.addEventListener('pointerup', endDrag);
-    el.addEventListener('pointercancel', endDrag);
-    el.addEventListener('dblclick', e => {
-      e.stopPropagation();
-      wallAddedIcons = wallAddedIcons.filter(x => x !== item);
-      renderWallAddedIcons();
-      syncWallIcons(false);
-    });
-    layer.appendChild(el);
-  }
-}
-
-function initWallControls(host) {
-  const bar = document.getElementById('ctrl-bar');
-  const layer = document.getElementById('wall-ui-layer');
-  const btnCollapse = document.getElementById('btnWallCollapse');
-  const btnHideUI = document.getElementById('btnWallHideUI');
-
-  btnCollapse.addEventListener('click', () => {
-    const collapsed = bar.classList.toggle('collapsed');
-    btnCollapse.textContent = collapsed ? '›' : '‹';
-    btnCollapse.setAttribute('aria-expanded', String(!collapsed));
-    btnCollapse.title = collapsed ? 'Expand' : 'Collapse';
-    reportWallCtrlRect(host);
-  });
-
-  document.getElementById('btnWallAdd').addEventListener('click', () => {
-    const [name, type] = EXTRA[extraIdx++ % EXTRA.length];
-    layer.style.display = 'block';
-    btnHideUI.classList.remove('active');
-    const w = 76, h = 86;
-    const x = Math.round(60 + Math.random() * Math.max(40, DW - w - 120));
-    const y = Math.round(50 + Math.random() * Math.max(40, DH - h - 140));
-    wallAddedIcons.push({ name, type, x, y, w, h });
-    renderWallAddedIcons();
-    syncWallIcons(false);
-  });
-
-  document.getElementById('btnWallShuffle').addEventListener('click', () => {
-    if (!wallAddedIcons.length) {
-      reseed((Math.random() * 1e6) | 0);
-      return;
-    }
-    for (const ic of wallAddedIcons) {
-      ic.x = Math.round(48 + Math.random() * Math.max(40, DW - ic.w - 96));
-      ic.y = Math.round(44 + Math.random() * Math.max(40, DH - ic.h - 120));
-    }
-    renderWallAddedIcons();
-    syncWallIcons(false);
-  });
-
-  document.getElementById('btnWallClear').addEventListener('click', () => {
-    wallAddedIcons = [];
-    renderWallAddedIcons();
-    syncWallIcons(false);
-  });
-
-  btnHideUI.addEventListener('click', () => {
-    const hide = layer.style.display !== 'none';
-    layer.style.display = hide ? 'none' : 'block';
-    btnHideUI.classList.toggle('active', hide);
-  });
-
-  addEventListener('resize', () => reportWallCtrlRect(host));
-  setTimeout(() => reportWallCtrlRect(host), 50);
-}
-
 function startHostedMode() {
   document.body.classList.add('wall');
   if (PREVIEW) {
@@ -965,10 +805,10 @@ function startHostedMode() {
     if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
     if (m.t !== 'icons') return;
     const k = window.devicePixelRatio || 1;
-    hostIcons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
-    icons = hostIcons.concat(wallAddedIcons);
+    icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
     if (PREVIEW) drawGhosts();
-    syncWallIcons(first);
+    iconsSeen = true;
+    commit(first);
     first = false;
   };
   if (PREVIEW) {
@@ -977,7 +817,6 @@ function startHostedMode() {
     return;
   }
   const host = window.chrome && window.chrome.webview;
-  initWallControls(host);
   if (!host) return;
   host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
   host.postMessage('ready');

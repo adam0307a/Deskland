@@ -129,7 +129,11 @@
     "removeTheme": "移除",
     "removeThemeTitle": "移除这个已导入的主题",
     "importErrorTitle": "主题导入失败",
-    "importError": "无法导入主题：{msg}"
+    "importError": "无法导入主题：{msg}",
+    "virtualBarTitle": "桌面虚拟图标控制栏",
+    "virtualBarAuto": "图标栏：自动",
+    "virtualBarAlways": "图标栏：始终显示",
+    "virtualBarOff": "图标栏：隐藏"
   },
   "host": {
     "traySettings": "设置…",

@@ -116,7 +116,11 @@
     "removeTheme": "Remove",
     "removeThemeTitle": "Remove this imported theme",
     "importErrorTitle": "Theme import failed",
-    "importError": "Couldn't import theme: {msg}"
+    "importError": "Couldn't import theme: {msg}",
+    "virtualBarTitle": "Virtual icons bar on desktop",
+    "virtualBarAuto": "Icons: Auto",
+    "virtualBarAlways": "Icons: Always show",
+    "virtualBarOff": "Icons: Hidden"
   },
   "host": {
     "traySettings": "Settings…",
