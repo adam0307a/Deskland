@@ -18,4 +18,13 @@
     <string name="toast_share_saved">Görsel Pictures/DiyarDesk klasörüne kaydedildi</string>
     <string name="toast_share_failed">Görsel kaydedilemedi</string>
     <string name="toast_audio_not_supported">Yerleşik tema sesini kullanabilir veya HTML/video paketi içe aktarabilirsiniz.</string>
+    <string name="btn_live_overlay">Ana Ekranda Canlı Ayarla</string>
+    <string name="overlay_permission_title">Diğer Uygulamaların Üzerinde Göster İzni</string>
+    <string name="overlay_permission_body">DiyarDesk\'in kutuları doğrudan gerçek ana ekranınızdaki ikon ve widget\'ların üzerine yerleştirebilmesi için ekran üstü izin verin.</string>
+    <string name="overlay_notif_title">DiyarDesk İkon Düzenleyici Açık</string>
+    <string name="overlay_notif_text">Kutuları ana ekran ikonlarınızın üzerine yerleştirip Kaydet\'e dokunun.</string>
+    <string name="overlay_mode_passthrough">Ana Ekran</string>
+    <string name="overlay_mode_edit">Kutuları Düzenle</string>
+    <string name="overlay_tap_hint">Boş yere dokun: +İkon · Sürükle: Taşı · Sağ alt nokta: Boyutlandır · Çift dokun: Sil</string>
+    <string name="action_cancel">İptal</string>
 </resources>

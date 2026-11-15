@@ -53,4 +53,29 @@ class ThemeStoreTest {
         assertEquals("init", init.getString("t"))
         assertEquals("en", init.getString("langEff"))
     }
+
+    @Test
+    fun interactiveIconMathMovesResizesAndHitTests() {
+        val box = NormalizedBox.clamped(0.20f, 0.30f, 0.30f, 0.45f, isWidget = false)
+        val boxes = listOf(box)
+
+        assertEquals(0, IconLayoutMath.hitTestBox(boxes, 0.25f, 0.35f))
+        assertEquals(-1, IconLayoutMath.hitTestBox(boxes, 0.05f, 0.05f))
+
+        assertEquals(0, IconLayoutMath.hitTestResizeHandle(boxes, 0.31f, 0.44f, 0.03f, 0.03f))
+        assertEquals(-1, IconLayoutMath.hitTestResizeHandle(boxes, 0.20f, 0.30f, 0.03f, 0.03f))
+
+        val moved = IconLayoutMath.moveBox(box, 0.50f, 0.50f)
+        assertEquals(0.50f, moved.left, 0.001f)
+        assertEquals(0.60f, moved.right, 0.001f)
+
+        val resized = IconLayoutMath.resizeBox(box, 0.45f, 0.70f)
+        assertEquals(0.20f, resized.left, 0.001f)
+        assertEquals(0.45f, resized.right, 0.001f)
+        assertEquals(0.70f, resized.bottom, 0.001f)
+
+        val centered = IconLayoutMath.createBoxCenteredAt(0.50f, 0.50f, isWidget = true)
+        assertEquals(0.50f, (centered.left + centered.right) / 2f, 0.001f)
+        assertTrue(centered.isWidget)
+    }
 }

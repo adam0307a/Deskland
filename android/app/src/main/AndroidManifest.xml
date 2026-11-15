@@ -13,6 +13,10 @@
         android:name="android.software.live_wallpaper"
         android:required="true" />
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -51,6 +55,15 @@
             <meta-data
                 android:name="android.service.wallpaper"
                 android:resource="@xml/diyar_wallpaper" />
+        </service>
+
+        <service
+            android:name=".IconOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Interactive live floating overlay for positioning desktop icon and widget boxes directly over the tablet home screen" />
         </service>
     </application>
 </manifest>

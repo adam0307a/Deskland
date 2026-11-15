@@ -28,6 +28,8 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -113,6 +115,11 @@ class SettingsActivity : AppCompatActivity(), ThemeStore.Listener {
         webView = createSettingsWebView()
         webView.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
         root.addView(webView)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         setContentView(root)
 
         webView.loadUrl("${PrototypeAssets.ORIGIN}/settings.html")

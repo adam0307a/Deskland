@@ -18,4 +18,13 @@
     <string name="toast_share_saved">Saved snapshot to Pictures/DiyarDesk</string>
     <string name="toast_share_failed">Could not save snapshot</string>
     <string name="toast_audio_not_supported">Use built-in theme sound or import a video/HTML theme package.</string>
+    <string name="btn_live_overlay">Place on Home Screen</string>
+    <string name="overlay_permission_title">Allow Display Over Other Apps</string>
+    <string name="overlay_permission_body">Grant overlay permission so DiyarDesk can float translucent boxes directly on top of your real home screen icons and widgets.</string>
+    <string name="overlay_notif_title">DiyarDesk Icon Layout Overlay Active</string>
+    <string name="overlay_notif_text">Drag boxes onto your icons and tap Save when done.</string>
+    <string name="overlay_mode_passthrough">Home Swipe</string>
+    <string name="overlay_mode_edit">Edit Boxes</string>
+    <string name="overlay_tap_hint">Tap empty space to add icon · Drag box to move · Drag corner dot to resize · Double-tap box to delete</string>
+    <string name="action_cancel">Cancel</string>
 </resources>

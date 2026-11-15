@@ -106,6 +106,54 @@ object IconLayoutMath {
             put("r", rects)
         }
     }
+
+    fun hitTestBox(boxes: List<NormalizedBox>, nx: Float, ny: Float): Int {
+        for (i in boxes.indices.reversed()) {
+            val b = boxes[i]
+            if (nx in b.left..b.right && ny in b.top..b.bottom) return i
+        }
+        return -1
+    }
+
+    fun hitTestResizeHandle(
+        boxes: List<NormalizedBox>,
+        nx: Float,
+        ny: Float,
+        radiusX: Float,
+        radiusY: Float
+    ): Int {
+        for (i in boxes.indices.reversed()) {
+            val b = boxes[i]
+            val dx = kotlin.math.abs(nx - b.right)
+            val dy = kotlin.math.abs(ny - b.bottom)
+            if (dx <= radiusX && dy <= radiusY) return i
+        }
+        return -1
+    }
+
+    fun moveBox(box: NormalizedBox, newLeft: Float, newTop: Float): NormalizedBox {
+        val bw = box.right - box.left
+        val bh = box.bottom - box.top
+        val nl = min(max(newLeft, 0.005f), 0.995f - bw)
+        val nt = min(max(newTop, 0.005f), 0.995f - bh)
+        return NormalizedBox(nl, nt, nl + bw, nt + bh, box.isWidget)
+    }
+
+    fun resizeBox(box: NormalizedBox, newRight: Float, newBottom: Float): NormalizedBox {
+        val minW = if (box.isWidget) 0.10f else 0.045f
+        val minH = if (box.isWidget) 0.09f else 0.055f
+        val nr = min(max(newRight, box.left + minW), 0.995f)
+        val nb = min(max(newBottom, box.top + minH), 0.995f)
+        return NormalizedBox(box.left, box.top, nr, nb, box.isWidget)
+    }
+
+    fun createBoxCenteredAt(nx: Float, ny: Float, isWidget: Boolean): NormalizedBox {
+        val w = if (isWidget) 0.22f else 0.072f
+        val h = if (isWidget) 0.18f else 0.115f
+        val l = min(max(nx - w / 2f, 0.005f), 0.995f - w)
+        val t = min(max(ny - h / 2f, 0.005f), 0.995f - h)
+        return NormalizedBox(l, t, l + w, t + h, isWidget)
+    }
 }
 
 /** Persistent JSON preferences & live observer hub shared between Settings UI and WallpaperService. */
