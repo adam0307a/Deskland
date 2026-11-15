@@ -1,4 +1,4 @@
-# 从源码构建 Deskland：使用 Windows 自带的 .NET Framework C# 编译器。
+﻿# 从源码构建 Deskland：使用 Windows 自带的 .NET Framework C# 编译器。
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $lib = Join-Path $root 'lib'
