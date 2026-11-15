@@ -28,13 +28,27 @@
   var lastSettings = null;
 
   window.chrome = window.chrome || {};
+  function replayCachedTo(fn) {
+    if (lastSettings) {
+      try { fn({ data: lastSettings }); } catch (e) {}
+    }
+    if (lastIcons) {
+      try { fn({ data: lastIcons }); } catch (e) {}
+    }
+  }
   window.chrome.webview = {
-    /* The wallpaper host is fire-and-forget: messages from the page
-     * (ready, record, snapshot, share) are requests the wallpaper cannot
-     * fulfil, so they are simply ignored. */
-    postMessage: function () {},
+    /* Replay latest icons/settings when the page signals ready so heavy pages never miss initial polls. */
+    postMessage: function (m) {
+      if (m === 'ready') {
+        if (lastSettings) window.__desklandDeliver(lastSettings);
+        if (lastIcons) window.__desklandDeliver(lastIcons);
+      }
+    },
     addEventListener: function (type, fn) {
-      if (type === 'message') listeners.push(fn);
+      if (type === 'message' && typeof fn === 'function') {
+        listeners.push(fn);
+        setTimeout(function () { replayCachedTo(fn); }, 0);
+      }
     },
   };
   window.__desklandDeliver = function (json) {
