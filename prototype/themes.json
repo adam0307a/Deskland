@@ -687,6 +687,13 @@
           "name": "街景与地砖",
           "params": [
             {
+              "key": "audio",
+              "type": "audio",
+              "label": "背景音乐",
+              "hint": "选择本地音频文件作为小强街区背景音，可在旁点击播放或暂停",
+              "default": 0
+            },
+            {
               "key": "sigma",
               "label": "人行道范围",
               "hint": "图标周围暖色石板人行道台地向外展开的宽度",
@@ -759,13 +766,6 @@
               "step": 0.01,
               "default": 0.9,
               "format": "percent"
-            },
-            {
-              "key": "audio",
-              "type": "audio",
-              "label": "背景音乐",
-              "hint": "选择本地音频文件作为小强街区背景音，可在旁点击播放或暂停",
-              "default": 0
             }
           ]
         }
