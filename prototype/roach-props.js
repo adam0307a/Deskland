@@ -1331,6 +1331,7 @@ let bombs = [];
 let explosions = [];
 let bubbleTimer = 0;
 let bubbleCooldown = 0;
+let dragState = null;
 
 function rHash(a, b, k) {
   let h = Math.imul((a | 0) + 19, 374761393) ^ Math.imul((b | 0) + 41, 668265263) ^ Math.imul((seed | 0) + (k | 0) * 31, 2246822519);
@@ -1381,6 +1382,7 @@ function spawnRoachMember(i, total) {
     vz: 0,
     airRot: 0,
     spinVel: 0,
+    dragged: false,
     inBed: null,
     bedTimer: 0,
     bedCooldown: (kind === 12 || kind === 13) ? (2.5 + (i % 3) * 2.5) : 0,
@@ -1394,6 +1396,7 @@ function spawnRoachMember(i, total) {
 }
 
 function rebuildRoachProps() {
+  dragState = null;
   roaches = [];
   bubbles = [];
   jetStrikes = [];
@@ -1507,6 +1510,10 @@ function syncRoachProps() {
     for (let i = roaches.length; i < target; i++) roaches.push(spawnRoachMember(i, target));
   } else if (roaches.length > target) {
     roaches.length = target;
+    if (dragState && !roaches.includes(dragState.r)) {
+      dragState.r.dragged = false;
+      dragState = null;
+    }
   }
 }
 
@@ -1583,6 +1590,11 @@ function stepRoachProps(dt, timeSec) {
   };
 
   for (const r of roaches) {
+    if (r.dragged) {
+      r.z += (34 - r.z) * Math.min(1, dt * 14);
+      continue;
+    }
+
     // Airborne launch physics from jet bombing (cockroaches NEVER die; fly sky-high spinning then land fine!)
     if (r.z > 0 || r.vz > 0) {
       r.x += r.vx * dt;
@@ -1830,7 +1842,7 @@ function stepRoachProps(dt, timeSec) {
     if (b.age >= b.dur) {
       explosions.push({ x: b.tx, y: b.ty, age: 0, dur: 0.96, size: 176 });
       for (const r of roaches) {
-        if (r.kind === 16) continue;
+        if (r.kind === 16 || r.dragged) continue;
         const dx = r.x - b.tx, dy = r.y - b.ty;
         const dist = Math.hypot(dx, dy);
         if (dist < 210) {
@@ -1923,31 +1935,34 @@ function drawRoachProps(timeSec) {
 
   for (const r of roaches) {
     if (r.inBed) continue;
-    const charging = r.kind === 15 && r.chargeTimer > 0 && r.z <= 0;
+    const held = !!r.dragged;
+    const charging = !held && r.kind === 15 && r.chargeTimer > 0 && r.z <= 0;
     const crazy = r.kind === 12 || r.kind === 13;
-    const calling = r.kind === 16 && r.callMood > 0;
-    const moving = r.stopTimer <= 0 && !charging && !calling && r.z <= 0;
+    const calling = !held && r.kind === 16 && r.callMood > 0;
+    const moving = !held && r.stopTimer <= 0 && !charging && !calling && r.z <= 0;
     const jitterX = charging ? Math.sin(timeSec * 48 + r.phase) * 2.2 : 0;
-    const bounce = r.z > 0 ? 0 : (
+    const bounce = (r.z > 0 || held) ? 0 : (
       charging
         ? Math.abs(Math.sin(timeSec * 28 + r.phase)) * 3.0
         : moving
           ? Math.abs(Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase)) * (crazy ? 6.5 : 4.5)
           : Math.sin(timeSec * 2.8 + r.phase) * (crazy ? 3.0 : 1.5)
     );
-    const tilt = r.z > 0
-      ? r.airRot
-      : charging
-        ? Math.sin(timeSec * 42 + r.phase) * 0.14
-        : moving
-          ? Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase) * (crazy ? 0.17 : 0.09)
-          : (r.kind === 5 || crazy ? Math.sin(timeSec * 4.5 + r.phase) * 0.16 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
+    const tilt = held
+      ? r.airRot + Math.sin(timeSec * 30 + r.phase) * 0.22
+      : r.z > 0
+        ? r.airRot
+        : charging
+          ? Math.sin(timeSec * 42 + r.phase) * 0.14
+          : moving
+            ? Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase) * (crazy ? 0.17 : 0.09)
+            : (r.kind === 5 || crazy ? Math.sin(timeSec * 4.5 + r.phase) * 0.16 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
 
     const mood = calling ? (r.callMood * r.callMood * (3 - 2 * r.callMood)) : 0;
     const heightScale = 1 + r.z / 420;
     const shadowScale = Math.max(0.45, 1 - r.z / 280);
     actors.push({
-      sortY: r.y + r.size * 0.34 + (r.z > 0 ? 120 : 0),
+      sortY: r.y + r.size * 0.34 + (held ? 140 : (r.z > 0 ? 120 : 0)),
       x: r.x + jitterX,
       y: r.y - bounce - r.z,
       groundY: r.y,
@@ -2076,4 +2091,165 @@ function drawRoachProps(timeSec) {
   gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, items.length);
   gl.bindVertexArray(null);
   gl.disable(gl.BLEND);
+}
+
+/* ======================================================================
+   鼠标交互：抓取、拎起晃动与轻抛释放小强
+   ====================================================================== */
+function rClamp(v, lo, hi) {
+  return v < lo ? lo : (v > hi ? hi : v);
+}
+
+function pickRoachAt(px, py) {
+  let best = null;
+  let bestScore = -1e9;
+  for (const r of roaches) {
+    const rx = r.inBed ? r.inBed.x : r.x;
+    const ry = r.inBed ? (r.inBed.y - 4) : (r.y - r.z);
+    const radius = r.inBed ? r.size * 0.56 : r.size * 0.48;
+    const dist = Math.hypot(rx - px, ry - py);
+    if (dist <= radius) {
+      const sortScore = r.y + (r.z > 0 ? 120 : 0) - dist * 0.05;
+      if (sortScore > bestScore) {
+        bestScore = sortScore;
+        best = r;
+      }
+    }
+  }
+  return best;
+}
+
+function roachDragStart(px, py, pointerId) {
+  if (typeof paused !== 'undefined' && paused) return false;
+  const r = pickRoachAt(px, py);
+  if (!r) return false;
+  if (r.inBed) {
+    r.x = r.inBed.x;
+    r.y = r.inBed.y;
+    r.inBed.occupant = null;
+    r.inBed = null;
+    r.bedCooldown = 9 + Math.random() * 8;
+  }
+  r.dragged = true;
+  r.chargeTimer = 0;
+  r.targetOutlet = null;
+  r.stopTimer = 0;
+  r.vz = 0;
+  r.spinVel = 0;
+  r.airRot = 0;
+  r.z = Math.max(r.z, 28);
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  dragState = {
+    r,
+    pointerId: pointerId == null ? null : pointerId,
+    offX: r.x - px,
+    offY: (r.y - r.z) - py,
+    lastX: px,
+    lastY: py,
+    lastT: now,
+    vx: 0,
+    vy: 0,
+  };
+  if (r.kind === 12 || r.kind === 13) rPushBubble(r.x, r.y - r.size * 0.56 - r.z, 1, 3, 2.0, true);
+  else if (r.kind === 11) rPushBubble(r.x, r.y - r.size * 0.56 - r.z, 2, 3, 2.0, true);
+  else rPushBubble(r.x, r.y - r.size * 0.52 - r.z, 1, 2, 1.4, true);
+  return true;
+}
+
+function roachDragMove(px, py, pointerId) {
+  if (!dragState) return false;
+  if (pointerId != null && dragState.pointerId != null && pointerId !== dragState.pointerId) return false;
+  const r = dragState.r;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const dt = Math.max(0.008, (now - dragState.lastT) / 1000);
+  const instVx = (px - dragState.lastX) / dt;
+  const instVy = (py - dragState.lastY) / dt;
+  const blend = Math.min(1, dt * 18);
+  dragState.vx += (instVx - dragState.vx) * blend;
+  dragState.vy += (instVy - dragState.vy) * blend;
+  dragState.lastX = px;
+  dragState.lastY = py;
+  dragState.lastT = now;
+
+  const wLim = typeof W === 'number' && W > 80 ? W : 1280;
+  const hLim = typeof H === 'number' && H > 120 ? H : 720;
+  r.x = rClamp(px + dragState.offX, 28, wLim - 28);
+  r.y = rClamp(py + dragState.offY + r.z, 42, hLim - 58);
+  r.airRot = rClamp(dragState.vx * 0.0012, -0.55, 0.55);
+  return true;
+}
+
+function roachDragEnd(pointerId) {
+  if (!dragState) return false;
+  if (pointerId != null && dragState.pointerId != null && pointerId !== dragState.pointerId) return false;
+  const { r, vx, vy } = dragState;
+  dragState = null;
+  r.dragged = false;
+  const throwVx = rClamp(vx * 0.65, -620, 620);
+  const throwVy = rClamp(vy * 0.65, -620, 620);
+  const flingSpd = Math.hypot(throwVx, throwVy);
+  if (flingSpd > 35) {
+    r.vx = throwVx;
+    r.vy = throwVy;
+    r.vz = rClamp(flingSpd * 0.42, 65, 280);
+    r.spinVel = rClamp(throwVx * 0.012, -8, 8);
+  } else {
+    const curSpd = Math.hypot(r.vx, r.vy) || 1;
+    r.vx = (r.vx / curSpd) * r.baseSpeed;
+    r.vy = (r.vy / curSpd) * r.baseSpeed;
+    r.vz = 55;
+    r.spinVel = (r.phase % 2 > 1 ? 1 : -1) * 1.4;
+  }
+  r.moveTimer = 1.4 + Math.random() * 1.6;
+  return true;
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const toCanvasXY = e => {
+    const rect = typeof cv !== 'undefined' && cv && cv.getBoundingClientRect
+      ? cv.getBoundingClientRect()
+      : { left: 0, top: 0 };
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  };
+  const isUiTarget = t => !!(t && t.closest && t.closest('#panel, #taskbar, .icon'));
+  const setGrabCursor = mode => {
+    if (document.body) document.body.style.cursor = mode;
+  };
+
+  window.roachPointerDown = roachDragStart;
+  window.roachPointerMove = roachDragMove;
+  window.roachPointerUp = roachDragEnd;
+  window.getRoachDragState = () => dragState;
+
+  window.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (isUiTarget(e.target)) return;
+    const [px, py] = toCanvasXY(e);
+    if (roachDragStart(px, py, e.pointerId)) {
+      setGrabCursor('grabbing');
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('pointermove', e => {
+    const [px, py] = toCanvasXY(e);
+    if (roachDragMove(px, py, e.pointerId)) {
+      setGrabCursor('grabbing');
+      return;
+    }
+    if (isUiTarget(e.target)) {
+      setGrabCursor('');
+      return;
+    }
+    setGrabCursor(pickRoachAt(px, py) ? 'grab' : '');
+  });
+
+  const stopDrag = e => {
+    if (roachDragEnd(e && e.pointerId)) setGrabCursor('');
+  };
+  window.addEventListener('pointerup', stopDrag);
+  window.addEventListener('pointercancel', stopDrag);
+  window.addEventListener('blur', () => {
+    if (roachDragEnd()) setGrabCursor('');
+  });
 }
