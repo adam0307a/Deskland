@@ -33,6 +33,8 @@ PlasmoidItem {
     property var pointerBridgeObj: null
     property bool execBusy: false
     property double execStartedAt: 0
+    property double lastWriteTs: 0
+    property string lastWrittenPayload: ""
 
     Plasma5Support.DataSource {
         id: writer
@@ -85,15 +87,28 @@ PlasmoidItem {
             return;
         }
         try {
+            var payload = JSON.stringify({
+                vis: !!obj.vis,
+                r: obj.r || [],
+                n: obj.n || []
+            });
+            // Keepalive rewrite every 30s (inject.js uses 90s TTL) so we do
+            // not fork a shell twice a second when desktop icons are idle.
+            if (payload === root.lastWrittenPayload && (now - root.lastWriteTs) < 30000) {
+                return;
+            }
             var json = JSON.stringify(obj);
             var b64 = toBase64Utf8(json);
             var cmd = "sh -c 'mkdir -p \"$HOME/.cache/deskland\" && printf \"%s\" \"" + b64
                 + "\" | base64 -d > \"$HOME/.cache/deskland/icons.json.tmp\" && mv -f \"$HOME/.cache/deskland/icons.json.tmp\" \"$HOME/.cache/deskland/icons.json\"'";
             root.execBusy = true;
             root.execStartedAt = now;
+            root.lastWriteTs = now;
+            root.lastWrittenPayload = payload;
             writer.connectSource(cmd);
         } catch (e) {
             root.execBusy = false;
+            root.lastWrittenPayload = "";
         }
     }
 
@@ -306,7 +321,7 @@ PlasmoidItem {
 
     Timer {
         id: pollTimer
-        interval: 500
+        interval: 750
         repeat: true
         running: true
         triggeredOnStart: true

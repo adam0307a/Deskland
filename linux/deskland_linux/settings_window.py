@@ -27,8 +27,17 @@ class SettingsWindow:
         self.window.connect("delete-event", self._on_delete)
         self._loaded = False
 
+    def _unload(self) -> None:
+        if not self._loaded:
+            return
+        self._loaded = False
+        try:
+            self.bridge.load_uri("about:blank")
+        except Exception:
+            pass
+
     def _on_delete(self, _window, _event) -> bool:
-        self.window.hide()
+        self.hide()
         return True
 
     def show(self) -> None:
@@ -40,8 +49,11 @@ class SettingsWindow:
 
     def hide(self) -> None:
         self.window.hide()
+        self._unload()
 
     def post(self, payload: Any) -> None:
+        if not self._loaded:
+            return
         self.bridge.post(payload)
 
     def destroy(self) -> None:

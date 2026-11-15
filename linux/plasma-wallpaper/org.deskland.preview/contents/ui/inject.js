@@ -21,11 +21,15 @@
   var CURRENT_THEME = QS.get('theme') || 'meadow';
   var ICONS_JSON = HOME + '/.cache/deskland/icons.json';
   var SETTINGS = HOME + '/.config/deskland/settings.json';
-  var ICONS_TTL_MS = 10000;
+  var PAUSE_JSON = HOME + '/.cache/deskland/pause.json';
+  var ICONS_TTL_MS = 90000;
 
   var listeners = [];
   var lastIcons = null;
   var lastSettings = null;
+  var hostPaused = false;
+  var filePaused = false;
+  var lastPauseSent = null;
 
   window.chrome = window.chrome || {};
   function replayCachedTo(fn) {
@@ -34,6 +38,9 @@
     }
     if (lastIcons) {
       try { fn({ data: lastIcons }); } catch (e) {}
+    }
+    if (lastPauseSent === true) {
+      try { fn({ data: JSON.stringify({ t: 'pause', v: true }) }); } catch (e) {}
     }
   }
   window.chrome.webview = {
@@ -208,8 +215,49 @@
     try { xhr.send(); } catch (e) { /* keep polling */ }
   }
 
-  setInterval(pollIcons, 500);
-  setInterval(pollSettings, 1000);
+  function syncPause() {
+    var effective = !!(hostPaused || filePaused);
+    if (effective !== lastPauseSent) {
+      lastPauseSent = effective;
+      window.__desklandDeliver(JSON.stringify({ t: 'pause', v: effective }));
+    }
+  }
+
+  function pollPause() {
+    var xhr = new XMLHttpRequest();
+    try { xhr.open('GET', 'file://' + PAUSE_JSON, true); } catch (e) { return; }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      var next = false;
+      try {
+        var parsed = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+        next = !!(parsed && parsed.paused);
+      } catch (e) {
+        next = false;
+      }
+      if (next !== filePaused) {
+        filePaused = next;
+        syncPause();
+      }
+    };
+    try { xhr.send(); } catch (e) {}
+  }
+
+  window.__desklandSetHostPaused = function (v) {
+    hostPaused = !!v;
+    syncPause();
+  };
+
+  window.__desklandForcePoll = function () {
+    pollIcons();
+    pollSettings();
+    pollPause();
+  };
+
+  setInterval(pollIcons, 600);
+  setInterval(pollSettings, 1200);
+  setInterval(pollPause, 1500);
   pollIcons();
   pollSettings();
+  pollPause();
 })();

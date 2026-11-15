@@ -101,10 +101,37 @@ const PALETTES = {
 
 let params = { ...DEFAULT_PARAMS };
 let paused = false;
+let rafId = 0;
 let isHosted = false;
 let width = window.innerWidth || 1920;
 let height = window.innerHeight || 1080;
-let dpr = Math.min(window.devicePixelRatio || 1, 2);
+let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+
+function createGlowSprite(innerColor, midColor, outerColor) {
+  const size = 64;
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+  const gctx = c.getContext("2d");
+  const r = size / 2;
+  const grad = gctx.createRadialGradient(r, r, 1, r, r, r);
+  grad.addColorStop(0, innerColor);
+  if (midColor) grad.addColorStop(0.35, midColor);
+  grad.addColorStop(1, outerColor);
+  gctx.fillStyle = grad;
+  gctx.fillRect(0, 0, size, size);
+  return c;
+}
+const LANTERN_GLOW_SPRITE = createGlowSprite(
+  "rgba(255, 220, 140, 0.95)",
+  "rgba(255, 150, 60, 0.42)",
+  "rgba(255, 120, 30, 0)"
+);
+const TORO_GLOW_SPRITE = createGlowSprite(
+  "rgba(255, 210, 120, 0.75)",
+  null,
+  "rgba(255, 160, 60, 0)"
+);
 
 /* ============================================================================
  * 2. DETERMINISTIC HASH & NOISE UTILITIES
@@ -992,14 +1019,7 @@ function renderScene(time) {
   // 7. Draw Floating Wooden Lanterns (Tōrō Nagashi)
   for (const l of lanterns) {
     const glowR = l.size * (2.6 + Math.sin(l.pulse) * 0.35);
-    const grad = ctx.createRadialGradient(l.x, l.y, 1, l.x, l.y, glowR);
-    grad.addColorStop(0, "rgba(255, 220, 140, 0.95)");
-    grad.addColorStop(0.35, "rgba(255, 150, 60, 0.42)");
-    grad.addColorStop(1, "rgba(255, 120, 30, 0)");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(l.x, l.y, glowR, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.drawImage(LANTERN_GLOW_SPRITE, l.x - glowR, l.y - glowR, glowR * 2, glowR * 2);
 
     ctx.save();
     ctx.translate(l.x, l.y);
@@ -1037,13 +1057,8 @@ function renderScene(time) {
       ctx.restore();
     } else if (f.type === "toro" && params.timeOfDay !== "day") {
       // Warm light from island stone lantern
-      const g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, f.size * 2.8);
-      g.addColorStop(0, "rgba(255, 210, 120, 0.75)");
-      g.addColorStop(1, "rgba(255, 160, 60, 0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(f.x, f.y, f.size * 2.8, 0, Math.PI * 2);
-      ctx.fill();
+      const r = f.size * 2.8;
+      ctx.drawImage(TORO_GLOW_SPRITE, f.x - r, f.y - r, r * 2, r * 2);
     }
   }
 
@@ -1081,7 +1096,7 @@ function handleResize() {
   const rect = document.documentElement.getBoundingClientRect();
   width = rect.width || window.innerWidth || 1920;
   height = rect.height || window.innerHeight || 1080;
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
   mainCanvas.width = Math.round(width * dpr);
   mainCanvas.height = Math.round(height * dpr);
@@ -1095,13 +1110,37 @@ function handleResize() {
 
 window.addEventListener("resize", handleResize);
 
+function scheduleNextFrame() {
+  if (!paused && !rafId) {
+    rafId = requestAnimationFrame(loop);
+  }
+}
+
+function setPausedState(nextPaused) {
+  const next = !!nextPaused;
+  if (paused === next) return;
+  paused = next;
+  if (paused) {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  } else {
+    lastFrameTime = performance.now();
+    scheduleNextFrame();
+  }
+}
+
 function loop(now) {
-  requestAnimationFrame(loop);
+  rafId = 0;
   if (paused) return;
 
   const frameInterval = 1000 / (params.targetFps || 30);
   const elapsed = now - lastFrameTime;
-  if (elapsed < frameInterval * 0.92) return;
+  if (elapsed < frameInterval * 0.92) {
+    scheduleNextFrame();
+    return;
+  }
 
   const dt = Math.min(0.1, elapsed / 1000);
   lastFrameTime = now - (elapsed % frameInterval);
@@ -1111,6 +1150,7 @@ function loop(now) {
   updateEntities(dt, time);
   renderScene(time);
   window.frameN++;
+  scheduleNextFrame();
 }
 
 /* ============================================================================
@@ -1177,7 +1217,7 @@ function handleHostMessage(msg) {
 
   // Standard Deskland protocol (msg.t)
   if (msg.t === "pause") {
-    paused = PREVIEW ? false : !!msg.v;
+    setPausedState(PREVIEW ? false : !!msg.v);
     return;
   }
   if (msg.t === "settings") {
@@ -1225,9 +1265,9 @@ function handleHostMessage(msg) {
   if (msg.params || msg.settings) applyParams(msg.params || msg.settings);
   if (msg.type === "params" && msg.data) applyParams(msg.data);
 
-  if (typeof msg.paused === "boolean") paused = msg.paused;
-  if (msg.type === "pause") paused = true;
-  if (msg.type === "resume") paused = false;
+  if (typeof msg.paused === "boolean") setPausedState(PREVIEW ? false : msg.paused);
+  if (msg.type === "pause") setPausedState(PREVIEW ? false : true);
+  if (msg.type === "resume") setPausedState(false);
 
   if (terrainDirty) {
     rebuildTerrainCache();
@@ -1247,7 +1287,7 @@ window.cv = mainCanvas;
 Object.defineProperties(window, {
   W: { get: () => width, configurable: true },
   H: { get: () => height, configurable: true },
-  paused: { get: () => paused, set: (v) => { paused = !!v; }, configurable: true },
+  paused: { get: () => paused, set: (v) => { setPausedState(v); }, configurable: true },
   icons: { get: () => currentIcons.map((c) => ({ x: c.x, y: c.y, w: c.w, h: c.h })), configurable: true }
 });
 window.draw = function (now) {
@@ -1261,7 +1301,7 @@ window.draw = function (now) {
 window.deskland = {
   setIcons: setIconsInput,
   setParams: applyParams,
-  setPaused: (p) => { paused = !!p; },
+  setPaused: (p) => { setPausedState(p); },
   captureFrame: () => mainCanvas.toDataURL("image/png")
 };
 window.setIcons = setIconsInput;
@@ -1436,7 +1476,7 @@ function hexToRgb(hex) {
 // Boot
 handleResize();
 initBrowserPreview();
-requestAnimationFrame(loop);
+scheduleNextFrame();
 })();
 </script>
 <script src="share.js"></script>

@@ -27,6 +27,12 @@ from .pause import PauseMonitor  # noqa: E402
 from .static_wallpaper import StaticWallpaper  # noqa: E402
 
 
+def plasma_pause_path() -> Path:
+    """Return path to the KDE Plasma wallpaper manual-pause state file."""
+    base = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache"))
+    return base / "deskland" / "pause.json"
+
+
 def load_layer_shell():
     try:
         gi.require_version("GtkLayerShell", "0.1")
@@ -317,8 +323,10 @@ class Wallpaper:
         self._pause_busy = False
         self._snapshot_done: Callable[[str | None, str | None, str | None], None] | None = None
         self._snapshot_timeout = 0
+        self._pending_snapshot = False
         self._record_done: Callable[[str | None, str | None, str | None, str | None], None] | None = None
         self._record_timeout = 0
+        self._pending_record = False
         self._static_timeout = 0
         self._static_file: Path | None = None
         self._static_snapshot_pending = False
@@ -360,18 +368,10 @@ class Wallpaper:
                 "GStreamer autoaudiosink bulunamadı; duvar kağıdı sesi yerel oynatıcıya yönlendirildi"
             )
 
-        self.bridge = BridgeWebView(self._on_message)
-        if any(self._safe_insets):
-            self.bridge.add_user_script(_build_safe_inset_script(self._safe_insets), at_end=True)
-            self.log.write(
-                f"Katman güvenli kenar boşluğu: {self._safe_insets}"
-            )
-        self.web = self.bridge.webview
-        if not self._audio_supported and hasattr(self.web, "set_is_muted"):
-            try:
-                self.web.set_is_muted(True)
-            except Exception:
-                pass
+        self.bridge: BridgeWebView | None = None
+        self.web = None
+        if self.backend != "plasma-plugin":
+            self._init_bridge()
         self.window: Gtk.Window | None = None
         self._ui_rect: tuple[int, int, int, int] | None = None
         self._create_surface()
@@ -380,8 +380,36 @@ class Wallpaper:
             f"ekran={self.screen_w}x{self.screen_h}@{scale}, "
             f"simge adaptörü={self.icon_adapter.name}"
         )
-        GLib.timeout_add(400, self._poll_icons)
+        icon_interval = 2000 if self.backend == "plasma-plugin" else 400
+        GLib.timeout_add(icon_interval, self._poll_icons)
         GLib.timeout_add(500, self._poll_pause)
+
+    def _init_bridge(self) -> None:
+        if self.bridge is not None:
+            return
+        self.bridge = BridgeWebView(self._on_message)
+        if any(self._safe_insets):
+            self.bridge.add_user_script(_build_safe_inset_script(self._safe_insets), at_end=True)
+            self.log.write(f"Katman güvenli kenar boşluğu: {self._safe_insets}")
+        self.web = self.bridge.webview
+        if not self._audio_supported and hasattr(self.web, "set_is_muted"):
+            try:
+                self.web.set_is_muted(True)
+            except Exception:
+                pass
+
+    def _write_plasma_pause(self, paused: bool) -> None:
+        path = plasma_pause_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(
+                json.dumps({"paused": bool(paused), "ts": int(time.time() * 1000)}),
+                encoding="utf-8",
+            )
+            os.replace(tmp, path)
+        except OSError as exc:
+            self.log.exception("Plasma pause durumu yazılamadı", exc)
 
     # ---------------------------------------------------------------- surface
     def _select_backend(self, requested: str) -> str:
@@ -519,17 +547,51 @@ class Wallpaper:
         self.window = surface
         self.log.write(log_line)
 
+    def _ensure_share_renderer(self) -> None:
+        if self._closed or self.backend != "plasma-plugin" or self.bridge is not None:
+            return
+        self._init_bridge()
+        self._create_hidden_render_surface(
+            "KDE Plasma paylaşım oluşturucusu geçici olarak başlatıldı"
+        )
+        if self.bridge is not None:
+            self._ready = False
+            self.bridge.load_uri(self.url_for(self._page))
+
+    def _release_share_renderer(self) -> bool:
+        if (
+            self.backend != "plasma-plugin"
+            or self._snapshot_done is not None
+            or self._record_done is not None
+        ):
+            return False
+        self._ready = False
+        self._pending_snapshot = False
+        self._pending_record = False
+        if self.bridge is not None:
+            try:
+                self.bridge.load_uri("about:blank")
+            except Exception:
+                pass
+        if self.window is not None:
+            try:
+                self.window.destroy()
+            except Exception:
+                pass
+            self.window = None
+        self.bridge = None
+        self.web = None
+        return False
+
     def _create_surface(self) -> None:
         if self.backend == "plasma-plugin":
             # org.deskland.preview renders live inside plasmashell and reads
-            # settings.json + icons.json directly. Keep a background render-only
-            # surface only so share snapshots/recordings still work, and never
-            # touch StaticWallpaper (which would overwrite wallpaperPlugin with
-            # org.kde.image).
+            # settings.json + icons.json directly. Avoid keeping a second idle
+            # WebKitWebProcess alive; spawn the hidden renderer lazily only
+            # when share snapshot/recording is explicitly requested.
             self._ensure_plasma_plugin()
-            self._create_hidden_render_surface(
-                "KDE Plasma duvar kağıdı eklentisi aktif: org.deskland.preview"
-            )
+            self._write_plasma_pause(self._manual_pause)
+            self.log.write("KDE Plasma duvar kağıdı eklentisi aktif: org.deskland.preview")
             return
         if self.backend == "static":
             self._create_hidden_render_surface(
@@ -704,16 +766,25 @@ class Wallpaper:
         self._apply_input_region()
         self._page = page
         self._ready = False
-        self._last_icons = None
         self._last_pause = -1
+        if self.bridge is None:
+            return
+        self._last_icons = None
         self.bridge.load_uri(self.url_for(page))
         self.log.write(f"Tema sayfası yüklendi: {page}")
 
     def reload(self) -> None:
+        if self.backend == "plasma-plugin":
+            # Re-trigger settings/pause check inside plasmashell; lazy share
+            # renderer reloads only if currently active.
+            self._write_plasma_pause(self._manual_pause)
+            if self.bridge is None:
+                return
         self._ready = False
         self._last_icons = None
         self._last_pause = -1
-        self.bridge.reload()
+        if self.bridge is not None:
+            self.bridge.reload()
 
     # ---------------------------------------------------------------- messages
     def _on_message(self, text: str) -> None:
@@ -751,7 +822,7 @@ class Wallpaper:
             self.host.on_virtual_bar_collapsed(message.get("v"))
 
     def send_virtual_state(self) -> None:
-        if self._closed or not self._ready:
+        if self._closed or not self._ready or self.bridge is None:
             return
         self.bridge.post(
             {
@@ -765,8 +836,21 @@ class Wallpaper:
     def _on_ready(self) -> None:
         self._ready = True
         self.send_virtual_state()
-        self.bridge.post(self.host.wallpaper_settings_message())
+        if self.bridge is not None:
+            self.bridge.post(self.host.wallpaper_settings_message())
+            if self._last_icons is not None:
+                self.bridge.post(self._last_icons)
         self._sync_native_audio()
+        if self.backend == "plasma-plugin":
+            if self._pending_snapshot and self.bridge is not None:
+                self._pending_snapshot = False
+                self.bridge.post({"t": "pause", "v": False})
+                self.bridge.post({"t": "snapshot"})
+            if self._pending_record and self.bridge is not None:
+                self._pending_record = False
+                self.bridge.post({"t": "pause", "v": False})
+                self.bridge.post({"t": "record"})
+            return
         self._last_icons = None
         self._last_pause = -1
         self._kick_polls()
@@ -798,20 +882,24 @@ class Wallpaper:
 
     def set_settings(self, values: dict[str, Any]) -> None:
         if values:
-            self.bridge.post({"t": "settings", "v": values})
+            if self.bridge is not None:
+                self.bridge.post({"t": "settings", "v": values})
             if "audioPlay" in values or "audioFile" in values:
                 self._sync_native_audio()
             if self.backend == "static":
                 self._schedule_static_render(400)
 
     def reset(self) -> None:
-        self.bridge.post({"t": "reset"})
+        if self.bridge is not None:
+            self.bridge.post({"t": "reset"})
         self._sync_native_audio()
         if self.backend == "static":
             self._schedule_static_render(400)
 
     def set_manual_pause(self, value: bool) -> None:
         self._manual_pause = bool(value)
+        if self.backend == "plasma-plugin":
+            self._write_plasma_pause(self._manual_pause)
         self._last_pause = -1
         self._poll_pause_once()
 
@@ -853,7 +941,7 @@ class Wallpaper:
         if encoded == self._last_icons:
             return False
         self._last_icons = encoded
-        if self._ready:
+        if self._ready and self.bridge is not None:
             self.bridge.post(encoded)
         self.host.on_icons_message(message)
         if self.backend == "static":
@@ -906,7 +994,7 @@ class Wallpaper:
             return False
         self._last_pause = value
         self._sync_native_audio()
-        if self._ready:
+        if self._ready and self.bridge is not None:
             self.bridge.post({"t": "pause", "v": pause})
         self.log.write("Duraklatıldı" if pause else "Devam ediyor")
         return False
@@ -915,11 +1003,25 @@ class Wallpaper:
     def request_snapshot(
         self, done: Callable[[str | None, str | None, str | None], None]
     ) -> None:
-        if not self._ready:
-            done(None, None, self.host.i18n.t("errNotReady"))
-            return
         if self._snapshot_done is not None:
             done(None, None, self.host.i18n.t("errBusyImage"))
+            return
+        if self.backend == "plasma-plugin":
+            self._snapshot_done = done
+            self._snapshot_timeout = GLib.timeout_add_seconds(
+                20, self._snapshot_timed_out
+            )
+            if self.bridge is None:
+                self._pending_snapshot = True
+                self._ensure_share_renderer()
+            elif not self._ready:
+                self._pending_snapshot = True
+            else:
+                self.bridge.post({"t": "pause", "v": False})
+                self.bridge.post({"t": "snapshot"})
+            return
+        if not self._ready or self.bridge is None:
+            done(None, None, self.host.i18n.t("errNotReady"))
             return
         self._snapshot_done = done
         self._snapshot_timeout = GLib.timeout_add_seconds(
@@ -949,6 +1051,8 @@ class Wallpaper:
             self._snapshot_timeout = 0
         done = self._snapshot_done
         self._snapshot_done = None
+        if self.backend == "plasma-plugin":
+            GLib.idle_add(self._release_share_renderer)
         if done is not None:
             done(thumb, png, error)
 
@@ -956,11 +1060,23 @@ class Wallpaper:
         self,
         done: Callable[[str | None, str | None, str | None, str | None], None],
     ) -> None:
-        if not self._ready:
-            done(None, None, None, self.host.i18n.t("errNotReady"))
-            return
         if self._record_done is not None:
             done(None, None, None, self.host.i18n.t("errBusyVideo"))
+            return
+        if self.backend == "plasma-plugin":
+            self._record_done = done
+            self._record_timeout = GLib.timeout_add_seconds(45, self._record_timed_out)
+            if self.bridge is None:
+                self._pending_record = True
+                self._ensure_share_renderer()
+            elif not self._ready:
+                self._pending_record = True
+            else:
+                self.bridge.post({"t": "pause", "v": False})
+                self.bridge.post({"t": "record"})
+            return
+        if not self._ready or self.bridge is None:
+            done(None, None, None, self.host.i18n.t("errNotReady"))
             return
         self._record_done = done
         self._record_timeout = GLib.timeout_add_seconds(45, self._record_timed_out)
@@ -992,6 +1108,8 @@ class Wallpaper:
             self._record_timeout = 0
         done = self._record_done
         self._record_done = None
+        if self.backend == "plasma-plugin":
+            GLib.idle_add(self._release_share_renderer)
         if done is not None:
             done(mime, poster, video, error)
 
@@ -1073,6 +1191,8 @@ class Wallpaper:
             return
         self._closed = True
         self._native_audio.stop()
+        if self.backend == "plasma-plugin":
+            self._write_plasma_pause(False)
         if self._snapshot_timeout:
             GLib.source_remove(self._snapshot_timeout)
         if self._record_timeout:
