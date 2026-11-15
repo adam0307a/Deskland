@@ -102,6 +102,7 @@
     "importThemeTitle": "Import a theme package (.zip, .deskland), HTML page, image, or video",
     "removeTheme": "Remove",
     "removeThemeTitle": "Remove this imported theme",
+    "importErrorTitle": "Theme import failed",
     "importError": "Couldn't import theme: {msg}"
   },
   "host": {

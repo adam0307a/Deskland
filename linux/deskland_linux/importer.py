@@ -119,15 +119,18 @@ def _safe_zip_members(zf: zipfile.ZipFile) -> list[tuple[zipfile.ZipInfo, list[s
 
 
 def _find_entry_html(theme_dir: Path, preferred: str | None = None) -> str:
-    if preferred:
-        clean = preferred.lstrip("/").replace("\\", "/")
+    if preferred is not None:
+        if not isinstance(preferred, str) or not preferred.strip():
+            raise ValueError("Invalid entry path in theme manifest")
+        clean = preferred.strip().lstrip("/").replace("\\", "/")
         cand = (theme_dir / clean).resolve()
         try:
             cand.relative_to(theme_dir.resolve())
-        except ValueError:
-            cand = None
-        if cand and cand.is_file() and cand.suffix.lower() in HTML_EXTS:
-            return clean
+        except ValueError as exc:
+            raise ValueError(f"Unsafe entry path in theme manifest: {preferred}") from exc
+        if not cand.is_file() or cand.suffix.lower() not in HTML_EXTS:
+            raise ValueError(f"Entry HTML file not found in archive: {clean}")
+        return clean
     if (theme_dir / "index.html").is_file():
         return "index.html"
     root_html = sorted(
@@ -143,6 +146,73 @@ def _find_entry_html(theme_dir: Path, preferred: str | None = None) -> str:
     if nested_html:
         return nested_html[0]
     raise ValueError("No .html entry page found in archive")
+
+
+def _sanitize_groups(raw_groups: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_groups, list):
+        return []
+    clean_groups: list[dict[str, Any]] = []
+    for g in raw_groups:
+        if not isinstance(g, dict) or not isinstance(g.get("params"), list):
+            continue
+        clean_params: list[dict[str, Any]] = []
+        for p in g["params"]:
+            if not isinstance(p, dict):
+                continue
+            key = str(p.get("key") or "").strip()
+            label = str(p.get("label") or key).strip()
+            if not key or not re.match(r"^[a-zA-Z0-9_-]+$", key):
+                continue
+            item: dict[str, Any] = {"key": key, "label": label[:48]}
+            if isinstance(p.get("hint"), str):
+                item["hint"] = p["hint"][:180]
+            if isinstance(p.get("options"), list) and p["options"]:
+                opts = [str(o) for o in p["options"][:8]]
+                default_idx = int(p.get("default", 0)) if isinstance(p.get("default"), (int, float)) else 0
+                item["options"] = opts
+                item["default"] = max(0, min(len(opts) - 1, default_idx))
+            else:
+                try:
+                    p_min = float(p.get("min", 0))
+                    p_max = float(p.get("max", 1))
+                    p_step = float(p.get("step", 0.01))
+                    p_def = float(p.get("default", p_min))
+                except (TypeError, ValueError):
+                    continue
+                if p_max <= p_min or p_step <= 0:
+                    continue
+                item["min"] = p_min
+                item["max"] = p_max
+                item["step"] = p_step
+                item["default"] = max(p_min, min(p_max, p_def))
+                if p.get("format") in ("times", "percent"):
+                    item["format"] = p["format"]
+                elif isinstance(p.get("unit"), str) and p["unit"]:
+                    item["unit"] = p["unit"][:12]
+            clean_params.append(item)
+        if clean_params:
+            clean_groups.append({"name": str(g.get("name") or "Settings")[:48], "params": clean_params})
+    return clean_groups
+
+
+def _validate_html_file(path: Path) -> str:
+    raw = path.read_bytes()
+    if not raw or b"\x00" in raw:
+        raise ValueError(f"HTML file is empty or corrupted: {path.name}")
+    return raw.decode("utf-8", errors="replace")
+
+
+def _copy_limited(src_fp, dst_fp, remaining_bytes: int) -> int:
+    written = 0
+    while True:
+        chunk = src_fp.read(65536)
+        if not chunk:
+            break
+        written += len(chunk)
+        if written > remaining_bytes:
+            raise ValueError("Archive uncompressed size exceeds 150 MB limit")
+        dst_fp.write(chunk)
+    return written
 
 
 def _find_archive_thumb(theme_dir: Path, theme_id: str, manifest_thumb: Any) -> str:
@@ -415,6 +485,8 @@ def import_theme_file(
     src = Path(source)
     if not src.is_file():
         raise ValueError(f"Selected file does not exist: {src}")
+    if src.stat().st_size == 0:
+        raise ValueError("Selected file is empty.")
     ext = src.suffix.lower()
     if ext not in SUPPORTED_EXTS:
         raise ValueError(f"Unsupported file type: {ext or 'none'}")
@@ -430,30 +502,34 @@ def import_theme_file(
 
     try:
         if ext in ARCHIVE_EXTS:
-            with zipfile.ZipFile(src, "r") as zf:
+            try:
+                zf_ctx = zipfile.ZipFile(src, "r")
+            except zipfile.BadZipFile as exc:
+                raise ValueError("Archive is corrupted or not a valid ZIP file.") from exc
+            with zf_ctx as zf:
                 entries = _safe_zip_members(zf)
+                remaining = MAX_ARCHIVE_BYTES
                 for info, parts in entries:
                     dest = (theme_dir / Path(*parts)).resolve()
                     dest.relative_to(theme_dir.resolve())
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     with zf.open(info, "r") as zin, dest.open("wb") as zout:
-                        shutil.copyfileobj(zin, zout)
+                        remaining -= _copy_limited(zin, zout, remaining)
             manifest: dict[str, Any] = {}
             for mname in ("manifest.json", "theme.json"):
                 mp = theme_dir / mname
                 if mp.is_file():
                     try:
                         parsed = json.loads(mp.read_text(encoding="utf-8"))
-                        if isinstance(parsed, dict):
-                            manifest = parsed
-                            break
-                    except (OSError, ValueError):
-                        pass
+                    except (OSError, ValueError) as exc:
+                        raise ValueError(f"Invalid {mname} in theme archive.") from exc
+                    if not isinstance(parsed, dict):
+                        raise ValueError(f"Invalid {mname} structure (expected JSON object).")
+                    manifest = parsed
+                    break
             entry = _find_entry_html(theme_dir, manifest.get("entry") or manifest.get("page"))
-            html_title = _extract_html_title(
-                (theme_dir / entry).read_text(encoding="utf-8", errors="ignore"),
-                _pretty_title(src.stem),
-            )
+            entry_html = _validate_html_file(theme_dir / entry)
+            html_title = _extract_html_title(entry_html, _pretty_title(src.stem))
             theme_obj: dict[str, Any] = {
                 "id": theme_id,
                 "name": str(manifest.get("name") or html_title)[:60],
@@ -466,11 +542,12 @@ def import_theme_file(
                 "adaptive": bool(manifest.get("adaptive", False)),
                 "thumb": _find_archive_thumb(theme_dir, theme_id, manifest.get("thumb")),
             }
-            if isinstance(manifest.get("groups"), list):
-                theme_obj["groups"] = manifest["groups"]
+            groups = _sanitize_groups(manifest.get("groups"))
+            if groups:
+                theme_obj["groups"] = groups
 
         elif ext in HTML_EXTS:
-            raw_html = src.read_text(encoding="utf-8", errors="replace")
+            raw_html = _validate_html_file(src)
             (theme_dir / "index.html").write_text(raw_html, encoding="utf-8")
             title = _extract_html_title(raw_html, _pretty_title(src.stem))
             theme_obj = {

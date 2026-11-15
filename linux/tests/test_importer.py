@@ -99,3 +99,68 @@ def test_import_image_and_server_merge(tmp_path: Path) -> None:
         assert "desklandSnapshot" in html_body
     finally:
         srv.stop()
+
+
+def test_import_rejects_corrupt_and_invalid_inputs(tmp_path: Path) -> None:
+    custom_dir = tmp_path / "custom"
+
+    # 1. Corrupt ZIP bytes
+    corrupt = tmp_path / "broken.zip"
+    corrupt.write_bytes(b"not a zip archive")
+    try:
+        import_theme_file(corrupt, custom_dir=custom_dir)
+    except ValueError as exc:
+        assert "corrupted" in str(exc).lower() or "zip" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError for corrupt ZIP")
+
+    # 2. ZIP without any HTML entry page
+    no_html = tmp_path / "nohtml.zip"
+    with zipfile.ZipFile(no_html, "w") as zf:
+        zf.writestr("readme.txt", "hello")
+    try:
+        import_theme_file(no_html, custom_dir=custom_dir)
+    except ValueError as exc:
+        assert "No .html" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for ZIP missing HTML")
+
+    # 3. Invalid JSON manifest
+    bad_manifest = tmp_path / "badmanifest.zip"
+    with zipfile.ZipFile(bad_manifest, "w") as zf:
+        zf.writestr("manifest.json", "{broken json")
+        zf.writestr("index.html", "<html></html>")
+    try:
+        import_theme_file(bad_manifest, custom_dir=custom_dir)
+    except ValueError as exc:
+        assert "manifest.json" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid manifest.json")
+
+    # 4. Configured entry missing from ZIP
+    missing_entry = tmp_path / "missingentry.zip"
+    with zipfile.ZipFile(missing_entry, "w") as zf:
+        zf.writestr("manifest.json", json.dumps({"entry": "does_not_exist.html"}))
+        zf.writestr("index.html", "<html></html>")
+    try:
+        import_theme_file(missing_entry, custom_dir=custom_dir)
+    except ValueError as exc:
+        assert "Entry HTML file not found" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for missing entry")
+
+    # 5. Empty 0-byte file
+    empty = tmp_path / "empty.png"
+    empty.write_bytes(b"")
+    try:
+        import_theme_file(empty, custom_dir=custom_dir)
+    except ValueError as exc:
+        assert "empty" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError for empty file")
+
+    # Nothing left behind on disk or registry after failed imports
+    assert load_custom_themes(custom_dir) == []
+    dirs = [p for p in custom_dir.iterdir() if p.is_dir()] if custom_dir.exists() else []
+    assert dirs == []
+

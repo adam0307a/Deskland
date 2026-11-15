@@ -313,6 +313,7 @@
       <button class="ghost-btn update-action" id="updateProgram" data-i18n="updateProgram">立即更新</button>
     </div>
     <div class="warn" id="autostartWarn" hidden role="alert"><p><b data-i18n="autostartBlocked">开机自动启动可能被拦截了</b><br><span id="autostartWarnText"></span></p><button id="autostartWarnOk" data-i18n="gotIt">知道了</button></div>
+    <div class="warn" id="importWarn" hidden role="alert"><p><b id="importWarnTitle">Theme import failed</b><br><span id="importWarnText"></span></p><button id="importWarnOk" data-i18n="gotIt">知道了</button></div>
     <div class="theme-list" id="themes"></div>
   </section>
 
@@ -775,9 +776,11 @@ function renderHead() {
   $('adaptive').setAttribute('aria-label', t('adaptive'));
 }
 $('importTheme').addEventListener('click', () => {
+  $('importWarn').hidden = true;
   if (host) send({ t: 'importTheme' });
   else alert('Import theme is available in the desktop app (supports .zip, .deskland, .html, images, and videos).');
 });
+$('importWarnOk').addEventListener('click', () => { $('importWarn').hidden = true; });
 $('removeTheme').addEventListener('click', () => {
   const th = themeById(state.theme);
   if (!th || !th.imported || !host) return;
@@ -909,6 +912,7 @@ function onHost(m) {
   } else if (m.t === 'shareResult') {
     showShare(m);
   } else if (m.t === 'themeImported') {
+    $('importWarn').hidden = true;
     if (!m.theme || !m.theme.id) return;
     if (!themeById(m.theme.id)) {
       state.registry0.themes.push(m.theme);
@@ -927,7 +931,9 @@ function onHost(m) {
     state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'beach');
     showTheme();
   } else if (m.t === 'importError') {
-    alert(t('importError', { msg: m.msg || t('unknownReason') }));
+    $('importWarnTitle').textContent = t('importErrorTitle') || 'Theme import failed';
+    $('importWarnText').textContent = m.msg || t('unknownReason');
+    $('importWarn').hidden = false;
   } else if (m.t === 'audioPicked') {
     const thId = m.theme || state.theme;
     const cur = (state.params[thId] = state.params[thId] || {});
