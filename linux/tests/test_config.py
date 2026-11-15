@@ -46,6 +46,28 @@ def test_theme_registry_free_only(tmp_path):
     assert registry.allowed("locked") is False
 
 
+def test_theme_registry_reloads_when_themes_json_updates(tmp_path):
+    themes_file = tmp_path / "themes.json"
+    themes_file.write_text(
+        json.dumps({"themes": [{"id": "beach", "status": "ready", "product": "free", "page": "flat.html"}]}),
+        encoding="utf-8",
+    )
+    registry = ThemeRegistry(tmp_path, DummyLog())
+    assert registry.allowed("roach") is False
+
+    themes_file.write_text(
+        json.dumps({
+            "themes": [
+                {"id": "beach", "status": "ready", "product": "free", "page": "flat.html"},
+                {"id": "roach", "status": "ready", "product": "free", "page": "roach.html"},
+            ]
+        }),
+        encoding="utf-8",
+    )
+    assert registry.allowed("roach") is True
+    assert registry.page_for("roach") == "roach.html"
+
+
 def test_i18n_fallback(tmp_path):
     (tmp_path / "i18n").mkdir()
     (tmp_path / "i18n" / "en.json").write_text(

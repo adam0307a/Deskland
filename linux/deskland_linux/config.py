@@ -188,10 +188,12 @@ class ThemeRegistry:
         self.path = prototype / "themes.json"
         self.log = log
         self.themes: list[dict[str, Any]] = []
+        self._mtime_ns: int | None = None
         self.load()
 
     def load(self) -> None:
         try:
+            self._mtime_ns = self.path.stat().st_mtime_ns
             data = json.loads(self.path.read_text(encoding="utf-8"))
             themes = data.get("themes") if isinstance(data, dict) else None
             if isinstance(themes, list):
@@ -200,9 +202,18 @@ class ThemeRegistry:
             self.log.exception("themes.json okunamadı", exc)
             self.themes = []
 
+    def _reload_if_stale(self) -> None:
+        try:
+            mtime_ns = self.path.stat().st_mtime_ns
+        except OSError:
+            return
+        if mtime_ns != self._mtime_ns:
+            self.load()
+
     def find(self, theme_id: str | None) -> dict[str, Any] | None:
         if not theme_id:
             return None
+        self._reload_if_stale()
         for theme in self.themes:
             if theme.get("id") == theme_id:
                 return theme
