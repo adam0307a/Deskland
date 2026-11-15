@@ -836,18 +836,15 @@ window.__dbg = {
     return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height };
   },
 };
-resize();
-buildNoiseTex();
-if (WALL || PREVIEW) startHostedMode();
-else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
 
 /* ======================================================================
    托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
    ====================================================================== */
+const DEFAULT_ROACH_AUDIO_URL = 'assets/roach-default.mp3';
+const DEFAULT_ROACH_AUDIO_NAME = 'Roach Town (Default)';
 let bgAudioEl = null;
 const wallAudioBtn = document.getElementById('wallAudioBtn');
-const bgAudioState = { file: '', src: '', name: '', play: 0, lastHostPlay: 0, allow: MUTE ? 0 : (WALL ? 1 : (PREVIEW ? 0 : 1)), blobUrl: '', lastUrl: '' };
+const bgAudioState = { file: '', src: '', name: '', play: 1, lastHostPlay: 1, allow: MUTE ? 0 : (WALL ? 1 : (PREVIEW ? 0 : 1)), blobUrl: '', lastUrl: '' };
 function ensureBgAudioEl() {
   if (!bgAudioEl) {
     bgAudioEl = document.createElement('audio');
@@ -863,7 +860,7 @@ function resolveRoachAudioUrl() {
   if (bgAudioState.file) {
     return (location.hostname === 'app.local' ? 'https://audio.local/' : '/__audio/') + encodeURIComponent(bgAudioState.file);
   }
-  return '';
+  return DEFAULT_ROACH_AUDIO_URL;
 }
 function updateWallAudioBtn(url) {
   if (!wallAudioBtn || !(WALL && !PREVIEW)) return;
@@ -871,7 +868,7 @@ function updateWallAudioBtn(url) {
   const playing = hasUrl && bgAudioState.play === 1;
   wallAudioBtn.classList.toggle('show', hasUrl);
   wallAudioBtn.classList.toggle('playing', playing);
-  wallAudioBtn.title = bgAudioState.name || '';
+  wallAudioBtn.title = bgAudioState.name || DEFAULT_ROACH_AUDIO_NAME;
   wallAudioBtn.innerHTML = playing
     ? '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.4"/></svg><span>Stop</span>'
     : '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.7a.7.7 0 0 1 1.05-.6l7.2 4.3a.7.7 0 0 1 0 1.2l-7.2 4.3a.7.7 0 0 1-1.05-.6Z"/></svg><span>Play</span>';
@@ -915,7 +912,7 @@ function syncRoachAudio() {
   if (!(WALL || PREVIEW)) {
     const pickPlay = document.getElementById('panelAudioPlay');
     const nameEl = document.getElementById('panelAudioName');
-    if (nameEl) nameEl.textContent = bgAudioState.name || '未选择音频';
+    if (nameEl) nameEl.textContent = bgAudioState.name || DEFAULT_ROACH_AUDIO_NAME;
     if (pickPlay) {
       pickPlay.disabled = !url;
       pickPlay.textContent = (url && bgAudioState.play === 1) ? '暂停' : '播放';
@@ -1015,11 +1012,12 @@ function startHostedMode() {
   }
   icons = [];
   commit(true);
+  syncRoachAudio();
   let first = true;
   const handle = m => {
     if (m.t === 'pause') { paused = PREVIEW ? false : m.v; syncRoachAudio(); return; }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
-    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, { audioFile: '', audioSrc: '', audioName: '', audioPlay: 0 }, m.v || {})); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, { audioFile: '', audioSrc: '', audioName: '', audioPlay: 1 }, m.v || {})); return; }
     if (m.t !== 'icons') return;
     const k = window.devicePixelRatio || 1;
     icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];
@@ -1038,6 +1036,12 @@ function startHostedMode() {
   host.addEventListener('message', ev => handle(JSON.parse(ev.data)));
   host.postMessage('ready');
 }
+
+resize();
+buildNoiseTex();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); syncRoachAudio(); }
+requestAnimationFrame(frame);
 </script>
 <script src="roach-props.js"></script>
 <script src="share.js"></script>

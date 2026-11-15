@@ -120,14 +120,6 @@
   .theme .thumb { flex: none; width: 100%; height: 112px; border-radius: 20px; position: relative; overflow: hidden; }
   .theme .thumb > img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
   .theme:disabled .thumb { filter: saturate(.55) brightness(1.02); opacity: .75; }
-  .theme.locked .thumb { filter: none; opacity: 1; }
-  .purchase-box { max-width: 440px; }
-  .purchase-icon { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 16px; border-radius: 14px;
-    background: var(--panel-2); color: var(--text); }
-  .purchase-icon svg { width: 21px; height: 21px; }
-  .theme .lock-mark { position: absolute; right: 12px; bottom: 12px; display: grid; place-items: center; width: 30px; height: 30px;
-    border-radius: 50%; background: rgba(255, 255, 255, .94); color: #252a28; box-shadow: 0 2px 10px rgba(0, 0, 0, .14); }
-  .theme .lock-mark svg { width: 15px; height: 15px; }
   .theme.ongoing-card { border-color: var(--line); border-style: dashed; }
   .theme.ongoing-card:disabled .thumb { filter: none; opacity: 1; }
   .ongoing-art { display: grid; place-items: center; background: var(--panel-2); color: var(--muted); }
@@ -333,19 +325,6 @@
   </div>
 </main>
 
-<div class="modal" id="purchaseModal" hidden role="dialog" aria-modal="true" aria-labelledby="purchaseTitle">
-  <div class="box purchase-box">
-    <div class="purchase-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
-    <h3 id="purchaseTitle" data-i18n="purchaseTitle">购买壁纸版</h3>
-    <p class="sub" id="purchaseTheme"></p>
-    <p class="sub" data-i18n="purchaseMessage">体验版可永久使用沙滩和草地。壁纸版可解锁更多主题，并在同一个 Deskland 中使用。</p>
-    <div class="actions">
-      <button class="ghost-btn" id="purchaseLater" data-i18n="purchaseLater">继续体验</button>
-      <button class="ghost-btn primary" id="purchaseWebsite" data-i18n="purchaseWebsite">前往官网</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal" id="shareModal" hidden role="dialog" aria-modal="true" aria-labelledby="shareTitle">
   <div class="box">
     <h3 id="shareTitle">桌面图已经准备好了</h3>
@@ -446,6 +425,7 @@ function localizeRegistry() {
         p.hint = q(y => y.hint) ?? p.hint;
         p.options = q(y => y.options) ?? p.options;
         p.unit = q(y => y.unit) ?? p.unit;
+        if (p.type === 'audio') p.defaultName = q(y => y.defaultName) ?? p.defaultName;
       }
     });
   }
@@ -472,7 +452,7 @@ async function setLang(code) {
 // 换了语言：界面上的字都重新填一遍（预览不用重新加载）
 function rerenderTexts() {
   if (!state.screen) return;
-  renderHead(); renderThemes(); renderControls(); updateFoot(); shareBusy(shareState); showAutostartWarn(); showUpdate(); updatePurchaseText();
+  renderHead(); renderThemes(); renderControls(); updateFoot(); shareBusy(shareState); showAutostartWarn(); showUpdate();
 }
 $('lang').addEventListener('change', e => {
   state.langSetting = e.target.value;
@@ -485,7 +465,13 @@ const themeById = id => state.registry.themes.find(t => t.id === id);
 function defaultsOf(theme) {
   const d = {};
   if (theme.adaptive) d.adaptive = 1;
-  for (const g of theme.groups || []) for (const p of g.params) d[p.key] = p.default;
+  for (const g of theme.groups || []) for (const p of g.params) {
+    if (p.type === 'audio') {
+      if (p.defaultSrc) d.audioPlay = 1;
+      continue;
+    }
+    d[p.key] = p.default;
+  }
   return d;
 }
 function valuesOf(theme) { return Object.assign(defaultsOf(theme), state.params[theme.id] || {}); }
@@ -504,36 +490,17 @@ function fmt(p, v) {
 const thumbUrl = (value, id) => window.DESKLAND_THUMBS?.[id] || String(value || '').match(/^url\(([^)]+)\)/)?.[1] || '';
 function renderThemes() {
   $('themes').innerHTML = state.registry.themes.map(th => {
-    const locked = th.locked === true, ready = th.status === 'ready', on = th.id === state.theme;
-    const label = locked ? t('lockedTitle', { name: th.name }) : th.name;
-    return `<button class="theme${on ? ' on' : ''}${locked ? ' locked' : ''}" data-id="${th.id}" data-locked="${locked}" aria-pressed="${on}" aria-label="${label}" ${ready || locked ? '' : 'disabled'}>
-      <div class="theme-copy"><div class="theme-meta"><span class="badge">${t(on ? 'badgeOn' : locked ? 'badgeLocked' : ready ? 'badgeReady' : 'badgeSoon')}</span>
+    const ready = th.status === 'ready', on = th.id === state.theme;
+    return `<button class="theme${on ? ' on' : ''}" data-id="${th.id}" aria-pressed="${on}" aria-label="${th.name}" ${ready ? '' : 'disabled'}>
+      <div class="theme-copy"><div class="theme-meta"><span class="badge">${t(on ? 'badgeOn' : ready ? 'badgeReady' : 'badgeSoon')}</span>
         <svg class="theme-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></div>
         <div class="name">${th.name}</div></div>
-      <div class="thumb" style="background:${th.thumb || '#ccc'}">${thumbUrl(th.thumb, th.id) ? `<img src="${thumbUrl(th.thumb, th.id)}" alt="" decoding="async">` : ''}${locked ? `<span class="lock-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10" width="14" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>` : ''}</div></button>`;
+      <div class="thumb" style="background:${th.thumb || '#ccc'}">${thumbUrl(th.thumb, th.id) ? `<img src="${thumbUrl(th.thumb, th.id)}" alt="" decoding="async">` : ''}</div></button>`;
   }).join('');
-}
-let purchaseThemeId = null, purchaseReturnFocus = null;
-function updatePurchaseText() {
-  const th = themeById(purchaseThemeId);
-  if (th) $('purchaseTheme').textContent = t('purchaseTheme', { name: th.name });
-}
-function showPurchase(id) {
-  purchaseThemeId = id;
-  purchaseReturnFocus = document.activeElement;
-  updatePurchaseText();
-  $('purchaseModal').hidden = false;
-  $('purchaseWebsite').focus();
-}
-function closePurchase() {
-  if ($('purchaseModal').hidden) return;
-  $('purchaseModal').hidden = true;
-  if (purchaseReturnFocus) purchaseReturnFocus.focus();
 }
 $('themes').addEventListener('click', e => {
   const b = e.target.closest('.theme');
   if (!b || b.disabled) return;
-  if (b.dataset.locked === 'true') { showPurchase(b.dataset.id); return; }
   if (b.dataset.id === state.theme) return;
   state.theme = b.dataset.id;
   send({ t: 'theme', id: state.theme });
@@ -559,14 +526,16 @@ function renderControls() {
     <div class="group"><h3>${g.name}</h3>
       ${g.params.map(p => {
         if (p.type === 'audio') {
-          const hasAudio = !!(vals.audioFile || vals.audioSrc);
-          const playing = hasAudio && vals.audioPlay === 1;
+          const isCustom = !!(vals.audioFile || vals.audioSrc);
+          const hasAudio = isCustom || !!p.defaultSrc;
+          const playing = hasAudio && (vals.audioPlay !== undefined ? vals.audioPlay : (p.defaultSrc ? 1 : 0)) === 1;
+          const defaultLabel = p.defaultName || t('audioNone');
           return `
-        <div class="param${hasAudio ? ' changed' : ''}" id="p-${p.key}">
+        <div class="param${isCustom || (p.defaultSrc && !playing) ? ' changed' : ''}" id="p-${p.key}">
           <div class="row"><span class="label">${p.label}${p.hint ? `<span class="hint">${p.hint}</span>` : ''}</span>
             <span class="right">
-              <button class="undo" data-reset-audio="1" title="${t('resetOne', { v: t('audioNone') })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
-              <span class="value" id="v-audioName">${escHtml(vals.audioName || t('audioNone'))}</span>
+              <button class="undo" data-reset-audio="1" title="${t('resetOne', { v: defaultLabel })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
+              <span class="value" id="v-audioName">${escHtml(vals.audioName || defaultLabel)}</span>
             </span></div>
           <div class="audio-actions">
             <button type="button" class="audio-btn" id="btnPickAudio">${t('audioPick')}</button>
@@ -593,12 +562,17 @@ function renderControls() {
   $('controls').querySelectorAll('input[type=range]').forEach(fill);
 }
 function syncAudioUi() {
+  const th = themeById(state.theme);
+  const p = th && (th.groups || []).flatMap(g => g.params).find(x => x.type === 'audio');
   const cur = state.params[state.theme] || {};
-  const hasAudio = !!(cur.audioFile || cur.audioSrc);
-  const playing = hasAudio && cur.audioPlay === 1;
+  const isCustom = !!(cur.audioFile || cur.audioSrc);
+  const hasAudio = isCustom || !!(p && p.defaultSrc);
+  const defaultPlay = p && p.defaultSrc ? 1 : 0;
+  const playVal = cur.audioPlay !== undefined ? cur.audioPlay : defaultPlay;
+  const playing = hasAudio && playVal === 1;
   const row = $('p-audio'), nameEl = $('v-audioName'), playEl = $('btnPlayAudio');
-  if (row) row.classList.toggle('changed', hasAudio);
-  if (nameEl) nameEl.textContent = cur.audioName || t('audioNone');
+  if (row) row.classList.toggle('changed', isCustom || (!!(p && p.defaultSrc) && !playing));
+  if (nameEl) nameEl.textContent = cur.audioName || (p && p.defaultName) || t('audioNone');
   if (playEl) {
     playEl.disabled = !hasAudio;
     playEl.classList.toggle('on', playing);
@@ -639,12 +613,14 @@ $('controls').addEventListener('click', e => {
   if (b) setParam(b.dataset.reset, paramOf(b.dataset.reset).default);
   const ra = e.target.closest('[data-reset-audio]');
   if (ra) {
+    const p = (themeById(state.theme)?.groups || []).flatMap(g => g.params).find(x => x.type === 'audio');
+    const nextPlay = p && p.defaultSrc ? 1 : 0;
     const cur = (state.params[state.theme] = state.params[state.theme] || {});
-    cur.audioFile = ''; cur.audioSrc = ''; cur.audioName = ''; cur.audioPlay = 0;
-    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: 0 });
+    cur.audioFile = ''; cur.audioSrc = ''; cur.audioName = ''; cur.audioPlay = nextPlay;
+    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: nextPlay });
     send({ t: 'set', theme: state.theme, key: 'audioFile', value: '' });
     send({ t: 'set', theme: state.theme, key: 'audioName', value: '' });
-    toPreview({ t: 'settings', v: { audioFile: '', audioSrc: '', audioPlay: 0 } });
+    toPreview({ t: 'settings', v: { audioFile: '', audioSrc: '', audioPlay: nextPlay } });
     syncAudioUi();
     flashSaved();
     return;
@@ -655,9 +631,11 @@ $('controls').addEventListener('click', e => {
     return;
   }
   if (e.target.closest('#btnPlayAudio')) {
+    const p = (themeById(state.theme)?.groups || []).flatMap(g => g.params).find(x => x.type === 'audio');
     const cur = (state.params[state.theme] = state.params[state.theme] || {});
-    if (!(cur.audioFile || cur.audioSrc)) return;
-    cur.audioPlay = cur.audioPlay === 1 ? 0 : 1;
+    if (!(cur.audioFile || cur.audioSrc || (p && p.defaultSrc))) return;
+    const curPlay = cur.audioPlay !== undefined ? cur.audioPlay : (p && p.defaultSrc ? 1 : 0);
+    cur.audioPlay = curPlay === 1 ? 0 : 1;
     send({ t: 'set', theme: state.theme, key: 'audioPlay', value: cur.audioPlay });
     if (!host) toPreview({ t: 'settings', v: { audioPlay: cur.audioPlay, audioAllow: 1 } });
     syncAudioUi();
@@ -835,12 +813,6 @@ $('shareVideo').addEventListener('click', () => {
     showShare({ ok: true, kind: 'video', url, full: url, thumb: r.poster, ext: r.mime === 'video/webm' ? 'webm' : 'mp4' });
   }, e => showShare({ ok: false, kind: 'video', msg: e.message }));
 });
-$('purchaseLater').addEventListener('click', closePurchase);
-$('purchaseModal').addEventListener('click', e => { if (e.target === $('purchaseModal')) closePurchase(); });
-$('purchaseWebsite').addEventListener('click', () => {
-  if (host) send({ t: 'openWebsite' });
-  else window.open('https://deskland.app/', '_blank', 'noopener');
-});
 $('shareClose').addEventListener('click', closeShare);
 $('shareModal').addEventListener('click', e => { if (e.target === $('shareModal')) closeShare(); });
 
@@ -861,7 +833,7 @@ $('helpCloseX').addEventListener('click', closeHelp);
 $('helpDone').addEventListener('click', closeHelp);
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) closeHelp(); });
 
-addEventListener('keydown', e => { if (e.key === 'Escape') { closeShare(); closeHelp(); closePurchase(); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') { closeShare(); closeHelp(); } });
 $('shareOpen').addEventListener('click', () => send({ t: 'openShare' }));
 $('shareReveal').addEventListener('click', () => send({ t: 'revealShare' }));
 
