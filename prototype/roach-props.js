@@ -799,8 +799,8 @@ function rPaintBubble(ctx, ox, oy, sym) {
   ctx.restore();
 }
 
-function rPaintBedRoach(ctx, ox, oy) {
-  // White iron hospital bed with straitjacket patient roach shouting on pillow
+function rPaintBedRoach(ctx, ox, oy, occupied = true) {
+  // White iron hospital bed: occupied (straitjacket patient shouting) or empty waiting for crazies
   ctx.save();
   ctx.translate(ox + 64, oy + 64);
 
@@ -824,12 +824,22 @@ function rPaintBedRoach(ctx, ox, oy) {
   ctx.lineWidth = 1.4;
   ctx.stroke();
 
-  // Fluffy white pillow under patient head
+  // Fluffy white pillow
   ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
   ctx.ellipse(-30, -1, 14, 7.5, -0.1, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 1.2; ctx.stroke();
+
+  if (!occupied) {
+    // Empty bed: neatly folded cyan blanket at the foot
+    ctx.fillStyle = '#bae6fd';
+    rRoundRect(ctx, 12, -2, 32, 12, 4);
+    ctx.fill();
+    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.restore();
+    return;
+  }
 
   // Roach head resting on pillow (facing up/right)
   ctx.fillStyle = '#7b3e1a';
@@ -1231,11 +1241,12 @@ function buildRoachAtlas() {
   }
   rPaintDarkSpotlight(ctx, 7 * ROACH_CELL, 3 * ROACH_CELL);
 
-  // Row 4: fighter jet (0), falling bomb (1), comic explosion fireball (2), Diva quote bubble (3)
+  // Row 4: fighter jet (0), falling bomb (1), comic explosion fireball (2), Diva quote bubble (3), empty bed (4)
   rPaintFighterJet(ctx, 0 * ROACH_CELL, 4 * ROACH_CELL);
   rPaintBomb(ctx, 1 * ROACH_CELL, 4 * ROACH_CELL);
   rPaintExplosion(ctx, 2 * ROACH_CELL, 4 * ROACH_CELL);
   rPaintTextBubble(ctx, 3 * ROACH_CELL, 4 * ROACH_CELL, 'Divalar yemek\nyapmaz!', '#fdf2f8', '#be185d', '#831843');
+  rPaintBedRoach(ctx, 4 * ROACH_CELL, 4 * ROACH_CELL, false);
 
   return c;
 }
@@ -1370,6 +1381,9 @@ function spawnRoachMember(i, total) {
     vz: 0,
     airRot: 0,
     spinVel: 0,
+    inBed: null,
+    bedTimer: 0,
+    bedCooldown: (kind === 12 || kind === 13) ? (2.5 + (i % 3) * 2.5) : 0,
     callPhase: 'idle',
     callTimer: 2.2,
     callMood: 0,
@@ -1402,6 +1416,7 @@ function rebuildRoachProps() {
 
 function syncStreetProps() {
   streetProps.length = 0;
+  for (const r of roaches) r.inBed = null;
   if (!FB || (P.props || 0) <= 0.04) return;
 
   const isTooClose = (px, py, minD) => {
@@ -1411,8 +1426,8 @@ function syncStreetProps() {
     return false;
   };
 
-  // 1. Hospital beds (2-3 stationary clinic beds with lying "LÜLÜLÜLÜ!" patients)
-  const targetBeds = (P.props || 0.9) > 0.55 ? 3 : 2;
+  // 1. Hospital beds (empty until crazy roaches climb in, and they can get up to walk anytime!)
+  const targetBeds = (P.props || 0.9) > 0.55 ? 2 : 1;
   let placedBeds = 0;
   for (let attempt = 0; attempt < 220 && placedBeds < targetBeds; attempt++) {
     const px = W * (0.14 + 0.72 * rHash(attempt, 401, 21));
@@ -1421,10 +1436,11 @@ function syncStreetProps() {
     if (isTooClose(px, py, 200)) continue;
     streetProps.push({
       type: 'bed',
-      x: px, y: py, col: 6, row: 1,
+      x: px, y: py, col: 4, row: 4,
       size: 110,
+      occupant: null,
       phase: rHash(attempt, 607, 23) * 6.28,
-      shoutTimer: 0.15 + placedBeds * 0.75,
+      shoutTimer: 4.5 + placedBeds * 3.0,
       born: performance.now(),
     });
     placedBeds++;
@@ -1546,14 +1562,25 @@ function stepRoachProps(dt, timeSec) {
     if (r.kind === 12 || r.kind === 13) crazies.push(r);
   }
 
-  // Stationary bed patients shout "LÜLÜLÜLÜ!" periodically
+  // Occupied bed patients shout "LÜLÜLÜLÜ!" periodically; empty beds stay quiet
   for (const b of beds) {
+    if (!b.occupant) continue;
     b.shoutTimer -= dt * spdMul;
     if (b.shoutTimer <= 0) {
-      b.shoutTimer = 7.5 + Math.random() * 7.5;
+      b.shoutTimer = 6.5 + Math.random() * 6.5;
       rPushBubble(b.x - 14, b.y - 46, 1, 3, 2.3);
     }
   }
+
+  const leaveBed = r => {
+    if (!r.inBed) return;
+    r.x = r.inBed.x;
+    r.y = Math.min(H - 64, r.inBed.y + 18);
+    r.inBed.occupant = null;
+    r.inBed = null;
+    r.bedCooldown = 9 + Math.random() * 8;
+    r.moveTimer = 2.0 + Math.random() * 2.0;
+  };
 
   for (const r of roaches) {
     // Airborne launch physics from jet bombing (cockroaches NEVER die; fly sky-high spinning then land fine!)
@@ -1633,6 +1660,16 @@ function stepRoachProps(dt, timeSec) {
     }
 
     if (r.chargeCooldown > 0) r.chargeCooldown -= dt;
+    if (r.bedCooldown > 0) r.bedCooldown -= dt;
+
+    // Crazy roaches (kind 12/13) occasionally rest inside an empty bed, then get back up to walk
+    if ((r.kind === 12 || r.kind === 13) && r.inBed) {
+      r.x = r.inBed.x;
+      r.y = r.inBed.y;
+      r.bedTimer -= dt;
+      if (r.bedTimer <= 0) leaveBed(r);
+      continue;
+    }
 
     // Wall-outlet self-charging behavior for kind 15
     if (r.kind === 15 && r.chargeTimer > 0) {
@@ -1673,6 +1710,19 @@ function stepRoachProps(dt, timeSec) {
       }
       r.vx += (dx / dist) * 150 * dt;
       r.vy += (dy / dist) * 150 * dt;
+    }
+
+    // Crazy roaches wander around freely, and occasionally hop into a vacant hospital bed
+    if ((r.kind === 12 || r.kind === 13) && !r.inBed && r.bedCooldown <= 0 && beds.length) {
+      const vacant = beds.find(b => !b.occupant && Math.hypot(b.x - r.x, b.y - r.y) < 34);
+      if (vacant) {
+        vacant.occupant = r;
+        vacant.shoutTimer = 0.8 + Math.random() * 2.5;
+        r.inBed = vacant;
+        r.bedTimer = 4.5 + Math.random() * 4.5;
+        r.stopTimer = 0;
+        continue;
+      }
     }
 
     // Doctor (kind 11) walks rounds to beds or crazy patients and says "DUKTUR DUKTUR!"
@@ -1785,6 +1835,7 @@ function stepRoachProps(dt, timeSec) {
         const dx = r.x - b.tx, dy = r.y - b.ty;
         const dist = Math.hypot(dx, dy);
         if (dist < 210) {
+          if (r.inBed) leaveBed(r);
           const fall = 1 - dist / 210;
           const ang = dist > 4 ? Math.atan2(dy, dx) : (Math.random() * Math.PI * 2);
           const kick = 220 + 260 * fall;
@@ -1841,9 +1892,15 @@ function drawRoachProps(timeSec) {
   if ((P.props || 0) > 0.04) {
     for (const p of streetProps) {
       let sway = 0, bounceY = 0;
+      let pCol = p.col, pRow = p.row;
       if (p.type === 'bed') {
-        sway = Math.sin(timeSec * 8.5 + p.phase) * 0.035;
-        bounceY = Math.abs(Math.sin(timeSec * 6.0 + p.phase)) * 2.2;
+        const occupied = !!p.occupant;
+        pCol = occupied ? 6 : 4;
+        pRow = occupied ? 1 : 4;
+        if (occupied) {
+          sway = Math.sin(timeSec * 8.5 + p.phase) * 0.035;
+          bounceY = Math.abs(Math.sin(timeSec * 6.0 + p.phase)) * 2.2;
+        }
       } else if (p.type === 'prop' && p.col !== 0) {
         sway = Math.sin(timeSec * 1.4 + p.phase) * 0.04;
       }
@@ -1854,8 +1911,8 @@ function drawRoachProps(timeSec) {
         groundY: p.y,
         size: p.size,
         rot: sway,
-        col: p.col,
-        row: p.row,
+        col: pCol,
+        row: pRow,
         alpha: 0.98,
         shadowSize: p.type === 'bed' ? 92 : (p.col === 0 && p.type === 'prop' ? 54 : 30),
         shadowOffY: p.type === 'bed' ? 28 + bounceY : (p.col === 0 && p.type === 'prop' ? 44 : 18),
@@ -1866,6 +1923,7 @@ function drawRoachProps(timeSec) {
   }
 
   for (const r of roaches) {
+    if (r.inBed) continue;
     const charging = r.kind === 15 && r.chargeTimer > 0 && r.z <= 0;
     const crazy = r.kind === 12 || r.kind === 13;
     const calling = r.kind === 16 && r.callMood > 0;
