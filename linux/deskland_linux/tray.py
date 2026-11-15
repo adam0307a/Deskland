@@ -78,13 +78,13 @@ class Tray:
             set_full = getattr(self._indicator, "set_icon_full", None)
             if callable(set_full):
                 try:
-                    set_full(icon, "Deskland Preview")
+                    set_full(icon, "DiyarDesk")
                 except (TypeError, ValueError):
                     pass
         else:
             try:
                 self._status_icon = Gtk.StatusIcon.new_from_file(str(icon_path))
-                self._status_icon.set_tooltip_text("Deskland Preview")
+                self._status_icon.set_tooltip_text("DiyarDesk")
                 self._status_icon.connect("activate", lambda *_: on_settings())
                 self._status_icon.connect("popup-menu", lambda *_: self.popup())
                 self._status_icon.set_visible(True)

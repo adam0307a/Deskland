@@ -1,15 +1,15 @@
-# Deskland Preview — Repository & Development Guide (`AGENTS.md`)
+# DiyarDesk — Repository & Development Guide (`AGENTS.md`)
 
-> Canonical architectural reference and contributor/agent guide for the **Deskland Preview** repository.
+> Canonical architectural reference and contributor/agent guide for the **DiyarDesk** repository (independent GPL-3.0 fork based on Deskland Preview).
 > Communicate with the repository owner in **Turkish** when working interactively on this fork.
 
 ---
 
 ## 1. Project Overview
 
-**Deskland Preview** renders adaptive HTML5/Canvas/WebGL desktop wallpapers that react in real time to desktop icon positions (`icons` messages with icon bounding rectangles) without AI, cloud accounts, telemetry, purchase flows, or auto-updater endpoints.
+**DiyarDesk** renders adaptive HTML5/Canvas/WebGL desktop wallpapers that react in real time to desktop icon positions (`icons` messages with icon bounding rectangles) without AI, cloud accounts, telemetry, purchase flows, or auto-updater endpoints.
 
-This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and includes:
+This fork (**DiyarDesk**) builds on upstream Deskland Preview (`tools/version.json`: `0.1.4`, GPL-3.0) using its own product identity and original icon, and includes:
 1. **Shared Web Prototype (`prototype/`)** — All wallpaper theme pages, parameter definitions (`themes.json`), settings UI (`settings.html`), snapshot/video sharing (`share.js`), and UI translations (`i18n/en.json`, `i18n/zh-CN.json`).
 2. **Linux Desktop Host (`linux/`)** — Python 3 + GTK3 + WebKit2GTK host with X11/Wayland layer-shell wallpaper support, static wallpaper fallback, KDE Plasma wallpaper plugin + IconSpy integration, system tray, fullscreen auto-pause, theme importer, and `.deb`/Arch packaging.
 3. **Windows Desktop Host (`host/` & `tools/`)** — Upstream C#/WinForms/WebView2 host (`host/DesktopHost.cs`), PowerShell build script (`host/build.ps1`), and NSIS installer scripts (`tools/build-installer.ps1`, `tools/installer.nsi`).
@@ -30,7 +30,7 @@ This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and include
 | `prototype/serve.mjs` | Zero-dependency Node dev server (`http://localhost:5178/settings.html`) |
 | `linux/deskland_linux/` | Modular Python Linux host package |
 | `linux/deskland_linux/app.py` | Main `Gtk.Application` (`DesklandHost`), message dispatch, settings/wallpaper lifecycle |
-| `linux/deskland_linux/config.py` | XDG paths (`~/.config/deskland`), `SettingsStore`, `ThemeRegistry` merge, `I18n`, `Log` |
+| `linux/deskland_linux/config.py` | `APP_NAME = "DiyarDesk"`, XDG paths (`~/.config/deskland`), `SettingsStore`, `ThemeRegistry` merge, `I18n`, `Log` |
 | `linux/deskland_linux/server.py` | Loopback HTTP server (`127.0.0.1:<port>`) serving `prototype/`, `/__share/`, `/__audio/`, and `/__custom/` |
 | `linux/deskland_linux/bridge.py` | WebKitGTK `UserScript` bridge translating `window.chrome.webview` ↔ `window.webkit.messageHandlers` |
 | `linux/deskland_linux/icons.py` | Desktop icon position adapters (GVfs/`gio info`, Xfce RC, KDE Plasma config + IconSpy, fallback grid) |
@@ -40,7 +40,7 @@ This fork builds on Deskland Preview (`tools/version.json`: `0.1.4`) and include
 | `linux/deskland_linux/pause.py` | Fullscreen / maximized window detector (X11 `xdotool`/`xprop`, `swaymsg`, Hyprland IPC) |
 | `linux/deskland_linux/settings_window.py` | Dedicated WebKitGTK settings dialog |
 | `linux/deskland_linux/tray.py` | AppIndicator3 / `Gtk.StatusIcon` system tray menu |
-| `linux/deskland_linux/share.py` | PNG/WebM share decoding, file saving (`~/Pictures/Deskland Preview`), GTK clipboard & reveal |
+| `linux/deskland_linux/share.py` | PNG/WebM share decoding, file saving (`~/Pictures/DiyarDesk`), GTK clipboard & reveal |
 | `linux/deskland_linux/autostart.py` | XDG autostart desktop entry manager (`~/.config/autostart/deskland.desktop`) |
 | `linux/plasma-wallpaper/org.deskland.preview/` | Native KDE Plasma 6 WebEngine wallpaper plugin (`main.qml`, `inject.js`) |
 | `linux/kde-iconspy/org.deskland.iconspy/` | KDE Plasma companion helper for live desktop icon coordinates |
@@ -126,9 +126,9 @@ Settings UI exposes `+ Import theme…` alongside an in-app **`?` format guide m
 - **Wallpaper Surface Strategy (`wallpaper.py`, `static_wallpaper.py`)**:
   - **X11**: Uses a `Gdk.WindowTypeHint.DESKTOP` GTK window with empty input region, kept below desktop icon windows (`Nautilus`/`xfdesktop`/etc.).
   - **wlroots Wayland (Sway, Hyprland, river)**: Attaches to `wlr-layer-shell` `background` layer via `gtk3-layer-shell` (`gir1.2-gtklayershell-0.1`).
-  - **KDE Plasma / GNOME Wayland**: Compositor shell/desktop containment covers standard layer-shell `background`, so Linux host uses either the native Plasma wallpaper plugin (`org.deskland.preview`) + `org.deskland.iconspy`, or `--static` fallback rendering frames on an unintrusive render surface (`DesklandRender`, muted when offscreen/render-only) and applying snapshots natively (`qdbus` / `gsettings`). Do not steal foreground focus or track own/invisible/cloaked helper windows in fullscreen pause checks.
+  - **KDE Plasma / GNOME Wayland**: Compositor shell/desktop containment covers standard layer-shell `background`, so Linux host uses either the native Plasma wallpaper plugin (`org.deskland.preview`) + `org.deskland.iconspy`, or `--static` fallback rendering frames on an unintrusive render surface (`DiyarDeskRender`, muted when offscreen/render-only) and applying snapshots natively (`qdbus` / `gsettings`). Do not steal foreground focus or track own/invisible/cloaked helper windows in fullscreen pause checks.
 - **Installed Runtime Paths (local Fedora/Arch/Debian deployment)**:
-  - Code & prototype assets: `/usr/lib/deskland/deskland_linux/` and `/usr/lib/deskland/prototype/`
+  - Code & prototype assets: `/usr/lib/deskland/linux/deskland_linux/` (or `/usr/lib/deskland/deskland_linux/`) and `/usr/lib/deskland/prototype/`
   - User config, logs, audio copies, custom themes, rendered static frames: `~/.config/deskland/`
   - User autostart unit (systemd-managed setups): `systemctl --user restart app-deskland@autostart.service`
 
@@ -164,6 +164,6 @@ Note: Editing `prototype/` HTML/JS/CSS/JSON does **not** require recompiling `ho
 
 ## 8. Product Identity, Security & Licensing Guardrails
 
-- **Product identity**: Display name is **`Deskland Preview`** (separate data/install paths: `%LOCALAPPDATA%\DesklandPreview` / `Programs\Deskland Preview` on Windows, `~/.config/deskland` and `/usr/lib/deskland` on Linux). Keep Preview identity separate from any upstream retail Deskland build.
+- **Product identity**: Display name is **`DiyarDesk`** (independent fork based on Deskland Preview GPL-3.0, with original logo in `linux/packaging/deskland.svg`). Internal runtime/compatibility IDs (`~/.config/deskland`, `/usr/lib/deskland`, `org.deskland.preview`, `org.deskland.iconspy`, `Software\DesklandPreview`, `host/bin/Deskland.exe`) are preserved so user configs, Plasma plugins, and installed binaries remain compatible without data loss.
 - **Never commit** build/binary caches or secrets: `host/bin/`, `host/lib/`, `__pycache__/`, `.pytest_cache/`, personal config/credentials, or hardcoded user-local paths in runtime code.
 - **Security & Legal**: Preserve `LICENSE`, `NOTICE`, `THIRD_PARTY_NOTICES.md`, and `TRADEMARKS.md`. Obtain explicit confirmation from the project owner before modifying trademark/branding assets or publishing releases. Do not add external auth/telemetry/store/update endpoints.

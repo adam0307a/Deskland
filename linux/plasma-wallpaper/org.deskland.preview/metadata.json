@@ -2,7 +2,7 @@
     "KPackageStructure": "Plasma/Wallpaper",
     "KPlugin": {
         "Id": "org.deskland.preview",
-        "Name": "Deskland",
+        "Name": "DiyarDesk",
         "Description": "Adaptive animated wallpaper that follows desktop icons",
         "Icon": "preferences-desktop-wallpaper",
         "Category": "Appearance",

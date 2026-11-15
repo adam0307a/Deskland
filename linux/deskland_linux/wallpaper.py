@@ -212,7 +212,7 @@ class Wallpaper:
         # context. On Wayland, attach as a background layer-shell surface so KWin
         # never gives it an xdg_toplevel titlebar, taskbar icon, or click area.
         surface = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-        surface.set_title("DesklandRender")
+        surface.set_title("DiyarDeskRender")
         surface.set_decorated(False)
         surface.set_resizable(False)
         surface.set_skip_taskbar_hint(True)
@@ -262,7 +262,7 @@ class Wallpaper:
             return
 
         window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-        window.set_title("DesklandWallpaper")
+        window.set_title("DiyarDeskWallpaper")
         window.set_decorated(False)
         window.set_resizable(False)
         window.set_skip_taskbar_hint(True)

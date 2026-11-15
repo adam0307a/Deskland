@@ -1,50 +1,66 @@
-# Deskland Preview
+# DiyarDesk
 
-**Adaptive Windows wallpaper that makes your desktop icons part of the scenery.**
+**Adaptive desktop wallpaper that makes your desktop icons part of the scenery.**
 
-Deskland turns the space around your icons into a living landscape. Move, add or remove an icon and the beach, meadow, clouds and shadows quietly reshape around it — in real time, without AI, an account or an API key.
+DiyarDesk turns the space around your desktop icons into a living interactive landscape on **Linux** (KDE Plasma 6, X11, wlroots Wayland) and **Windows**. Move, add, or remove an icon and dunes, clouds, foliage, ripples, or glowing horizons reshape smoothly around it — locally in real time, without AI, cloud accounts, or telemetry.
 
-This is the **free, open-source Preview**, not a time-limited trial. It includes the complete **Beach** and **Meadow** themes, the Windows host, settings and sharing tools.
+> **Upstream attribution:** DiyarDesk is an independent community fork based on [Deskland](https://deskland.app) (`GPL-3.0`), using its own product name (**DiyarDesk**) and original icon, with no official affiliation or endorsement from upstream Deskland. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
-**English** · [简体中文](#中文说明) · [Official website](https://deskland.app) · [Features](#features) · [Build from source](#build-from-source)
+**English** · [简体中文](#中文说明) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build) · [Credits & License](#credits-and-license)
 
-![Meadow — included in Deskland Preview](docs/images/meadow.webp)
+![Meadow theme](docs/images/meadow.webp)
 
-![Beach — included in Deskland Preview](docs/images/beach.webp)
-
-![Maldives — locked-theme preview](docs/images/maldives.webp)
-
-Meadow and Beach are included in Preview. Maldives is shown as a locked-theme preview.
+![Beach theme](docs/images/beach.webp)
 
 ## Included themes
 
-| Beach | Meadow |
-| --- | --- |
-| ![Beach theme](prototype/thumbs/beach.webp) | ![Meadow theme](prototype/thumbs/meadow.webp) |
-| Turquoise waves, kayaks, seabirds and coconut palms. | Drifting clouds and shadows, a boy flying a kite and a little black cat. |
+DiyarDesk includes **11 complete adaptive/animated themes** plus custom theme import (`.zip`, `.deskland`, single `.html`, images, and videos):
 
-The theme browser also shows 11 locked themes as a preview of the full Wallpaper edition. **Only names, descriptions and thumbnails are included for those themes — not their page code, parameters or implementation.**
+- **Meadow** (`meadow.html`) — ink-and-wash grass, icon-hugging clouds and shadows, kite boy, black cat
+- **Beach** (`flat.html`) — shoreline waves, kayaks, seabirds, coconut palms
+- **Aurora** (`aurora.html`) — top-down frozen fjord, ice shimmer, aurora glow, pines and lanterns
+- **Polar Night** (`polarnight.html`) — side-view winter horizon, triple aurora curtains, snow-forest clearing, shore cabin
+- **Sahara** (`desert.html`) — overhead desert dunes with raised sand hills beneath icons, date-palm oases, Bedouin tents, camels, travelers
+- **Glade** (`glade.html`), **Rift** (`rift.html`), **Strike** (`strike.html`), **Pocket** (`pocket.html`), **Roach** (`roach.html`), **Rosebrook** (`rosebrook.html`)
 
 ## Features
 
-- **Adaptive scenery:** uses the real positions of desktop icons and transitions smoothly when they move.
-- **Two complete themes:** every setting for Beach and Meadow is included and saved between sessions.
-- **Made for the desktop:** tray controls, startup on sign-in and automatic pause when a window is maximized or full-screen.
-- **Private sharing:** image and animation exports use sample icons and color blocks, never a screenshot of your desktop or real file names.
-- **Independent installation:** Preview uses its own install directory, settings, startup entry and instance identity, so it can coexist with other Deskland builds.
-- **English and Simplified Chinese:** no sign-in, purchase restoration, update service or store API is included.
+- **Adaptive scenery:** tracks live desktop icon positions (KDE Plasma `IconSpy`, GVfs/Xfce, or Windows Shell) and updates smoothly when icons move.
+- **Custom theme importer:** import `.zip`/`.deskland` theme packs, standalone `.html` shaders/pages, images, or looping videos directly from Settings (`+ Import theme…`).
+- **Desktop integration:** system tray menu, session autostart, and automatic pause when a foreground window is maximized or fullscreen.
+- **Private sharing:** snapshots and animation exports render sample icons cleanly without exposing your personal files or desktop names.
+- **English and Simplified Chinese:** lightweight offline settings UI with no accounts, store APIs, or auto-updater endpoints.
 
-## Requirements
+## Linux Setup
 
-- Windows 10 or Windows 11, 64-bit.
-- Microsoft Edge WebView2 Runtime.
-- PowerShell and the .NET Framework C# compiler included with Windows; no .NET SDK installation is required.
-- An internet connection for the first build, which downloads the WebView2 development library.
-- Node.js only if you want to run the browser preview.
+### Requirements
 
-Currently, Deskland renders on the **primary monitor** and targets 30 fps on integrated graphics.
+- Python `>= 3.10`, `python3-gi`, `python3-gi-cairo`, GTK 3 (`gir1.2-gtk-3.0`), WebKit2GTK (`gir1.2-webkit2-4.1` or `4.0`), AppIndicator3 (`gir1.2-ayatanaappindicator3-0.1`).
+- Optional: `gir1.2-gtklayershell-0.1` (Sway/Hyprland), `xdotool` (X11 fullscreen detection), KDE Plasma 6 WebEngine/IconSpy plugins (`linux/plasma-wallpaper/`, `linux/kde-iconspy/`).
 
-## Build from source
+### Run from source
+
+```bash
+./linux/run.sh
+```
+
+Unit tests (`pytest`):
+
+```bash
+PYTHONPATH=linux uv run --with pytest pytest -v linux/tests
+```
+
+User settings, imported themes, custom audio files, and logs are stored in `~/.config/deskland/`.
+
+## Browser preview
+
+```bash
+node prototype/serve.mjs
+```
+
+Open **http://localhost:5178/settings.html** (`?lang=en` for English). Browser preview uses sample icons; real desktop icon tracking runs under the Linux or Windows host.
+
+## Windows Build
 
 Open PowerShell in the repository root:
 
@@ -53,169 +69,67 @@ powershell -ExecutionPolicy Bypass -File host\build.ps1
 host\bin\Deskland.exe
 ```
 
-Keep `host/` and `prototype/` together. Build output is written to `host/bin/`.
-
-Run the program again or double-click its tray icon to open Settings. To exit and restore the original Windows wallpaper, use the tray menu or run:
-
-```powershell
-host\bin\Deskland.exe --exit
-```
-
-Preview settings and logs are stored separately in `%LOCALAPPDATA%\DesklandPreview`.
-
-## Browser preview
-
-```powershell
-node prototype\serve.mjs
-```
-
-Open **http://localhost:5178/settings.html**. The browser uses sample icons; adaptation to real desktop icons requires the Windows host.
-
-## Windows installer
-
-Build the NSIS installer without installing global development tools:
+To build the NSIS installer (`dist/`):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 ```
 
-The first build downloads portable NSIS and Microsoft's WebView2 bootstrapper. Artifacts are written to `dist/` with SHA256 checksums and a matching source ZIP.
-
-The installer targets the current user's `Programs\Deskland Preview` directory and does not require administrator rights. If WebView2 is missing, its bootstrapper requires an internet connection. Uninstalling preserves user settings.
-
-[Download Deskland Preview for Windows](https://github.com/BLEZZ0102/Deskland/releases/latest). The installer is unsigned, so Windows SmartScreen may show a warning.
-
 ## Project layout
 
 | Path | Contents |
 | --- | --- |
-| `host/` | Windows host, build scripts and application manifest |
-| `prototype/flat.html` | Beach theme |
-| `prototype/meadow.html` | Meadow theme |
-| `prototype/settings.html` | Settings interface |
-| `prototype/themes.json` | Full free-theme definitions and locked-theme display metadata |
-| `prototype/share.js` | Privacy-preserving image and animation sharing |
-| `prototype/assets/` | Images used by the included themes |
-| `tools/` | Installer build tooling |
-
-## Known limitations
-
-- Only the primary monitor is supported.
-- Windows Spotlight or a wallpaper slideshow can briefly flash when Windows changes the background image.
-- Preview does not include account sign-in, entitlement restoration, automatic updates or the other themes' implementation.
+| `linux/deskland_linux/` | Modular Python Linux host, tray, fullscreen pause, icon readers, custom theme importer |
+| `linux/plasma-wallpaper/` | KDE Plasma 6 native WebEngine wallpaper plugin |
+| `linux/kde-iconspy/` | KDE Plasma companion helper for live desktop icon coordinates |
+| `linux/packaging/` | Desktop entry, original DiyarDesk SVG icon, `.deb` and Arch `PKGBUILD` scripts |
+| `host/` | Windows C#/WinForms/WebView2 host and build scripts |
+| `prototype/` | Shared themes, settings UI (`settings.html`), i18n JSONs (`en`, `zh-CN`), sharing script, assets |
+| `tools/` | Version metadata and Windows NSIS installer scripts |
 
 ## Credits and license
 
-Source code and included theme assets are released under [GPL-3.0](LICENSE). Third-party dependencies are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-The Deskland name and icon are not licensed as trademarks; modified distributions should use their own name and icon. See [TRADEMARKS.md](TRADEMARKS.md).
-
-Issues and suggestions are welcome through GitHub Issues. This is an independent project, so immediate responses are not guaranteed.
+Source code and included theme assets are licensed under [GPL-3.0](LICENSE). Third-party dependencies retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [NOTICE](NOTICE), and [TRADEMARKS.md](TRADEMARKS.md).
 
 ---
 
 ## 中文说明
 
-[English](#deskland-preview) · **简体中文**
+[English](#diyardesk) · **简体中文**
 
 **让桌面图标成为风景的一部分。**
 
-Deskland 是一款 Windows 自适应动态壁纸。移动、添加或删除桌面图标时，海岸线、草地、云朵和阴影会实时围绕图标调整。全部在本地实时演算，不使用 AI，无需账号或 API Key。
+**DiyarDesk** 是一款支持 **Linux**（KDE Plasma 6、X11、wlroots Wayland）与 **Windows** 的自适应动态壁纸程序。移动、添加或删除桌面图标时，沙丘、云影、草木与光影会实时围绕图标变化；全部本地演算，无需 AI、账号或联网服务。
 
-本仓库是**免费的开源体验版，不是限时试用版**，包含完整的沙滩和草地主题、Windows 宿主、设置界面与分享工具。
+> **上游声明：** DiyarDesk 是基于开源项目 [Deskland](https://deskland.app)（`GPL-3.0`）的独立分支，使用独立的名称（**DiyarDesk**）与原创图标，与上游 Deskland 无官方隶属或背书关系。详见 [NOTICE](NOTICE) 与 [TRADEMARKS.md](TRADEMARKS.md)。
 
-[官方网站](https://deskland.app) · [从源码运行](#build-from-source) · [许可](#credits-and-license)
+### 已内置主题与扩展导入
 
-### 包含的主题
+内置 **11 套完整动态壁纸主题**（草地、沙滩、极光、极夜、撒哈拉沙漠、林间空地、裂隙、惊雷、口袋桌面、互动甲虫、玫瑰溪），并支持通过设置窗口右上角「导入主题…」导入自定义 `.zip` / `.deskland` 主题包、单页 `.html`、静态图片和循环视频。
 
-| 沙滩 | 草地 |
-| --- | --- |
-| ![沙滩主题](prototype/thumbs/beach.webp) | ![草地主题](prototype/thumbs/meadow.webp) |
-| 海浪、皮划艇、海鸟和椰子树。 | 漂浮的云与云影、放风筝的男孩和小黑猫。 |
+### 快速运行（Linux / 浏览器预览）
 
-主题列表还展示另外 11 个锁定主题，帮助了解壁纸版内容。**这些锁定主题只有名称、简介和缩略图，不包含页面源码、参数或其他实现。**
+```bash
+# Linux 桌面宿主直接运行
+./linux/run.sh
 
-### 功能
+# 运行 Python 单元测试
+PYTHONPATH=linux uv run --with pytest pytest -v linux/tests
 
-- **图标自适应：**读取真实桌面图标的位置，在移动、添加或删除时平滑调整场景。
-- **两个完整主题：**沙滩和草地的全部参数均可调整并自动保存。
-- **适合常驻桌面：**托盘控制、开机自动启动，前台窗口最大化或全屏时自动暂停。
-- **隐私分享：**图片和动画使用示例图标与名字色块，不截取桌面窗口或真实文件名。
-- **独立安装：**安装目录、用户数据、启动项和运行实例标识均独立，可与其他 Deskland 版本共存。
-- **简体中文和英文：**不包含登录、购买恢复、自动更新或商店接口。
+# 浏览器预览设置界面
+node prototype/serve.mjs
+# 访问 http://localhost:5178/settings.html
+```
 
-### 系统要求
+用户配置、已导入自定义主题、音频与日志保存在 `~/.config/deskland/`。
 
-- Windows 10 / Windows 11，64 位。
-- Microsoft Edge WebView2 Runtime。
-- 使用 Windows 自带的 .NET Framework C# 编译器，无需安装 .NET SDK。
-- 第一次构建需要联网下载 WebView2 开发库。
-- 仅浏览器预览需要 Node.js。
-
-目前只覆盖**主显示器**，以核显 30fps 为目标。
-
-### 从源码运行
-
-在仓库根目录打开 PowerShell：
+### Windows 源码构建
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File host\build.ps1
 host\bin\Deskland.exe
 ```
 
-请保持 `host/` 和 `prototype/` 的相对目录结构，编译结果位于 `host/bin/`。
+### 许可说明
 
-再次运行程序或双击托盘图标可打开设置。退出并恢复系统原壁纸，请使用托盘菜单或执行：
-
-```powershell
-host\bin\Deskland.exe --exit
-```
-
-体验版的设置与日志独立保存在 `%LOCALAPPDATA%\DesklandPreview`。
-
-### 浏览器预览
-
-```powershell
-node prototype\serve.mjs
-```
-
-打开 **http://localhost:5178/settings.html**。浏览器使用示例图标，真实桌面图标适配需要 Windows 宿主。
-
-### Windows 安装包
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
-```
-
-首次构建会下载便携版 NSIS 和微软 WebView2 引导程序，无需安装全局开发工具。产物位于 `dist/`，附 SHA256 校验文件和对应源码 ZIP。
-
-安装包安装到当前用户的 `Programs\Deskland Preview` 目录，无需管理员权限。缺少 WebView2 时需要联网安装；卸载保留用户设置。
-
-[下载 Deskland Preview Windows 安装包](https://github.com/BLEZZ0102/Deskland/releases/latest)。安装包未签名，Windows SmartScreen 可能显示提示。
-
-### 目录结构
-
-| 路径 | 用途 |
-| --- | --- |
-| `host/` | Windows 宿主、构建脚本与清单 |
-| `prototype/flat.html` | 沙滩主题 |
-| `prototype/meadow.html` | 草地主题 |
-| `prototype/settings.html` | 设置界面 |
-| `prototype/themes.json` | 免费主题完整定义及锁定主题展示信息 |
-| `prototype/share.js` | 隐私保护的图片和动画分享 |
-| `prototype/assets/` | 随附主题图片素材 |
-| `tools/` | 安装包构建工具 |
-
-### 已知限制
-
-- 目前只支持主显示器。
-- 使用 Windows 聚焦或壁纸幻灯片时，系统换图可能造成短暂闪烁。
-- 体验版不包含账号登录、购买恢复、自动更新或其他主题实现。
-
-### 许可与反馈
-
-项目源码和随附主题素材按 [GPL-3.0](LICENSE) 发布，第三方依赖见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-Deskland 名称与图标不作为商标授权授予；修改版应使用自己的名称和图标，详见 [TRADEMARKS.md](TRADEMARKS.md)。
-
-欢迎通过 GitHub Issues 反馈问题和建议。个人项目，不保证即时回复。
+项目源码和随附主题素材按 [GPL-3.0](LICENSE) 发布；第三方依赖版权见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。名称与图标规范见 [TRADEMARKS.md](TRADEMARKS.md)。

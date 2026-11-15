@@ -69,7 +69,7 @@ class DesklandHost:
         self.audio_dir = config_dir() / "audio"
         self.server = LocalServer(
             prototype_dir(),
-            pictures_dir() / "Deskland Preview",
+            pictures_dir() / "DiyarDesk",
             audio_dir=self.audio_dir,
             custom_themes_dir=self.custom_themes_dir,
             themes_provider=self.themes.merged_json_bytes,
@@ -523,7 +523,7 @@ class DesklandHost:
                 )
                 return
             try:
-                path = save_share(png, pictures_dir() / "Deskland Preview", "image")
+                path = save_share(png, pictures_dir() / "DiyarDesk", "image")
                 self.last_share = path
                 copy_image(path)
                 self._post_settings(
@@ -568,7 +568,7 @@ class DesklandHost:
             try:
                 path = save_share(
                     video,
-                    pictures_dir() / "Deskland Preview",
+                    pictures_dir() / "DiyarDesk",
                     "video",
                     mime or "",
                 )

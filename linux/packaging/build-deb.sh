@@ -44,13 +44,14 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
-Maintainer: Deskland Linux port contributors
+Maintainer: DiyarDesk contributors
 Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, gir1.2-webkit2-4.0 | gir1.2-webkit2-4.1, gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1, libayatana-appindicator3-1 | libappindicator3-1, xdg-utils
 Recommends: gir1.2-gtklayershell-0.1, xdotool
 Description: Adaptive wallpaper that follows desktop icons
- Deskland Preview renders a WebGL scene behind the desktop and reshapes it
- around the real positions of desktop icons. Includes free adaptive themes,
- tray controls, session autostart, KDE Plasma 6 integration and sharing.
+ DiyarDesk (based on Deskland Preview) renders a WebGL/Canvas scene behind the
+ desktop and reshapes it around the real positions of desktop icons. Includes
+ adaptive themes, custom theme import, tray controls, session autostart, KDE
+ Plasma 6 integration and privacy-safe sharing.
 EOF
 
 install -d "$ROOT/dist"

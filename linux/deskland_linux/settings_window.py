@@ -19,7 +19,7 @@ class SettingsWindow:
         self.url = url
         self.bridge = BridgeWebView(self.host.on_settings_message)
         self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-        self.window.set_title("Deskland Preview")
+        self.window.set_title("DiyarDesk")
         self.window.set_default_size(1120, 800)
         self.window.set_size_request(940, 680)
         self.window.set_position(Gtk.WindowPosition.CENTER)

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 IGNORED_CLASSES = (
+    "diyardesk",
     "deskland",
     "nautilus",
     "nemo",

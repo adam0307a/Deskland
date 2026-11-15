@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-APP_NAME = "Deskland Preview"
+APP_NAME = "DiyarDesk"
 APP_ID = "app.deskland.Preview"
 VERSION = "0.1.4-linux.1"
 

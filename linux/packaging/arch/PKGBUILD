@@ -1,8 +1,8 @@
-# Maintainer: Deskland Linux port contributors
+# Maintainer: DiyarDesk contributors
 pkgname=deskland-preview
 pkgver=0.1.4
 pkgrel=1
-pkgdesc="Adaptive wallpaper that follows desktop icons"
+pkgdesc="DiyarDesk — adaptive animated wallpaper that follows desktop icons (based on Deskland)"
 arch=('any')
 url="https://github.com/adam0307a/Deskland"
 license=('GPL-3.0-only')

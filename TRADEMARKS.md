@@ -1,7 +1,9 @@
 # 名称与图标 / Name and icon
 
-GPL-3.0 授权适用于本仓库的项目源码与随附主题素材，不授予 Deskland 名称、标识或程序图标的商标使用权。
+DiyarDesk 是基于上游开源项目 **Deskland**（GPL-3.0）开发的独立衍生项目，使用独立的产品名称（**DiyarDesk**）和原创图标，不代表 Deskland 官方发布、认可或背书。
 
-介绍本项目或注明来源时可以使用 Deskland 名称。发布修改版时请使用自己的产品名称和图标，并清楚标明它与本项目的关系，避免暗示官方发布、认可或背书。
+GPL-3.0 授权适用于源码与随附主题素材，不授予上游 Deskland 名称、标识或程序图标的商标使用权，也不授予 DiyarDesk 商标的独立商用背书。
 
-The GPL-3.0 license for this repository does not grant trademark rights to the Deskland name, logo or application icon. You may use the name to identify this project and give attribution. Modified distributions should use their own product name and icon and clearly state their relationship to this project, without implying official endorsement.
+DiyarDesk is an independent fork based on the upstream open-source project **Deskland** (GPL-3.0). In accordance with upstream trademark policy, this distribution uses its own product name (**DiyarDesk**) and original application icon, and does not imply official Deskland endorsement or sponsorship.
+
+The GPL-3.0 license applies to source code and included theme assets and does not grant trademark rights to the upstream Deskland name, logo, or application icon.

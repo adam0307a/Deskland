@@ -22,7 +22,7 @@ def save_share(data_url: str, directory: Path, kind: str, mime: str = "") -> Pat
         ext = ".webm" if "webm" in mime else ".mp4"
     else:
         ext = ".png"
-    path = directory / f"Deskland {stamp}{ext}"
+    path = directory / f"DiyarDesk {stamp}{ext}"
     path.write_bytes(data_url_bytes(data_url))
     return path
 
