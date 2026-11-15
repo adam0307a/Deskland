@@ -19,6 +19,7 @@ import json
 import os
 import re
 import subprocess
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -28,6 +29,12 @@ CELL_H = 100
 GRID_X0 = 4
 GRID_Y0 = 6
 TASKBAR = 48
+
+# Default XfdesktopIconView layout parameters from xfdesktop 4.20.
+XFCE_DEFAULT_ICON_SIZE = 48
+XFCE_CELL_PADDING = 6
+XFCE_TEXT_WIDTH_PROPORTION = 1.9
+XFCE_SCREEN_MARGIN = 8
 
 META_KEYS = (
     "metadata::nautilus-icon-position",
@@ -121,6 +128,57 @@ def _rect_from_cell(col: float, row: float, scale: int) -> Rect:
     x = GRID_X0 * scale + int(col) * CELL_W * scale
     y = GRID_Y0 * scale + int(row) * CELL_H * scale
     return Rect(int(x), int(y), int(CELL_W * scale), int(CELL_H * scale))
+
+
+def _xfce_grid_params(
+    logical_w: int,
+    logical_h: int,
+    *,
+    icon_size: int = XFCE_DEFAULT_ICON_SIZE,
+    cell_padding: int = XFCE_CELL_PADDING,
+    proportion: float = XFCE_TEXT_WIDTH_PROPORTION,
+) -> tuple[float, int, int, int, int]:
+    """Compute XfdesktopIconView grid metrics matching xfdesktop's layout math.
+
+    Returns ``(cell_size, xmargin, ymargin, xspacing, yspacing)`` in logical px.
+    """
+    edge_total = XFCE_SCREEN_MARGIN * 2
+    cell_size = icon_size * proportion + 2 * cell_padding
+    if cell_size <= 0 or logical_w <= edge_total or logical_h <= edge_total:
+        return (float(CELL_W), GRID_X0, GRID_Y0, 0, 0)
+    ncols = int((logical_w - edge_total) / cell_size)
+    nrows = int((logical_h - edge_total) / cell_size)
+    if ncols <= 0 or nrows <= 0:
+        return (float(CELL_W), GRID_X0, GRID_Y0, 0, 0)
+    rem_w = int(logical_w - ncols * cell_size)
+    xspacing = (rem_w - edge_total) // (ncols - 1) if ncols > 1 else 0
+    xmargin = (rem_w - xspacing * (ncols - 1)) // 2
+    rem_h = int(logical_h - nrows * cell_size)
+    yspacing = (rem_h - edge_total) // (nrows - 1) if nrows > 1 else 0
+    ymargin = (rem_h - yspacing * (nrows - 1)) // 2
+    return (cell_size, xmargin, ymargin, xspacing, yspacing)
+
+
+def xfce_cell_rect(
+    col: float,
+    row: float,
+    scale: int,
+    screen_w: int,
+    screen_h: int,
+    *,
+    icon_size: int = XFCE_DEFAULT_ICON_SIZE,
+) -> Rect:
+    """Convert an XFCE desktop ``(col, row)`` slot into physical pixel coordinates."""
+    eff_scale = max(1, int(scale))
+    logical_w = max(1, int(screen_w) // eff_scale)
+    logical_h = max(1, int(screen_h) // eff_scale)
+    cell_size, xmargin, ymargin, xspacing, yspacing = _xfce_grid_params(
+        logical_w, logical_h, icon_size=icon_size
+    )
+    x_logical = int(xmargin + int(col) * (cell_size + xspacing))
+    y_logical = int(ymargin + int(row) * (cell_size + yspacing))
+    cell_px = max(1, int(cell_size)) * eff_scale
+    return Rect(x_logical * eff_scale, y_logical * eff_scale, cell_px, cell_px)
 
 
 class IconAdapter:
@@ -232,9 +290,36 @@ class GioMetadataAdapter(IconAdapter):
 class XfceAdapter(IconAdapter):
     name = "xfce"
 
+    def _config_root(self) -> Path:
+        return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
+    def _icon_size(self) -> int:
+        xml_path = (
+            self._config_root()
+            / "xfce4"
+            / "xfconf"
+            / "xfce-perchannel-xml"
+            / "xfce4-desktop.xml"
+        )
+        try:
+            root = ET.parse(xml_path).getroot()
+        except (OSError, ET.ParseError):
+            return XFCE_DEFAULT_ICON_SIZE
+        # Navigate <channel><property name="desktop-icons"><property name="icon-size" value="..."/>
+        for top in root.findall("./property[@name='desktop-icons']"):
+            prop = top.find("./property[@name='icon-size']")
+            if prop is not None:
+                raw = prop.attrib.get("value")
+                try:
+                    val = int(raw or "")
+                except ValueError:
+                    return XFCE_DEFAULT_ICON_SIZE
+                if 16 <= val <= 256:
+                    return val
+        return XFCE_DEFAULT_ICON_SIZE
+
     def _layout_file(self) -> Path | None:
-        root = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-        directory = root / "xfce4" / "desktop"
+        directory = self._config_root() / "xfce4" / "desktop"
         try:
             yaml_files = sorted(directory.glob("icons.screen0*.yaml"))
             if yaml_files:
@@ -259,6 +344,7 @@ class XfceAdapter(IconAdapter):
                     found = self._parse(text)
             except OSError:
                 found = {}
+        icon_size = self._icon_size()
         used: set[tuple[int, int]] = set()
         rects: list[Rect] = []
         for index, path in enumerate(self._entries):
@@ -266,7 +352,14 @@ class XfceAdapter(IconAdapter):
             if pos is None:
                 rect = self._grid_for(path, index, used)
             else:
-                rect = _rect_from_cell(*pos, self.scale)
+                rect = xfce_cell_rect(
+                    pos[0],
+                    pos[1],
+                    self.scale,
+                    self.screen_w,
+                    self.screen_h,
+                    icon_size=icon_size,
+                )
                 used.add((rect.x, rect.y))
                 rect = Rect(rect.x, rect.y, rect.w, rect.h, path.name)
             rects.append(rect)

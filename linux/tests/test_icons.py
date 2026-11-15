@@ -6,6 +6,7 @@ from deskland_linux.icons import (
     XfceAdapter,
     grid_rect,
     parse_position,
+    xfce_cell_rect,
 )
 
 
@@ -82,3 +83,44 @@ def test_plasma_changed_positions_tail_prefers_xy():
 def test_rect_array_matches_protocol():
     rect = grid_rect(1, 1, 1920, 1080)
     assert rect.as_array() == [rect.x, rect.y, rect.x + rect.w, rect.y + rect.h]
+
+
+def test_xfce_cell_rect_matches_xfdesktop_grid():
+    r0 = xfce_cell_rect(0, 0, 1, 1920, 1080)
+    assert (r0.x, r0.y, r0.w, r0.h) == (14, 10, 103, 103)
+    r_right = xfce_cell_rect(14, 7, 1, 1920, 1080)
+    assert (r_right.x, r_right.y, r_right.w, r_right.h) == (1486, 753, 103, 103)
+    r_hidpi = xfce_cell_rect(14, 7, 2, 3840, 2160)
+    assert (r_hidpi.x, r_hidpi.y, r_hidpi.w, r_hidpi.h) == (1486 * 2, 753 * 2, 103 * 2, 103 * 2)
+
+
+def test_xfce_adapter_reads_yaml_and_custom_icon_size(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    desktop = tmp_path / "Desktop"
+    desktop.mkdir()
+    (desktop / "far.jpg").write_text("", encoding="utf-8")
+
+    xfce_dir = tmp_path / "cfg" / "xfce4" / "desktop"
+    xfce_dir.mkdir(parents=True)
+    (xfce_dir / "icons.screen0.yaml").write_text(
+        f'icons:\n  "{desktop / "far.jpg"}":\n    row: 7\n    col: 14\n',
+        encoding="utf-8",
+    )
+
+    adapter = XfceAdapter(desktop=desktop, scale=1, screen_w=1920, screen_h=1080)
+    ok, rects = adapter.read()
+    assert ok and len(rects) == 1
+    assert (rects[0].x, rects[0].y, rects[0].w, rects[0].h) == (1486, 753, 103, 103)
+
+    xfconf_dir = tmp_path / "cfg" / "xfce4" / "xfconf" / "xfce-perchannel-xml"
+    xfconf_dir.mkdir(parents=True)
+    (xfconf_dir / "xfce4-desktop.xml").write_text(
+        '<channel name="xfce4-desktop"><property name="desktop-icons" type="empty">'
+        '<property name="icon-size" type="uint" value="64"/></property></channel>',
+        encoding="utf-8",
+    )
+    ok, rects_big = adapter.read()
+    assert ok and len(rects_big) == 1
+    expected = xfce_cell_rect(14, 7, 1, 1920, 1080, icon_size=64)
+    assert (rects_big[0].x, rects_big[0].y) == (expected.x, expected.y)
+    assert rects_big[0].w == expected.w > 103

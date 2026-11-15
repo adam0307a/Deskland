@@ -79,6 +79,7 @@ class BridgeWebView:
     def __init__(self, on_message: Callable[[str], None]) -> None:
         self.on_message = on_message
         manager = WebKit2.UserContentManager()
+        self.manager = manager
         manager.register_script_message_handler("deskland")
         manager.connect("script-message-received::deskland", self._received)
         script = WebKit2.UserScript.new(
@@ -91,6 +92,22 @@ class BridgeWebView:
         manager.add_script(script)
         self.webview = WebKit2.WebView.new_with_user_content_manager(manager)
         self._configure()
+
+    def add_user_script(self, source: str, at_end: bool = True) -> None:
+        """Register an auxiliary UserScript on this WebView."""
+        injection_time = (
+            WebKit2.UserScriptInjectionTime.END
+            if at_end
+            else WebKit2.UserScriptInjectionTime.START
+        )
+        script = WebKit2.UserScript.new(
+            source,
+            WebKit2.UserContentInjectedFrames.ALL_FRAMES,
+            injection_time,
+            None,
+            None,
+        )
+        self.manager.add_script(script)
 
     def _configure(self) -> None:
         settings = self.webview.get_settings()

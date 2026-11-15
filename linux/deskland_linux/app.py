@@ -242,6 +242,15 @@ class DesklandHost:
         if self.settings_window is not None:
             self.settings_window.post({"t": "recProgress", "p": progress})
 
+    def on_wallpaper_audio_play(self, play: bool) -> None:
+        theme = self.settings.theme
+        value = 1 if play else 0
+        self.settings.for_theme(theme)["audioPlay"] = value
+        self.schedule_save()
+        if self.wallpaper is not None:
+            self.wallpaper.set_settings({"audioPlay": value})
+        self._post_settings({"t": "audioPlay", "theme": theme, "play": value})
+
     # ---------------------------------------------------------------- settings protocol
     def _post_settings(self, payload: dict[str, Any]) -> None:
         if self.settings_window is not None:
@@ -661,7 +670,17 @@ class DesklandApplication(Gtk.Application):
 
 
 def _backend_args(args: list[str]) -> dict[str, str | None]:
-    backend = "static" if "--static" in args else "x11" if "--x11" in args else "layer-shell" if "--layer-shell" in args else "auto"
+    backend = (
+        "static"
+        if "--static" in args
+        else "x11"
+        if "--x11" in args
+        else "gnome-shell"
+        if "--gnome-shell" in args
+        else "layer-shell"
+        if "--layer-shell" in args
+        else "auto"
+    )
     adapter = None
     if "--icon-adapter" in args:
         index = args.index("--icon-adapter")

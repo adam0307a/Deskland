@@ -83,6 +83,9 @@ class PauseMonitor:
                 return self._sway()
             if os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
                 return self._hyprland()
+            gnome_state = self._gnome_extension()
+            if gnome_state is not None:
+                return gnome_state
             if not self._warned_wayland:
                 self._warned_wayland = True
                 self.log.write(
@@ -240,6 +243,37 @@ class PauseMonitor:
             return self._rect_covers(int(at[0]), int(at[1]), int(size[0]), int(size[1]))
         except (TypeError, ValueError, IndexError):
             return False
+
+    def _gnome_extension(self) -> bool | None:
+        desktop = (
+            os.environ.get("XDG_CURRENT_DESKTOP", "")
+            + " "
+            + os.environ.get("DESKTOP_SESSION", "")
+        ).lower()
+        if "gnome" not in desktop:
+            return None
+        try:
+            import gi
+
+            gi.require_version("Gio", "2.0")
+            from gi.repository import Gio
+
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            res = bus.call_sync(
+                "org.deskland.GnomeShell",
+                "/org/deskland/GnomeShell",
+                "org.deskland.GnomeShell",
+                "ShouldPause",
+                None,
+                None,
+                Gio.DBusCallFlags.NO_AUTO_START,
+                250,
+                None,
+            )
+            unpacked = res.unpack()
+            return bool(unpacked[0]) if unpacked else False
+        except Exception:
+            return None
 
     def _rect_covers(self, x: int, y: int, w: int, h: int) -> bool:
         sx, sy, sw, sh = self.screen

@@ -20,12 +20,14 @@ install -d "$STAGE/usr/share/applications"
 install -d "$STAGE/usr/share/icons/hicolor/scalable/apps"
 install -d "$STAGE/usr/share/plasma/wallpapers"
 install -d "$STAGE/usr/share/plasma/plasmoids"
+install -d "$STAGE/usr/share/gnome-shell/extensions"
 install -d "$STAGE/usr/share/doc/$PKG"
 
 cp -a "$LINUX/deskland_linux/." "$STAGE/usr/lib/deskland/linux/deskland_linux/"
 cp -a "$ROOT/prototype/." "$STAGE/usr/lib/deskland/prototype/"
 cp -a "$LINUX/plasma-wallpaper/org.deskland.preview" "$STAGE/usr/share/plasma/wallpapers/"
 cp -a "$LINUX/kde-iconspy/org.deskland.iconspy" "$STAGE/usr/share/plasma/plasmoids/"
+cp -a "$LINUX/gnome-extension/deskland@deskland.app" "$STAGE/usr/share/gnome-shell/extensions/"
 install -m 644 "$HERE/deskland.desktop" "$STAGE/usr/share/applications/deskland.desktop"
 install -m 644 "$HERE/deskland.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/deskland.svg"
 install -m 644 "$ROOT/LICENSE" "$STAGE/usr/share/doc/$PKG/copyright"
@@ -48,7 +50,7 @@ Replaces: deskland-preview
 Conflicts: deskland-preview
 Maintainer: DiyarDesk contributors
 Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, gir1.2-webkit2-4.0 | gir1.2-webkit2-4.1, gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1, libayatana-appindicator3-1 | libappindicator3-1, xdg-utils
-Recommends: gir1.2-gtklayershell-0.1, xdotool
+Recommends: gir1.2-gtklayershell-0.1, xdotool, gstreamer1.0-plugins-good
 Description: Adaptive wallpaper that follows desktop icons
  DiyarDesk (based on Deskland Preview) renders a WebGL/Canvas scene behind the
  desktop and reshapes it around the real positions of desktop icons. Includes

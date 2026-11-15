@@ -15,9 +15,11 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
+gi.require_version("Gio", "2.0")
 
-from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
+from .audio import NativeAudioPlayer, resolve_theme_audio_path  # noqa: E402
 from .bridge import BridgeWebView  # noqa: E402
 from .config import config_dir  # noqa: E402
 from .icons import make_adapter  # noqa: E402
@@ -30,9 +32,50 @@ def load_layer_shell():
         gi.require_version("GtkLayerShell", "0.1")
         from gi.repository import GtkLayerShell  # noqa: F401
 
+        # Compositors without wlr-layer-shell (e.g. GNOME Shell / Mutter) still
+        # ship the library and assert inside init_for_window() if not guarded.
+        if hasattr(GtkLayerShell, "is_supported") and not GtkLayerShell.is_supported():
+            return None
         return GtkLayerShell
     except (ValueError, ImportError):
         return None
+
+
+def _is_x11_display() -> bool:
+    display = Gdk.Display.get_default()
+    if display is not None:
+        name = type(display).__name__.lower()
+        if "x11" in name:
+            return True
+        if "wayland" in name:
+            return False
+    return bool(os.environ.get("DISPLAY")) and not os.environ.get("WAYLAND_DISPLAY")
+
+
+def _has_gst_autoaudiosink() -> bool:
+    """Return False when GStreamer lacks autoaudiosink (prevents WebKitGTK hang)."""
+    try:
+        gi.require_version("Gst", "1.0")
+        from gi.repository import Gst
+
+        Gst.init(None)
+        return Gst.ElementFactory.find("autoaudiosink") is not None
+    except Exception:
+        pass
+    gst_inspect = shutil.which("gst-inspect-1.0")
+    if not gst_inspect:
+        return True
+    try:
+        proc = subprocess.run(
+            [gst_inspect, "autoaudiosink"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+        return proc.returncode == 0
+    except Exception:
+        return True
 
 
 def _has_plasma_wallpaper_plugin(plugin_id: str = "org.deskland.preview") -> bool:
@@ -42,6 +85,200 @@ def _has_plasma_wallpaper_plugin(plugin_id: str = "org.deskland.preview") -> boo
         if base:
             candidates.append(Path(base) / "plasma" / "wallpapers" / plugin_id)
     return any((c / "metadata.json").is_file() for c in candidates)
+
+
+def call_gnome_shell_extension(method: str, timeout_ms: int = 300) -> Any | None:
+    """Invoke a zero-arg method on org.deskland.GnomeShell and unpack the result."""
+    try:
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        res = bus.call_sync(
+            "org.deskland.GnomeShell",
+            "/org/deskland/GnomeShell",
+            "org.deskland.GnomeShell",
+            method,
+            None,
+            None,
+            Gio.DBusCallFlags.NO_AUTO_START,
+            timeout_ms,
+            None,
+        )
+        unpacked = res.unpack()
+        return unpacked[0] if unpacked else None
+    except Exception:
+        return None
+
+
+def has_gnome_wallpaper_extension() -> bool:
+    return call_gnome_shell_extension("Ping") == "ok"
+
+
+def compute_caelestia_insets(shell_config: dict[str, Any] | None = None) -> tuple[int, int, int, int]:
+    """Return safe (top, right, bottom, left) px to clear Caelestia's empty-workspace drawer mask."""
+    cfg = shell_config if isinstance(shell_config, dict) else {}
+    border_cfg = cfg.get("border") if isinstance(cfg.get("border"), dict) else {}
+    try:
+        border_thickness = max(0, int(border_cfg.get("thickness", 10)))
+    except (TypeError, ValueError):
+        border_thickness = 10
+
+    defaults = {"dashboard": 50, "launcher": 50, "session": 30, "sidebar": 80}
+    thresholds: list[int] = [0]
+    for panel, default_val in defaults.items():
+        panel_cfg = cfg.get(panel) if isinstance(cfg.get(panel), dict) else {}
+        if panel_cfg.get("enabled", True):
+            try:
+                thresholds.append(max(0, int(panel_cfg.get("dragThreshold", default_val))))
+            except (TypeError, ValueError):
+                thresholds.append(default_val)
+
+    drag_padding = max(thresholds)
+    if drag_padding <= 0:
+        return (0, 0, 0, 0)
+
+    edge = border_thickness + drag_padding + 8
+    # Caelestia places its left bar inside bar.clampedWidth (~48px) before dragMaskPadding.
+    left = edge + 48
+    return (edge, edge, edge, left)
+
+
+def _has_layer_namespace(layers_data: Any, target: str) -> bool:
+    if not isinstance(layers_data, dict):
+        return False
+    for monitor_info in layers_data.values():
+        if not isinstance(monitor_info, dict):
+            continue
+        levels = monitor_info.get("levels")
+        if not isinstance(levels, dict):
+            continue
+        for level_key in ("2", "3", "top", "overlay"):
+            entries = levels.get(level_key)
+            if not isinstance(entries, list):
+                continue
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get("namespace") == target:
+                    return True
+    return False
+
+
+def detect_layer_shell_safe_insets(
+    backend: str,
+    layers_data: Any = None,
+    caelestia_cfg: dict[str, Any] | None = None,
+) -> tuple[int, int, int, int]:
+    """Detect edge zones captured by upper layer-shell/shell panels."""
+    if backend not in ("layer-shell", "gnome-shell"):
+        return (0, 0, 0, 0)
+
+    raw_override = os.environ.get("DESKLAND_SAFE_INSETS", "").strip()
+    if raw_override:
+        parts = [p.strip() for p in raw_override.split(",")]
+        if len(parts) == 4:
+            try:
+                vals = tuple(max(0, min(400, int(p))) for p in parts)
+                return (vals[0], vals[1], vals[2], vals[3])
+            except ValueError:
+                pass
+
+    if backend == "gnome-shell":
+        # GNOME Shell's top bar (~32px) sits above the wallpaper surface.
+        return (36, 0, 0, 0)
+
+    if layers_data is None:
+        if not os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"):
+            return (0, 0, 0, 0)
+        hyprctl = shutil.which("hyprctl")
+        if not hyprctl:
+            return (0, 0, 0, 0)
+        try:
+            proc = subprocess.run(
+                [hyprctl, "-j", "layers"],
+                capture_output=True,
+                text=True,
+                timeout=1.5,
+                check=False,
+            )
+            if proc.returncode != 0 or not proc.stdout:
+                return (0, 0, 0, 0)
+            layers_data = json.loads(proc.stdout)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return (0, 0, 0, 0)
+
+    if not _has_layer_namespace(layers_data, "caelestia-drawers"):
+        return (0, 0, 0, 0)
+
+    if caelestia_cfg is None:
+        cfg_path = (
+            Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+            / "caelestia"
+            / "shell.json"
+        )
+        try:
+            if cfg_path.is_file():
+                caelestia_cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            caelestia_cfg = None
+
+    return compute_caelestia_insets(caelestia_cfg)
+
+
+def _build_safe_inset_script(insets: tuple[int, int, int, int]) -> str:
+    """Build a UserScript that keeps small fixed corner UI controls inside clickable bounds."""
+    top, right, bottom, left = insets
+    payload = json.dumps({"top": top, "right": right, "bottom": bottom, "left": left})
+    return f"""(function () {{
+  var SAFE = {payload};
+  window.__desklandSafeInsets = SAFE;
+  var INTERACTIVE = 'button,select,input,a,[role="button"]';
+  function adjustElement(el) {{
+    if (!el || el.nodeType !== 1 || el.dataset.desklandSafe === '1') return;
+    var cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || cs.pointerEvents === 'none') return;
+    var r = el.getBoundingClientRect();
+    if (r.width <= 12 || r.height <= 12) return;
+    if (r.width >= window.innerWidth * 0.75 || r.height >= window.innerHeight * 0.45) return;
+    if (!el.matches(INTERACTIVE) && !el.querySelector(INTERACTIVE)) return;
+
+    if (SAFE.top > 0 && r.top < SAFE.top && (r.bottom + (SAFE.top - r.top)) <= (window.innerHeight - SAFE.bottom)) {{
+      el.style.top = SAFE.top + 'px';
+      el.style.bottom = 'auto';
+    }} else if (SAFE.bottom > 0 && (window.innerHeight - r.bottom) < SAFE.bottom) {{
+      el.style.bottom = SAFE.bottom + 'px';
+      el.style.top = 'auto';
+    }}
+    if (SAFE.left > 0 && r.left < SAFE.left && (r.right + (SAFE.left - r.left)) <= (window.innerWidth - SAFE.right)) {{
+      el.style.left = SAFE.left + 'px';
+      el.style.right = 'auto';
+    }} else if (SAFE.right > 0 && (window.innerWidth - r.right) < SAFE.right) {{
+      el.style.right = SAFE.right + 'px';
+      el.style.left = 'auto';
+    }}
+  }}
+  function applyAll() {{
+    var nodes = document.body ? document.body.querySelectorAll('*') : [];
+    for (var i = 0; i < nodes.length; i++) adjustElement(nodes[i]);
+  }}
+  var timer = 0;
+  function schedule() {{
+    if (timer) return;
+    timer = setTimeout(function () {{ timer = 0; applyAll(); }}, 40);
+  }}
+  if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', function () {{
+      applyAll();
+      setTimeout(applyAll, 200);
+      setTimeout(applyAll, 700);
+    }});
+  }} else {{
+    applyAll();
+    setTimeout(applyAll, 200);
+    setTimeout(applyAll, 700);
+  }}
+  try {{
+    var obs = new MutationObserver(schedule);
+    obs.observe(document.documentElement, {{ subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] }});
+    setTimeout(function () {{ obs.disconnect(); }}, 8000);
+  }} catch (_) {{}}
+}})();"""
 
 
 def primary_geometry() -> tuple[Any, int]:
@@ -114,11 +351,29 @@ class Wallpaper:
             log,
         )
         self.backend = self._select_backend(backend)
+        self._safe_insets = detect_layer_shell_safe_insets(self.backend)
         self.static_wallpaper = StaticWallpaper(log)
+        self._native_audio = NativeAudioPlayer(log)
+        self._audio_supported = _has_gst_autoaudiosink()
+        if not self._audio_supported:
+            self.log.write(
+                "GStreamer autoaudiosink bulunamadı; duvar kağıdı sesi yerel oynatıcıya yönlendirildi"
+            )
 
         self.bridge = BridgeWebView(self._on_message)
+        if any(self._safe_insets):
+            self.bridge.add_user_script(_build_safe_inset_script(self._safe_insets), at_end=True)
+            self.log.write(
+                f"Katman güvenli kenar boşluğu: {self._safe_insets}"
+            )
         self.web = self.bridge.webview
+        if not self._audio_supported and hasattr(self.web, "set_is_muted"):
+            try:
+                self.web.set_is_muted(True)
+            except Exception:
+                pass
         self.window: Gtk.Window | None = None
+        self._ui_rect: tuple[int, int, int, int] | None = None
         self._create_surface()
         self.log.write(
             f"Duvar kağıdı yüzeyi: backend={self.backend}, "
@@ -130,7 +385,7 @@ class Wallpaper:
 
     # ---------------------------------------------------------------- surface
     def _select_backend(self, requested: str) -> str:
-        if requested in ("layer-shell", "x11", "static", "plasma-plugin"):
+        if requested in ("layer-shell", "gnome-shell", "x11", "static", "plasma-plugin"):
             return requested
         wayland = bool(os.environ.get("WAYLAND_DISPLAY"))
         desktop_env = (
@@ -140,13 +395,17 @@ class Wallpaper:
         ).lower()
         if ("kde" in desktop_env or "plasma" in desktop_env) and _has_plasma_wallpaper_plugin():
             return "plasma-plugin"
-        if wayland and load_layer_shell() is not None:
-            # KWin and GNOME Shell keep their own desktop/containment surface
-            # above the layer-shell background layer, so the scene would be
-            # hidden. Their supported route is a real (static) wallpaper.
+        if wayland:
+            if "gnome" in desktop_env and has_gnome_wallpaper_extension():
+                return "gnome-shell"
+            # KWin and GNOME Shell (without our extension) keep their own
+            # desktop/containment surface above normal layers and Mutter has no
+            # wlr-layer-shell support. Fall back to static rather than XWayland.
             if "kde" in desktop_env or "plasma" in desktop_env or "gnome" in desktop_env:
                 return "static"
-            return "layer-shell"
+            if load_layer_shell() is not None:
+                return "layer-shell"
+            return "static"
         if os.environ.get("DISPLAY"):
             # xfdesktop renders both wallpaper and icons inside one opaque
             # DESKTOP window, so an X11 window either covers icons or is
@@ -224,14 +483,24 @@ class Wallpaper:
         layer_shell = (
             load_layer_shell() if os.environ.get("WAYLAND_DISPLAY") else None
         )
+        offscreen_xy: tuple[int, int] | None = None
         if layer_shell is not None:
             self._attach_layer_shell(surface, layer_shell, "deskland-render")
         else:
-            if os.environ.get("DISPLAY"):
-                surface.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
-                surface.set_keep_below(True)
-                surface.stick()
             surface.set_size_request(self.geo.width, self.geo.height)
+            surface.resize(self.geo.width, self.geo.height)
+            if _is_x11_display():
+                # Keep X11 static/Plasma render surfaces off-screen and unmanaged:
+                # set_opacity(0.0) has no effect without a compositor, so mapping
+                # a DESKTOP window at (0,0) would cover xfdesktop icons visually
+                # while passing clicks through underneath.
+                off_x = min(0, self.geo.x) - max(1, self.geo.width) - 4096
+                off_y = min(0, self.geo.y) - max(1, self.geo.height) - 4096
+                offscreen_xy = (off_x, off_y)
+                surface.connect("realize", self._on_x11_offscreen_realize, off_x, off_y)
+                surface.move(off_x, off_y)
+            else:
+                surface.set_keep_below(True)
         if hasattr(self.web, "set_is_muted"):
             try:
                 self.web.set_is_muted(True)
@@ -240,6 +509,13 @@ class Wallpaper:
         surface.connect("realize", self._on_realize)
         surface.add(self.web)
         surface.show_all()
+        if offscreen_xy is not None:
+            surface.move(*offscreen_xy)
+        elif layer_shell is None:
+            # Wayland compositors without layer-shell (GNOME Mutter) ignore
+            # window.move(), so iconify keeps the 0%-opacity render helper out
+            # of the user's workspace while preserving WebGL snapshot capture.
+            surface.iconify()
         self.window = surface
         self.log.write(log_line)
 
@@ -278,6 +554,10 @@ class Wallpaper:
                 self.backend = "x11" if os.environ.get("DISPLAY") else "static"
                 return self._create_surface()
             self._attach_layer_shell(window, layer_shell, "deskland")
+        elif self.backend == "gnome-shell":
+            window.set_default_size(self.geo.width, self.geo.height)
+            window.set_size_request(self.geo.width, self.geo.height)
+            window.resize(self.geo.width, self.geo.height)
         else:
             window.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
             window.set_keep_below(True)
@@ -290,29 +570,102 @@ class Wallpaper:
         window.add(self.web)
         window.show_all()
         self.window = window
-        if self.backend == "x11":
+        if self.backend == "gnome-shell":
+            GLib.idle_add(lambda: (call_gnome_shell_extension("LowerWallpaper"), False)[1])
+        elif self.backend == "x11":
             GLib.timeout_add_seconds(2, self._keep_below)
+
+    def _apply_input_region(self) -> None:
+        if self._closed or self.window is None:
+            return
+        gdk_window = self.window.get_window()
+        if gdk_window is None:
+            return
+        try:
+            import cairo
+
+            click_through_layer_shell = bool(os.environ.get("DESKLAND_CLICK_THROUGH"))
+            if self.backend in ("layer-shell", "gnome-shell") and not click_through_layer_shell:
+                # Wayland layer-shell desktops have no underlying desktop-icon
+                # window, so allow pointer clicks/drags on uncovered desktop areas.
+                region = cairo.Region(
+                    cairo.RectangleInt(0, 0, max(1, self.geo.width), max(1, self.geo.height))
+                )
+                pass_through = False
+            elif (
+                self.backend == "x11"
+                and self._ui_rect is not None
+                and self._ui_rect[2] > 0
+                and self._ui_rect[3] > 0
+            ):
+                x, y, w, h = self._ui_rect
+                region = cairo.Region(cairo.RectangleInt(x, y, w, h))
+                pass_through = False
+            else:
+                region = cairo.Region()
+                pass_through = True
+
+            targets: list[tuple[Any, Any]] = [
+                (self.window, gdk_window),
+                (self.web, self.web.get_window()),
+            ]
+            try:
+                for child_gw in gdk_window.get_children():
+                    targets.append((None, child_gw))
+            except (AttributeError, TypeError):
+                pass
+
+            for widget, gdk_win in targets:
+                if widget is not None:
+                    try:
+                        widget.input_shape_combine_region(region)
+                    except (AttributeError, TypeError):
+                        pass
+                if gdk_win is not None:
+                    try:
+                        gdk_win.set_pass_through(pass_through)
+                    except (AttributeError, TypeError):
+                        pass
+                    try:
+                        gdk_win.input_shape_combine_region(region, 0, 0)
+                    except (AttributeError, TypeError):
+                        pass
+        except (ImportError, AttributeError, TypeError):
+            pass
+
+    def _on_ui_rect(self, raw: Any) -> None:
+        if isinstance(raw, (list, tuple)) and len(raw) == 4:
+            try:
+                x, y, w, h = (int(raw[0]), int(raw[1]), int(raw[2]), int(raw[3]))
+                if w > 0 and h > 0:
+                    self._ui_rect = (x, y, w, h)
+                    self._apply_input_region()
+                    return
+            except (TypeError, ValueError):
+                pass
+        self._ui_rect = None
+        self._apply_input_region()
+
+    @staticmethod
+    def _on_x11_offscreen_realize(window: Gtk.Window, off_x: int, off_y: int) -> None:
+        gdk_window = window.get_window()
+        if gdk_window is not None:
+            try:
+                gdk_window.set_override_redirect(True)
+            except (AttributeError, TypeError):
+                pass
+        window.move(off_x, off_y)
 
     def _on_realize(self, window: Gtk.Window) -> None:
         gdk_window = window.get_window()
         if gdk_window is None:
             return
-        try:
-            gdk_window.set_pass_through(True)
-        except (AttributeError, TypeError):
-            pass
+        self._apply_input_region()
         if self.backend == "x11":
             try:
                 gdk_window.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
                 gdk_window.lower()
             except (AttributeError, TypeError):
-                pass
-        else:
-            try:
-                import cairo
-
-                gdk_window.input_shape_combine_region(cairo.Region())
-            except (ImportError, AttributeError, TypeError):
                 pass
 
     def _keep_below(self) -> bool:
@@ -333,10 +686,21 @@ class Wallpaper:
 
     def url_for(self, page: str | None = None) -> str:
         page = page or self._page
-        mute = "&mute=1" if self.backend in ("plasma-plugin", "static") else ""
-        return self.server.url(f"{page}?wallpaper=1{mute}&v={self.host.version}")
+        mute = (
+            "&mute=1"
+            if self.backend in ("plasma-plugin", "static") or not self._audio_supported
+            else ""
+        )
+        safe = ""
+        top, right, bottom, left = self._safe_insets
+        if top or right or bottom or left:
+            safe = f"&safeTop={top}&safeRight={right}&safeBottom={bottom}&safeLeft={left}"
+        return self.server.url(f"{page}?wallpaper=1{mute}{safe}&v={self.host.version}")
 
     def load_page(self, page: str) -> None:
+        self._native_audio.stop()
+        self._ui_rect = None
+        self._apply_input_region()
         self._page = page
         self._ready = False
         self._last_icons = None
@@ -373,12 +737,18 @@ class Wallpaper:
             return
         if not isinstance(message, dict):
             return
-        if message.get("t") == "ready":
+        kind = message.get("t")
+        if kind == "ready":
             self._on_ready()
+        elif kind == "uiRect":
+            self._on_ui_rect(message.get("r"))
+        elif kind == "setAudioPlay":
+            self.host.on_wallpaper_audio_play(bool(message.get("v")))
 
     def _on_ready(self) -> None:
         self._ready = True
         self.bridge.post(self.host.wallpaper_settings_message())
+        self._sync_native_audio()
         self._last_icons = None
         self._last_pause = -1
         self._kick_polls()
@@ -387,14 +757,38 @@ class Wallpaper:
         GLib.idle_add(self._poll_icons_once)
         GLib.idle_add(self._poll_pause_once)
 
+    def _sync_native_audio(self) -> None:
+        if self._closed or self._audio_supported or self.backend not in (
+            "layer-shell",
+            "gnome-shell",
+            "x11",
+        ):
+            self._native_audio.stop()
+            return
+        theme_id = self.host.settings.theme
+        theme_meta = self.host.themes.find(theme_id)
+        params = self.host.settings.for_theme(theme_id)
+        play = bool(params.get("audioPlay"))
+        paused = self._last_pause != 0 or self._manual_pause
+        path = resolve_theme_audio_path(
+            theme_meta,
+            params,
+            getattr(self.host, "audio_dir", None),
+            self.server.prototype,
+        )
+        self._native_audio.sync(play=play, paused=paused, path=path)
+
     def set_settings(self, values: dict[str, Any]) -> None:
         if values:
             self.bridge.post({"t": "settings", "v": values})
+            if "audioPlay" in values or "audioFile" in values:
+                self._sync_native_audio()
             if self.backend == "static":
                 self._schedule_static_render(400)
 
     def reset(self) -> None:
         self.bridge.post({"t": "reset"})
+        self._sync_native_audio()
         if self.backend == "static":
             self._schedule_static_render(400)
 
@@ -445,8 +839,9 @@ class Wallpaper:
             self.bridge.post(encoded)
         self.host.on_icons_message(message)
         if self.backend == "static":
-            # Wait past flat.html/meadow.html morph duration (2600ms first, 1800ms updates)
-            delay = 2800 if self._static_file is None else 2000
+            # Static themes snap morph transitions immediately while paused, so a
+            # short debounce avoids extra redraw bursts without keeping WebGL active.
+            delay = 900 if self._static_file is None else 500
             self._schedule_static_render(delay)
         self.log.write(f"Simge değişimi: {len(message['r'])} adet")
         return False
@@ -454,6 +849,11 @@ class Wallpaper:
     # ---------------------------------------------------------------- pause
     def _poll_pause(self) -> bool:
         if self._closed:
+            return False
+        if self.backend in ("plasma-plugin", "static"):
+            # Static and Plasma render surfaces stay paused at rest so XFCE/X11
+            # and Plasma hosts keep near-zero idle GPU/CPU usage.
+            GLib.idle_add(self._apply_pause, True)
             return False
         if self._pause_busy:
             return True
@@ -478,16 +878,18 @@ class Wallpaper:
         self._pause_busy = False
         if self._closed:
             return False
-        pause = True if self.backend == "plasma-plugin" else bool(auto or self._manual_pause)
+        pause = (
+            True
+            if self.backend in ("plasma-plugin", "static")
+            else bool(auto or self._manual_pause)
+        )
         value = 1 if pause else 0
         if value == self._last_pause:
             return False
         self._last_pause = value
+        self._sync_native_audio()
         if self._ready:
             self.bridge.post({"t": "pause", "v": pause})
-            if pause and self.backend == "static":
-                # Pages snap morph curMix=1 immediately on pause (settlePaused).
-                self._schedule_static_render(250)
         self.log.write("Duraklatıldı" if pause else "Devam ediyor")
         return False
 
@@ -652,6 +1054,7 @@ class Wallpaper:
         if self._closed:
             return
         self._closed = True
+        self._native_audio.stop()
         if self._snapshot_timeout:
             GLib.source_remove(self._snapshot_timeout)
         if self._record_timeout:
