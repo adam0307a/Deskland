@@ -878,7 +878,7 @@ function draw(now) {
 }
 
 let paused = false, _rafId = 0, lastT = 0, fpsAcc = 0, fpsN = 0, fpsShow = 0;
-function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = requestAnimationFrame(frame); }
 function _setPaused(v) {
   paused = !!v;
   if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } lastT = 0; }
@@ -1057,7 +1057,7 @@ if (gl) initDesertSpriteBatch(gl);
 resize();
 if (WALL || PREVIEW) startHostedMode();
 else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
+_scheduleFrame();
 </script>
 <script src="share.js"></script>
 </body>

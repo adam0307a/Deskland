@@ -73,7 +73,7 @@ function draw(now) {
   v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.32)'); ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
 }
 let _rafId = 0;
-function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = requestAnimationFrame(frame); }
 function _setPaused(v) {
   paused = !!v;
   if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } }
@@ -110,7 +110,7 @@ if (PREVIEW) {
 } else {   // tarayıcıda doğrudan açılırsa örnek ikonlarla çalışır
   icons = [[.04, .06], [.04, .2], [.04, .34], [.15, .06], [.15, .2], [.88, .06], [.88, .2], [.5, .84], [.62, .84], [.3, .6]].map(([a, b]) => ({ x: W * a, y: H * b, w: 76, h: 90 })); drawGhosts();
 }
-requestAnimationFrame(frame);
+_scheduleFrame();
 </script>
 <script src="share.js"></script>
 </body></html>

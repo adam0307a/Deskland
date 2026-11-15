@@ -789,7 +789,7 @@ function resize() {
   placeCabin();
 }
 let _rafId = 0;
-function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = requestAnimationFrame(frame); }
 function _setPaused(v) {
   paused = !!v;
   if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } lastT = 0; }
@@ -1151,7 +1151,7 @@ buildRibbons();
 resize();
 if (WALL || PREVIEW) startHostedMode();
 else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
+_scheduleFrame();
 </script>
 <script src="share.js"></script>   <!-- 分享图片 / 分享动画（示例图标、名字是色块） -->
 </body>

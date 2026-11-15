@@ -732,7 +732,7 @@ const px = new Uint8Array(4);
 let paused = false;
 
 let _rafId = 0;
-function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = requestAnimationFrame(frame); }
 function _setPaused(v) {
   paused = !!v;
   if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } lastT = 0; }
@@ -979,7 +979,7 @@ resize();
 buildNoiseTex();
 if (WALL || PREVIEW) startHostedMode();
 else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
+_scheduleFrame();
 </script>
 </body>
 </html>
