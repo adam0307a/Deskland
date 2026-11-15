@@ -287,8 +287,21 @@ class DesklandHost:
             self._post_settings({"t": "autostart", "v": self.autostart_enabled()})
         elif kind == "share":
             self._share_image()
+        elif kind == "saveSnapshot":
+            self._finish_share_image(
+                message.get("thumb"),
+                message.get("png"),
+                message.get("error"),
+            )
         elif kind == "shareVideo":
             self._share_video()
+        elif kind == "saveRecord":
+            self._finish_share_video(
+                message.get("mime"),
+                message.get("poster"),
+                message.get("video"),
+                message.get("error"),
+            )
         elif kind == "openShare":
             if self.last_share is not None:
                 open_path(self.last_share)
@@ -318,6 +331,7 @@ class DesklandHost:
                 "langEff": self.i18n.code,
                 "langSys": self.i18n.system,
                 "virtualBarMode": self.settings.virtual_bar_mode,
+                "canSaveSnapshot": True,
             }
         )
         if self.last_icons is not None:
@@ -537,43 +551,86 @@ class DesklandHost:
             pass
 
     # ---------------------------------------------------------------- share
+    def _finish_share_image(
+        self, thumb: str | None, png: str | None, error: str | None
+    ) -> None:
+        if error is not None or png is None:
+            self._post_settings(
+                {
+                    "t": "shareResult",
+                    "ok": False,
+                    "msg": error or self.i18n.t("errNoImage"),
+                }
+            )
+            return
+        try:
+            path = save_share(png, pictures_dir() / "DiyarDesk", "image")
+            self.last_share = path
+            copy_image(path)
+            self._post_settings(
+                {
+                    "t": "shareResult",
+                    "ok": True,
+                    "thumb": thumb,
+                    "path": str(path),
+                }
+            )
+            self.log.write(f"Paylaşım görseli: {path}")
+        except Exception as exc:
+            self.log.exception("Paylaşım görseli kaydedilemedi", exc)
+            self._post_settings(
+                {"t": "shareResult", "ok": False, "msg": str(exc)}
+            )
+
     def _share_image(self) -> None:
         if self.wallpaper is None:
             self._post_settings(
                 {"t": "shareResult", "ok": False, "msg": self.i18n.t("errNotReady")}
             )
             return
+        self.wallpaper.request_snapshot(self._finish_share_image)
 
-        def done(thumb: str | None, png: str | None, error: str | None) -> None:
-            if error is not None or png is None:
-                self._post_settings(
-                    {
-                        "t": "shareResult",
-                        "ok": False,
-                        "msg": error or self.i18n.t("errNoImage"),
-                    }
-                )
-                return
-            try:
-                path = save_share(png, pictures_dir() / "DiyarDesk", "image")
-                self.last_share = path
-                copy_image(path)
-                self._post_settings(
-                    {
-                        "t": "shareResult",
-                        "ok": True,
-                        "thumb": thumb,
-                        "path": str(path),
-                    }
-                )
-                self.log.write(f"Paylaşım görseli: {path}")
-            except Exception as exc:
-                self.log.exception("Paylaşım görseli kaydedilemedi", exc)
-                self._post_settings(
-                    {"t": "shareResult", "ok": False, "msg": str(exc)}
-                )
-
-        self.wallpaper.request_snapshot(done)
+    def _finish_share_video(
+        self,
+        mime: str | None,
+        poster: str | None,
+        video: str | None,
+        error: str | None,
+    ) -> None:
+        if error is not None or video is None:
+            self._post_settings(
+                {
+                    "t": "shareResult",
+                    "ok": False,
+                    "msg": error or self.i18n.t("errNoVideo"),
+                }
+            )
+            return
+        try:
+            path = save_share(
+                video,
+                pictures_dir() / "DiyarDesk",
+                "video",
+                mime or "",
+            )
+            self.last_share = path
+            copy_files([path])
+            self._post_settings(
+                {
+                    "t": "shareResult",
+                    "ok": True,
+                    "kind": "video",
+                    "thumb": poster,
+                    "path": str(path),
+                    "url": self.server.url(f"__share/{quote(path.name)}"),
+                }
+            )
+            self.log.write(f"Paylaşım videosu: {path}")
+        except Exception as exc:
+            self.log.exception("Paylaşım videosu kaydedilemedi", exc)
+            self._post_settings(
+                {"t": "shareResult", "ok": False, "msg": str(exc)}
+            )
 
     def _share_video(self) -> None:
         if self.wallpaper is None:
@@ -581,49 +638,7 @@ class DesklandHost:
                 {"t": "shareResult", "ok": False, "msg": self.i18n.t("errNotReady")}
             )
             return
-
-        def done(
-            mime: str | None,
-            poster: str | None,
-            video: str | None,
-            error: str | None,
-        ) -> None:
-            if error is not None or video is None:
-                self._post_settings(
-                    {
-                        "t": "shareResult",
-                        "ok": False,
-                        "msg": error or self.i18n.t("errNoVideo"),
-                    }
-                )
-                return
-            try:
-                path = save_share(
-                    video,
-                    pictures_dir() / "DiyarDesk",
-                    "video",
-                    mime or "",
-                )
-                self.last_share = path
-                copy_files([path])
-                self._post_settings(
-                    {
-                        "t": "shareResult",
-                        "ok": True,
-                        "kind": "video",
-                        "thumb": poster,
-                        "path": str(path),
-                        "url": self.server.url(f"__share/{quote(path.name)}"),
-                    }
-                )
-                self.log.write(f"Paylaşım videosu: {path}")
-            except Exception as exc:
-                self.log.exception("Paylaşım videosu kaydedilemedi", exc)
-                self._post_settings(
-                    {"t": "shareResult", "ok": False, "msg": str(exc)}
-                )
-
-        self.wallpaper.request_record(done)
+        self.wallpaper.request_record(self._finish_share_video)
 
     # ---------------------------------------------------------------- quit
     def quit(self) -> None:

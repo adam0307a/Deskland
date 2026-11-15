@@ -439,7 +439,7 @@ const host = window.chrome && window.chrome.webview;
 const send = m => { if (host) host.postMessage(JSON.stringify(m)); };
 
 const state = { registry0: null, registry: null, theme: 'beach', params: {}, screen: null, icons: null,
-  langSetting: 'auto', langSys: 'zh-CN', autostartWarn: false, autostartSw: '',
+  langSetting: 'auto', langSys: 'zh-CN', autostartWarn: false, autostartSw: '', canSaveSnapshot: false,
   updateVersion: '', updateStatus: '', updateProgress: -1, updateError: '' };
 const $ = id => document.getElementById(id);
 const frame = $('preview');
@@ -875,21 +875,45 @@ function showShare(r) {
 function closeShare() { $('shareModal').hidden = true; $('shareVid').pause(); }
 $('share').addEventListener('click', () => {
   shareBusy('image');
-  if (host) { send({ t: 'share' }); return; }
-  setTimeout(() => {                                         // 没有宿主：直接让预览里的页面画一张（让按钮先显示"正在生成…"）
+  if (host && !(state.canSaveSnapshot && frame.contentWindow && typeof frame.contentWindow.desklandSnapshot === 'function')) {
+    send({ t: 'share' });
+    return;
+  }
+  setTimeout(() => {                                         // Capture directly from already-loaded preview iframe when available
     try {
       const r = frame.contentWindow.desklandSnapshot();
-      showShare({ ok: true, thumb: r.thumb, full: r.canvas.toDataURL('image/png') });
-    } catch (e) { showShare({ ok: false, msg: e.message }); }
+      const full = r.canvas.toDataURL('image/png');
+      if (host) {
+        send({ t: 'saveSnapshot', thumb: r.thumb, png: full });
+      } else {
+        showShare({ ok: true, thumb: r.thumb, full });
+      }
+    } catch (e) {
+      if (host) send({ t: 'share' });
+      else showShare({ ok: false, msg: e.message });
+    }
   }, 30);
 });
 $('shareVideo').addEventListener('click', () => {
   shareBusy('video');
-  if (host) { send({ t: 'shareVideo' }); return; }
-  frame.contentWindow.desklandRecord(shareProgress).then(r => {   // 没有宿主：让预览里的页面录一段
-    const url = URL.createObjectURL(r.blob);
-    showShare({ ok: true, kind: 'video', url, full: url, thumb: r.poster, ext: r.mime === 'video/webm' ? 'webm' : 'mp4' });
-  }, e => showShare({ ok: false, kind: 'video', msg: e.message }));
+  if (host && !(state.canSaveSnapshot && frame.contentWindow && typeof frame.contentWindow.desklandRecord === 'function')) {
+    send({ t: 'shareVideo' });
+    return;
+  }
+  frame.contentWindow.desklandRecord(shareProgress).then(r => {
+    if (!host) {
+      const url = URL.createObjectURL(r.blob);
+      showShare({ ok: true, kind: 'video', url, full: url, thumb: r.poster, ext: r.mime === 'video/webm' ? 'webm' : 'mp4' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => send({ t: 'saveRecord', mime: r.mime, poster: r.poster, video: String(reader.result || '') });
+    reader.onerror = () => send({ t: 'shareVideo' });
+    reader.readAsDataURL(r.blob);
+  }, e => {
+    if (host) send({ t: 'shareVideo' });
+    else showShare({ ok: false, kind: 'video', msg: e.message });
+  });
 });
 $('shareClose').addEventListener('click', closeShare);
 $('shareModal').addEventListener('click', e => { if (e.target === $('shareModal')) closeShare(); });
@@ -944,6 +968,7 @@ function onHost(m) {
       if ($('virtualBarMode')) $('virtualBarMode').value = m.virtualBarMode || 'auto';
       state.autostartWarn = !!m.autostartWarn;
       state.autostartSw = m.autostartSw || '';
+      state.canSaveSnapshot = !!m.canSaveSnapshot;
       showAutostartWarn();
       showUpdate();
       showTheme();

@@ -137,3 +137,36 @@ def test_plasma_lazy_share_renderer_lifecycle(monkeypatch) -> None:
     fake_window.destroy.assert_called_once()
     assert wp.bridge is None
     assert wp.window is None
+
+
+def test_app_save_snapshot_skips_slow_wallpaper_renderer(tmp_path, monkeypatch) -> None:
+    from deskland_linux import app as app_mod
+
+    saved: list[tuple[str, str]] = []
+    copied: list[object] = []
+    posted: list[dict[str, object]] = []
+
+    monkeypatch.setattr(app_mod, "pictures_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        app_mod,
+        "save_share",
+        lambda data, dest, kind, _mime="": (saved.append((data, kind)), dest / "snap.png")[1],
+    )
+    monkeypatch.setattr(app_mod, "copy_image", lambda p: copied.append(p))
+
+    host = app_mod.DesklandHost.__new__(app_mod.DesklandHost)
+    host.log = MagicMock()
+    host.wallpaper = MagicMock()
+    host.i18n = SimpleNamespace(t=lambda k: k)
+    host._post_settings = lambda payload: posted.append(payload)  # type: ignore[method-assign]
+
+    host.on_settings_message(
+        json.dumps({"t": "saveSnapshot", "thumb": "data:thumb", "png": "data:png"})
+    )
+
+    host.wallpaper.request_snapshot.assert_not_called()
+    assert saved == [("data:png", "image")]
+    assert len(copied) == 1
+    assert posted[0]["ok"] is True
+    assert posted[0]["thumb"] == "data:thumb"
+

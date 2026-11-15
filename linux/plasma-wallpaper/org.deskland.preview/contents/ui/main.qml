@@ -149,7 +149,7 @@ WallpaperItem {
                   worldId: WebEngineScript.MainWorld }
             ];
             view.url = root.prototypeRoot + root.theme + ".html"
-                + "?wallpaper=1&v=" + Date.now()
+                + "?wallpaper=1&vicons=0&v=" + Date.now()
                 + "&theme=" + encodeURIComponent(root.theme)
                 + "&home=" + encodeURIComponent(root.homeDir);
         }

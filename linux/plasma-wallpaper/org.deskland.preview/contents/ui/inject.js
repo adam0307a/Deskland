@@ -130,7 +130,7 @@
   function navigateToThemeUrl(baseUrl, themeId) {
     location.replace(
       baseUrl
-      + '?wallpaper=1&v=' + Date.now()
+      + '?wallpaper=1&vicons=0&v=' + Date.now()
       + '&theme=' + encodeURIComponent(themeId)
       + '&home=' + encodeURIComponent(HOME)
       + '&proto=' + encodeURIComponent(PROTO_BASE)
@@ -254,6 +254,7 @@
     pollPause();
   };
 
+  var downPos = null;
   window.__desklandDispatchPointer = function (kind, x, y) {
     if (typeof window.roachHostPointer === 'function') {
       window.roachHostPointer(kind, x, y);
@@ -265,6 +266,7 @@
     if (!evtType || typeof PointerEvent !== 'function') return;
     var cx = Number(x) || 0;
     var cy = Number(y) || 0;
+    if (kind === 'down') downPos = { x: cx, y: cy };
     var target = document.elementFromPoint(cx, cy) || document.body || document.documentElement;
     if (!target || typeof target.dispatchEvent !== 'function') return;
     target.dispatchEvent(new PointerEvent(evtType, {
@@ -278,6 +280,21 @@
       button: evtType === 'pointermove' ? -1 : 0,
       buttons: evtType === 'pointerup' ? 0 : 1
     }));
+    if (kind === 'up' && downPos) {
+      var moved = Math.hypot(cx - downPos.x, cy - downPos.y);
+      downPos = null;
+      if (moved < 8) {
+        target.dispatchEvent(new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: cx,
+          clientY: cy,
+          button: 0
+        }));
+      }
+    } else if (kind === 'cancel') {
+      downPos = null;
+    }
   };
 
   setInterval(pollIcons, 600);
