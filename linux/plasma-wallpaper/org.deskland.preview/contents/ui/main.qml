@@ -36,7 +36,9 @@ WallpaperItem {
     function dispatchPointer(kind, x, y) {
         if (root.effectivePaused) return;
         view.runJavaScript(
-            "window.roachHostPointer&&window.roachHostPointer("
+            "if (window.__desklandDispatchPointer) window.__desklandDispatchPointer("
+            + JSON.stringify(kind) + "," + Number(x) + "," + Number(y) + ");"
+            + "else if (window.roachHostPointer) window.roachHostPointer("
             + JSON.stringify(kind) + "," + Number(x) + "," + Number(y) + ");"
         );
     }

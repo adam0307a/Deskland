@@ -254,6 +254,32 @@
     pollPause();
   };
 
+  window.__desklandDispatchPointer = function (kind, x, y) {
+    if (typeof window.roachHostPointer === 'function') {
+      window.roachHostPointer(kind, x, y);
+      return;
+    }
+    var evtType = kind === 'down' ? 'pointerdown'
+      : (kind === 'move' ? 'pointermove'
+      : (kind === 'up' || kind === 'cancel' ? 'pointerup' : ''));
+    if (!evtType || typeof PointerEvent !== 'function') return;
+    var cx = Number(x) || 0;
+    var cy = Number(y) || 0;
+    var target = document.elementFromPoint(cx, cy) || document.body || document.documentElement;
+    if (!target || typeof target.dispatchEvent !== 'function') return;
+    target.dispatchEvent(new PointerEvent(evtType, {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'mouse',
+      isPrimary: true,
+      clientX: cx,
+      clientY: cy,
+      button: evtType === 'pointermove' ? -1 : 0,
+      buttons: evtType === 'pointerup' ? 0 : 1
+    }));
+  };
+
   setInterval(pollIcons, 600);
   setInterval(pollSettings, 1200);
   setInterval(pollPause, 1500);
