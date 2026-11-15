@@ -36,7 +36,7 @@
         <activity
             android:name=".IconLayoutActivity"
             android:exported="false"
-            android:label="@string/layout_editor_title"
+            android:label="@string/icon_layout_title"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden"
             android:parentActivityName=".SettingsActivity" />
 

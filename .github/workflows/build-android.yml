@@ -27,7 +27,7 @@ jobs:
           gradle-version: 8.9
 
       - name: Run unit tests & build tablet APK
-        run: gradle --project-dir android --no-daemon testDebugUnitTest assembleDebug
+        run: gradle --project-dir android --no-daemon testDebugUnitTest assembleRelease
 
       - name: Package APK & SHA256
         shell: bash
