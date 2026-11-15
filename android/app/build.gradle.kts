@@ -30,7 +30,7 @@ val syncPrototypeAssets by tasks.registering(Sync::class) {
 
 tasks.matching {
     it.name != "syncPrototypeAssets" &&
-        ((it.name.startsWith("merge") && it.name.endsWith("Assets")) || it.name.contains("Lint"))
+        (it.name.contains("Assets", ignoreCase = true) || it.name.contains("lint", ignoreCase = true))
 }.configureEach {
     dependsOn(syncPrototypeAssets)
 }
