@@ -1653,7 +1653,7 @@ function stepRoachProps(dt, timeSec) {
         r.callMood = Math.max(0, r.callMood - dt / 0.85);
         if (r.callMood <= 0) {
           r.callPhase = 'idle';
-          r.callTimer = 11 + Math.random() * 7;
+          r.callTimer = 45 + Math.random() * 20;
         }
         continue;
       }
@@ -1749,13 +1749,11 @@ function stepRoachProps(dt, timeSec) {
         if (r.kind !== 16 && Math.random() < shoutProb) {
           if (r.kind === 11) {
             rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.2);
-          } else if (r.kind === 5) {
-            rPushBubble(r.x, r.y - r.size * 0.54, 3, 4, 2.2);
           } else if (r.kind === 12 || r.kind === 13) {
             const textCol = Math.random() < 0.88 ? 1 : 2;
             rPushBubble(r.x, r.y - r.size * 0.54, textCol, 3, 2.2);
           } else {
-            const sym = (r.kind === 9 || r.kind === 8) ? 3 : 5;
+            const sym = r.kind === 5 ? 4 : ((r.kind === 9 || r.kind === 8) ? 3 : 5);
             rPushBubble(r.x, r.y - r.size * 0.48, sym, 2, 1.7);
           }
         }
@@ -1866,14 +1864,12 @@ function stepRoachProps(dt, timeSec) {
       : roaches[Math.floor(Math.random() * roaches.length)];
     if (star.kind === 11) {
       rPushBubble(star.x, star.y - star.size * 0.52, 2, 3, 2.3);
-    } else if (star.kind === 5) {
-      rPushBubble(star.x, star.y - star.size * 0.54, 3, 4, 2.3);
     } else if (star.kind === 12 || star.kind === 13) {
       rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.88 ? 1 : 2, 3, 2.3);
     } else if (star.kind === 15 && star.chargeTimer > 0) {
       rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.1);
     } else if (star.kind !== 16) {
-      const col = (star.kind === 8 || star.kind === 9) ? 3 : 5;
+      const col = star.kind === 5 ? 4 : ((star.kind === 8 || star.kind === 9) ? 3 : 5);
       rPushBubble(star.x + (Math.random() - 0.5) * 14, star.y - star.size * 0.45, col, 2, 1.8);
     }
   }
