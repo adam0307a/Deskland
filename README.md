@@ -8,7 +8,14 @@ DiyarDesk turns the space around your desktop icons into a living interactive la
 
 **English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build) · [Android Tablets](#android-tablets-sw600dp)
 
-![DiyarDesk Live Demo — Zen Archipelago](docs/images/demo.webp)
+
+
+https://github.com/user-attachments/assets/0be337c1-53e9-4989-a391-da87cc2528e3
+
+
+
+https://github.com/user-attachments/assets/1b5ced02-b424-4204-97c8-ed7ba797de0c
+
 
 ![DiyarDesk Settings & Theme Browser](docs/images/settings.webp)
 
