@@ -72,9 +72,18 @@ function draw(now) {
   const v = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .45, w / 2, h / 2, Math.max(w, h) * .75);
   v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.32)'); ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
 }
+let _rafId = 0;
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _setPaused(v) {
+  paused = !!v;
+  if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } }
+  else _scheduleFrame();
+}
 function frame(now) {
-  requestAnimationFrame(frame);
-  if (paused || now - lastT < 30) return;   // ~30 fps hedefi
+  _rafId = 0;
+  if (paused) return;
+  _scheduleFrame();
+  if (now - lastT < 30) return;   // ~30 fps hedefi
   const dt = Math.min(.1, (now - lastT) / 1000 || .033); lastT = now;
   if (P.time === 0 && now - lastClock > 60000) { lastClock = now; if (timeNow() !== T) cacheOK = false; }
   if (!cacheOK) rebuild();
@@ -85,7 +94,7 @@ function applySettings(v) { for (const k in v) if (k in P && typeof v[k] === 'nu
 function drawGhosts() { document.getElementById('ghosts').innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join(''); }
 function handle(m) {
   if (!m) return;
-  if (m.t === 'pause') paused = PREVIEW ? false : !!m.v;
+  if (m.t === 'pause') _setPaused(PREVIEW ? false : !!m.v);
   else if (m.t === 'settings') applySettings(m.v || m.params || {});
   else if (m.t === 'reset') applySettings(Object.assign({}, DEFAULTS, m.v || {}));
   else if (m.t === 'icons') { const k = devicePixelRatio || 1; icons = m.vis ? (m.r || []).map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : []; if (PREVIEW || !WALL) drawGhosts(); }

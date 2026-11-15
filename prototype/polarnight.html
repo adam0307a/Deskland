@@ -788,9 +788,17 @@ function resize() {
   buildSnow();
   placeCabin();
 }
+let _rafId = 0;
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _setPaused(v) {
+  paused = !!v;
+  if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } lastT = 0; }
+  else _scheduleFrame();
+}
 function frame(now) {
-  requestAnimationFrame(frame);
+  _rafId = 0;
   if (paused) { lastT = 0; return; }
+  _scheduleFrame();
   if (P.cap30 && now - lastT < 31) return;
   const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
   if (lastT) fpsEMA = fpsEMA ? fpsEMA * 0.9 + (1 / dt) * 0.1 : 1 / dt;
@@ -1105,7 +1113,7 @@ function startHostedMode() {
     draw(performance.now());
   };
   const handle = m => {
-    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; settlePaused(); return; }
+    if (m.t === 'pause') { _setPaused(PREVIEW ? false : m.v); settlePaused(); return; }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
     if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
     if (m.t !== 'icons') return;

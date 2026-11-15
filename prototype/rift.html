@@ -696,9 +696,17 @@ let lastT = 0, fpsEMA = 0, frameN = 0, frameMs = 0;
 const px = new Uint8Array(4);
 let paused = false;
 
+let _rafId = 0;
+function _scheduleFrame() { if (!paused && !_rafId) _rafId = _scheduleFrame(); }
+function _setPaused(v) {
+  paused = !!v;
+  if (paused) { if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; } lastT = 0; }
+  else _scheduleFrame();
+}
 function frame(now) {
-  requestAnimationFrame(frame);
+  _rafId = 0;
   if (paused) { lastT = 0; return; }
+  _scheduleFrame();
   if (P.cap30 && now - lastT < 31) return;
   const dt = lastT ? Math.min((now - lastT) / 1000, 0.1) : 0.03;
   if (lastT) fpsEMA = fpsEMA ? fpsEMA * 0.9 + (1 / dt) * 0.1 : 1 / dt;
@@ -712,7 +720,7 @@ function frame(now) {
 }
 
 function draw(now) {
-  const measure = frameN % 20 === 0, t0 = performance.now();
+  const measure = !WALL && !PREVIEW && (frameN % 20 === 0), t0 = measure ? performance.now() : 0;
   const timeSec = (now - T0) / 1000;
 
   gl.useProgram(PR.p);
@@ -751,6 +759,7 @@ const GPU = (() => {
     .replace(/\s*(Direct3D|vs_|OpenGL).*$/, '').replace(/\(R\)|\(TM\)/g, '').trim();
 })();
 function updateStats() {
+  if (WALL || PREVIEW) return;
   const alive = typeof trees !== 'undefined' ? trees.filter(t => t.want > 0.5).length : 0;
   statsEl.innerHTML =
     `<span class="live">● 动画中 · ${fpsEMA.toFixed(0)} fps</span><br>GPU ${GPU}<br>` +
@@ -876,7 +885,7 @@ function startHostedMode() {
   commit(true);
   let first = true;
   const handle = m => {
-    if (m.t === 'pause') { paused = PREVIEW ? false : m.v; return; }
+    if (m.t === 'pause') { _setPaused(PREVIEW ? false : m.v); return; }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
     if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
     if (m.t !== 'icons') return;

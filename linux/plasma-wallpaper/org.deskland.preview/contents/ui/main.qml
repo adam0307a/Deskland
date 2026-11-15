@@ -35,7 +35,7 @@ WallpaperItem {
     readonly property bool showingDesktop: KWindowSystem.showingDesktop
     readonly property bool effectivePaused: pageReady && windowPaused && !showingDesktop
 
-    onShowingDesktopChanged: updateWindowPause()
+    onShowingDesktopChanged: pauseEvalTimer.restart()
 
     function dispatchPointer(kind, x, y) {
         if (root.effectivePaused) return;
@@ -91,14 +91,18 @@ WallpaperItem {
         if (root.effectivePaused) {
             view.runJavaScript("window.__desklandSetHostPaused&&window.__desklandSetHostPaused(true);");
         } else {
-            view.runJavaScript(
-                "window.__desklandSetHostPaused&&window.__desklandSetHostPaused(false);"
-                + "window.__desklandForcePoll&&window.__desklandForcePoll();"
-            );
+            view.runJavaScript("window.__desklandSetHostPaused&&window.__desklandSetHostPaused(false);");
         }
     }
 
     onEffectivePausedChanged: applyEffectivePause()
+
+    Timer {
+        id: pauseEvalTimer
+        interval: 80
+        repeat: false
+        onTriggered: root.updateWindowPause()
+    }
 
     TaskManager.ActivityInfo {
         id: activityInfo
@@ -112,12 +116,12 @@ WallpaperItem {
         activity: activityInfo.currentActivity
         filterMinimized: true
         filterHidden: true
-        onActiveTaskChanged: root.updateWindowPause()
-        onCountChanged: root.updateWindowPause()
-        onDataChanged: root.updateWindowPause()
-        onRowsInserted: root.updateWindowPause()
-        onRowsRemoved: root.updateWindowPause()
-        onModelReset: root.updateWindowPause()
+        onActiveTaskChanged: pauseEvalTimer.restart()
+        onCountChanged: pauseEvalTimer.restart()
+        onDataChanged: pauseEvalTimer.restart()
+        onRowsInserted: pauseEvalTimer.restart()
+        onRowsRemoved: pauseEvalTimer.restart()
+        onModelReset: pauseEvalTimer.restart()
     }
 
     Timer {
