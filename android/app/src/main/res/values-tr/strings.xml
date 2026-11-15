@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DiyarDesk</string>
+    <string name="wallpaper_description">Android tabletler (sw600dp+) için tasarlanmış uyarlanabilir etkileşimli canlı duvar kağıdı.</string>
+    <string name="btn_set_wallpaper">Canlı Duvar Kağıdı Yap</string>
+    <string name="btn_icon_layout">İkon / Widget Düzeni</string>
+    <string name="tablet_notice">DiyarDesk Android tabletler (600dp+ ekran genişliği) için tasarlanmıştır. Telefon boyutundaki ekranlarda düzen ve pil verimliliği sınırlı olabilir.</string>
+    <string name="icon_layout_title">Tablet İkon &amp; Widget Düzeni</string>
+    <string name="icon_layout_hint">Kutuları ana ekranınızdaki ikon ve widget konumlarına sürükleyin. Temalar bunlara göre tepki verir. Silmek için bir kutuya çift dokunun.</string>
+    <string name="preset_4x5">4×5 Izgara</string>
+    <string name="preset_5x6">5×6 Tablet</string>
+    <string name="action_add_icon">+ İkon</string>
+    <string name="action_add_widget">+ Widget</string>
+    <string name="action_clear">Temizle</string>
+    <string name="action_save">Düzeni Kaydet</string>
+    <string name="toast_layout_saved">İkon düzeni canlı duvar kağıdına aktarıldı</string>
+    <string name="toast_wallpaper_picker_unavailable">Sistem Duvar Kağıdı ayarlarından Canlı Duvar Kağıtları &gt; DiyarDesk yolunu seçin.</string>
+    <string name="toast_share_saved">Görsel Pictures/DiyarDesk klasörüne kaydedildi</string>
+    <string name="toast_share_failed">Görsel kaydedilemedi</string>
+    <string name="toast_audio_not_supported">Yerleşik tema sesini kullanabilir veya HTML/video paketi içe aktarabilirsiniz.</string>
+</resources>

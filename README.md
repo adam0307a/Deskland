@@ -2,11 +2,11 @@
 
 **Adaptive desktop wallpaper that makes your desktop icons part of the scenery.**
 
-DiyarDesk turns the space around your desktop icons into a living interactive landscape on **Linux** (KDE Plasma 6, X11, wlroots Wayland) and **Windows**. Move, add, or remove an icon and dunes, snow clearings, clouds, aurora glow, or ocean waves reshape smoothly around it — locally in real time, without AI, cloud accounts, or telemetry.
+DiyarDesk turns the space around your desktop icons into a living interactive landscape on **Linux** (KDE Plasma 6, X11, wlroots Wayland), **Windows**, and **Android Tablets (`sw600dp+`)**. Move, add, or remove an icon and dunes, snow clearings, clouds, aurora glow, or ocean waves reshape smoothly around it — locally in real time, without AI, cloud accounts, or telemetry.
 
 > **Upstream attribution:** DiyarDesk is an independent community fork based on [Deskland](https://deskland.app) (`GPL-3.0`), using its own product name (**DiyarDesk**) and original icon, with no official affiliation or endorsement from upstream Deskland. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
-**English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build)
+**English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build) · [Android Tablets](#android-tablets-sw600dp)
 
 ![DiyarDesk Settings & Theme Browser](docs/images/settings.webp)
 
@@ -22,7 +22,7 @@ DiyarDesk turns the space around your desktop icons into a living interactive la
 
 ## Included themes
 
-DiyarDesk includes **11 complete adaptive/animated themes** plus custom theme import (`.zip`, `.deskland`, single `.html`, images, and videos):
+DiyarDesk includes **13 complete adaptive/animated themes** (including **Zen Archipelago** and **Istanbul — Bosphorus Sunset**) plus custom theme import (`.zip`, `.deskland`, single `.html`, images, and videos):
 
 - **Sahara (`desert.html`)** — overhead desert dunes with raised sunlit sand hills beneath dropped icons, date-palm oases, Bedouin tents, camels, and travelers
 - **Polar Night (`polarnight.html`)** — side-view winter horizon, triple aurora curtains, shooting stars, snow forest clearing around icons, and warm shore cabin
@@ -82,6 +82,15 @@ To build the NSIS installer (`dist/`):
 powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 ```
 
+## Android Tablets (`sw600dp+`)
+
+DiyarDesk includes a native **Android Tablet** live wallpaper companion (`android/`, targeting `requiresSmallestWidthDp="600"` and Android 10+ / API 29+):
+
+- **Designed for tablets only:** declares `<supports-screens android:requiresSmallestWidthDp="600" ... />` so phone layouts and small batteries are not targeted, while tablet widescreens match DiyarDesk's desktop proportions and pause WebGL/Canvas rendering automatically whenever the home screen is not visible.
+- **Interactive Icon & Widget Layout Editor:** position where your launcher icons and widgets sit (`4×5`, `5×6 Tablet`, drag-and-drop icons & widgets) so every adaptive scene wraps cleanly around your Android launcher grid.
+- **Shared settings & custom theme import:** hosts `prototype/settings.html` natively with Document Picker import (`.zip`, `.deskland`, `.html`, images, videos) and PNG snapshot saving to `Pictures/DiyarDesk`.
+- **Build & test from source:** `gradle --project-dir android testDebugUnitTest assembleDebug` (also built automatically in GitHub Actions `.github/workflows/build-android.yml`).
+
 ## Project layout
 
 | Path | Contents |
@@ -91,6 +100,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 | `linux/kde-iconspy/` | KDE Plasma companion helper for live desktop icon coordinates |
 | `linux/packaging/` | Desktop entry, original DiyarDesk SVG icon, `.deb` and Arch `PKGBUILD` scripts |
 | `host/` | Windows C#/WinForms/WebView2 host and build scripts |
+| `android/` | Native Android Tablet (`sw600dp+`) Kotlin `WallpaperService`, icon/widget layout editor & Settings host |
 | `prototype/` | Shared themes, settings UI (`settings.html`), i18n JSONs (`en`, `zh-CN`), sharing script, assets |
 | `tools/` | Version metadata and Windows NSIS installer scripts |
 
@@ -106,18 +116,24 @@ Source code and included theme assets are licensed under [GPL-3.0](LICENSE). Thi
 
 **Masaüstü simgelerinizi manzaranın bir parçasına dönüştüren uyarlanabilir duvar kağıdı.**
 
-**DiyarDesk**; **Linux** (KDE Plasma 6, X11, wlroots Wayland) ve **Windows** üzerinde masaüstü simgelerinizin konumuna gerçek zamanlı tepki veren canlı WebGL/Canvas duvar kağıtları sunar. Bir simgeyi taşıdığınızda, eklediğinizde veya sildiğinizde kum tepeleri, kar açıklıkları, bulutlar, aurora yansımaları ya da sahil dalgaları simgelerin etrafında pürüzsüzce şekillenir. Tamamen yerel olarak çalışır; yapay zeka, hesap veya telemetri içermez.
+**DiyarDesk**; **Linux** (KDE Plasma 6, X11, wlroots Wayland), **Windows** ve **Android Tabletler (`sw600dp+`)** üzerinde simge/widget konumlarınıza gerçek zamanlı tepki veren canlı WebGL/Canvas duvar kağıtları sunar. Bir simgeyi taşıdığınızda, eklediğinizde veya sildiğinizde kum tepeleri, kar açıklıkları, bulutlar, aurora yansımaları ya da sahil dalgaları simgelerin etrafında pürüzsüzce şekillenir. Tamamen yerel olarak çalışır; yapay zeka, hesap veya telemetri içermez.
 
 > **Yukarı akış atfı:** DiyarDesk, [Deskland](https://deskland.app) (`GPL-3.0`) temel alınarak geliştirilen bağımsız bir topluluk çatalıdır; kendi adını (**DiyarDesk**) ve özgün logosunu kullanır, resmi Deskland sürümü veya onaylı ürünü değildir. Ayrıntılar için [NOTICE](NOTICE) ve [TRADEMARKS.md](TRADEMARKS.md) dosyalarına bakın.
 
 ### Dahili Temalar ve Özel Tema İçe Aktarma
 
-- **11 eksiksiz dahili tema:** Sahra (`desert.html`), Kutup Gecesi (`polarnight.html`), Aurora (`aurora.html`), Çayır (`meadow.html`), Sahil (`flat.html`), Orman Açıklığı (`glade.html`), Yarık (`rift.html`), Yıldırım (`strike.html`), Cep Dünyası (`pocket.html`), Böcek (`roach.html`) ve Gül Deresi (`rosebrook.html`).
+- **13 eksiksiz dahili tema:** Sahra (`desert.html`), Kutup Gecesi (`polarnight.html`), Aurora (`aurora.html`), Çayır (`meadow.html`), Sahil (`flat.html`), Orman Açıklığı (`glade.html`), Yarık (`rift.html`), Yıldırım (`strike.html`), Cep Dünyası (`pocket.html`), Böcek (`roach.html`), Gül Deresi (`rosebrook.html`), **Zen Takımadası** (`zen-archipelago.html`) ve **İstanbul — Boğaz Gün Batımı** (`istanbul.html`).
 - **Özel tema içe aktarma:** Ayarlar penceresindeki `+ Import theme…` düğmesi ve `?` biçim rehberi ile `.zip` / `.deskland` paketleri, tek dosyalı `.html` shader/sayfaları, resimler ve döngülü videolar yüklenebilir.
 
 ### Kurulum ve Çalıştırma (Linux / Kaynak Kod)
 
-Hazır paketleri (`.deb`, Arch `.pkg.tar.zst`, taşınabilir `.tar.gz` ve Windows `.exe` kurucusu) [Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) sayfasından indirebilirsiniz.
+Hazır paketleri (`.deb`, Arch `.pkg.tar.zst`, taşınabilir `.tar.gz`, Windows `.exe` kurucusu ve Android Tablet `.apk`) [Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) sayfasından indirebilirsiniz.
+
+### Android Tablet Desteği (`sw600dp+`)
+
+- Yalnızca **tablet ekranları (`requiresSmallestWidthDp="600"`, Android 10+ / API 29+)** için tasarlanmıştır; ana ekran görünür olmadığında WebGL/Canvas çizimi otomatik olarak duraklatılarak pil korunur.
+- **İkon / Widget Düzenleyici:** Android başlatıcınızdaki uygulama simgelerinin ve widget'ların konumlarını seçip sürükleyerek sahil, kar, kum tepesi veya boğaz iskelelerinin ikonlarınızın etrafında şekillenmesini sağlayabilirsiniz.
+- **Paylaşılan Ayar Arayüzü ve Özel Tema İçe Aktarma:** `prototype/settings.html` arayüzü ve `.zip`/`.deskland`/`.html`/görsel/video tema içe aktarma tabletlerde de doğrudan çalışır.
 
 ```bash
 # Kaynaktan Linux masaüstü uygulamasını başlat

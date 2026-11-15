@@ -13,6 +13,7 @@ This fork (**DiyarDesk**) builds on upstream Deskland Preview (`tools/version.js
 1. **Shared Web Prototype (`prototype/`)** — All wallpaper theme pages, parameter definitions (`themes.json`), settings UI (`settings.html`), snapshot/video sharing (`share.js`), and UI translations (`i18n/en.json`, `i18n/zh-CN.json`).
 2. **Linux Desktop Host (`linux/`)** — Python 3 + GTK3 + WebKit2GTK host with X11/Wayland layer-shell wallpaper support, static wallpaper fallback, KDE Plasma wallpaper plugin + IconSpy integration, system tray, fullscreen auto-pause, theme importer, and `.deb`/Arch packaging.
 3. **Windows Desktop Host (`host/` & `tools/`)** — Upstream C#/WinForms/WebView2 host (`host/DesktopHost.cs`), PowerShell build script (`host/build.ps1`), and NSIS installer scripts (`tools/build-installer.ps1`, `tools/installer.nsi`).
+4. **Android Tablet Live Wallpaper (`android/`)** — Native Kotlin `WallpaperService` (`DiyarWallpaperService`, `minSdk = 29`, `requiresSmallestWidthDp = "600"`), shared `settings.html` host, SAF theme importer, and interactive tablet icon/widget layout editor.
 
 ---
 
@@ -21,7 +22,7 @@ This fork (**DiyarDesk**) builds on upstream Deskland Preview (`tools/version.js
 | Path | Purpose |
 | --- | --- |
 | `prototype/` | Shared HTML/JS/CSS wallpaper themes, settings UI, i18n JSONs, assets, thumbnails |
-| `prototype/themes.json` | Canonical theme registry (`meadow`, `beach`, `aurora`, `glade`, `rift`, `strike`, `pocket`, `roach`, `rosebrook`, `polarnight`, `desert`) |
+| `prototype/themes.json` | Canonical theme registry (`meadow`, `beach`, `aurora`, `glade`, `rift`, `strike`, `pocket`, `roach`, `rosebrook`, `polarnight`, `desert`, `zen-archipelago`, `istanbul`) |
 | `prototype/settings.html` | Settings window UI (theme grid, live preview iframe, controls, import button & `?` guide modal, snapshot/video share) |
 | `prototype/share.js` | Shared privacy-safe snapshot/video capture helpers (sample icons & color blocks, never real user filenames) |
 | `prototype/i18n/` | UI & theme localization dictionaries (`en.json`, `zh-CN.json` only) |
@@ -47,15 +48,16 @@ This fork (**DiyarDesk**) builds on upstream Deskland Preview (`tools/version.js
 | `linux/packaging/` | Desktop file, SVG icon, `build-deb.sh`, and Arch `arch/PKGBUILD` |
 | `linux/tests/` | Pytest unit test suite (`test_autostart.py`, `test_config.py`, `test_icons.py`, `test_importer.py`, `test_share.py`) |
 | `host/` | Windows C# WebView2 host (`DesktopHost.cs`, `Themes.cs`, `build.ps1`, `app.manifest`, icon) |
+| `android/` | Native Android Tablet (`sw600dp+`) `WallpaperService`, layout editor, SAF importer & JUnit tests |
 | `tools/` | `version.json` and Windows NSIS installer packaging scripts |
-| `dist/` | Built release artifacts (`.exe`, `.deb`, `.pkg.tar.zst`, `.tar.gz`, manifests, SHA256 checksums) |
+| `dist/` | Built release artifacts (`.exe`, `.apk`, `.deb`, `.pkg.tar.zst`, `.tar.gz`, manifests, SHA256 checksums) |
 
 ---
 
 ## 3. Themes & Prototype Rules
 
 ### Built-in Themes (`prototype/themes.json`)
-All 11 built-in themes in this fork have `status: "ready"` and full source code (no locked placeholder themes):
+All 13 built-in themes in this fork have `status: "ready"` and full source code (no locked placeholder themes):
 - **`meadow`** (`meadow.html`, adaptive): Ink-and-wash meadow, icon-hugging clouds & shadows, animated kite boy and black cat.
 - **`beach`** (`flat.html`, non-adaptive coastline around icons): Animated shoreline, waves, kayaks, seabirds, and coconut palms.
 - **`aurora`** (`aurora.html`, adaptive): Top-down frozen fjord, ice shimmer, glowing aurora reflection, pine islands & lanterns (`aurora-pines.js`).
@@ -151,6 +153,12 @@ Browser preview uses sample icon coordinates; real desktop icon tracking runs un
 # Run Python unit tests (22 tests covering autostart, config, icons, importer, share):
 PYTHONPATH=linux uv run --with pytest pytest -v linux/tests
 # (or `PYTHONPATH=linux pytest -v linux/tests` if pytest is installed in system Python)
+```
+
+### Android Tablet Build & Unit Tests
+```bash
+# Requires Android SDK (also runs via .github/workflows/build-android.yml):
+gradle --project-dir android testDebugUnitTest assembleDebug
 ```
 
 ### Windows Host & Installer (on Windows)

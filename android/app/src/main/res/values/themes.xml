@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DiyarDesk" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">#1F6F5B</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#D9822B</item>
+        <item name="android:statusBarColor">#132A24</item>
+        <item name="android:navigationBarColor">#132A24</item>
+    </style>
+</resources>

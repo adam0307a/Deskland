@@ -1,0 +1,51 @@
+name: Build Android Tablet APK
+
+on:
+  push:
+    branches:
+      - main
+      - feat/*
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Run unit tests & build tablet APK
+        run: gradle --project-dir android --no-daemon testDebugUnitTest assembleDebug
+
+      - name: Package APK & SHA256
+        shell: bash
+        run: |
+          VER=$(python3 -c "import json; print(json.load(open('tools/version.json'))['version'])")
+          mkdir -p out-android
+          APK=$(find android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "No APK found!" >&2
+            exit 1
+          fi
+          DEST="out-android/DiyarDesk-${VER}-android-tablet.apk"
+          cp "$APK" "$DEST"
+          (cd out-android && sha256sum "$(basename "$DEST")" > "$(basename "$DEST").sha256")
+          ls -lh out-android
+
+      - name: Upload Android Tablet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: diyardesk-android-tablet
+          path: out-android/*
