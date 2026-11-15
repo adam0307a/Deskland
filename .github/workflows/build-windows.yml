@@ -1,4 +1,4 @@
-name: Build Windows Preview
+name: Build Windows Installer
 
 on:
   workflow_dispatch:
@@ -30,9 +30,9 @@ jobs:
       - name: Upload Windows Installer
         uses: actions/upload-artifact@v4
         with:
-          name: deskland-preview-win-x64
+          name: diyardesk-win-x64
           path: |
-            dist\Deskland-Preview-*-win-x64-Setup.exe
-            dist\Deskland-Preview-*-win-x64-Setup.exe.sha256
-            dist\Deskland-Preview-*-win-x64-Setup.exe.manifest.json
+            dist\DiyarDesk-*-win-x64-Setup.exe
+            dist\DiyarDesk-*-win-x64-Setup.exe.sha256
+            dist\DiyarDesk-*-win-x64-Setup.exe.manifest.json
           if-no-files-found: error

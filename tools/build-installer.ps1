@@ -43,12 +43,13 @@ $themeFiles = @('flat.html', 'meadow.html', 'aurora.html', 'glade.html', 'rift.h
     'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js', 'aurora-pines.js', 'glade-trees.js', 'rift-props.js', 'strike-props.js', 'pocket-props.js', 'roach-props.js', 'rosebrook-blooms.js', 'desert-props.js',
     'i18n\en.json', 'i18n\zh-CN.json', 'thumbs\beach.webp', 'thumbs\meadow.webp', 'thumbs\polarnight.webp', 'thumbs\desert.webp',
     'assets\beach-coconut-palm-v2.png', 'assets\beach-coconut-palm-curved.png', 'assets\beach-coconut-palm-airy.png', 'assets\beach-coconut-palm-windswept.png', 'assets\beach-coconut-palm-arch.png',
-    'assets\meadow-black-kitten.png', 'assets\meadow-kite-boy-level-face.png', 'assets\meadow-kite-boy-diagonal-run.png')
+    'assets\meadow-black-kitten.png', 'assets\meadow-kite-boy-level-face.png', 'assets\meadow-kite-boy-diagonal-run.png',
+    'assets\roach-default.mp3')
 $themes = (Get-Content -LiteralPath (Join-Path $root 'prototype\themes.json') -Raw -Encoding UTF8 | ConvertFrom-Json).themes
 $ready = @($themes | Where-Object { $_.status -eq 'ready' })
 $locked = @($themes | Where-Object { $_.locked -eq $true })
-if ($ready.Count -lt 2 -or $locked.Count -lt 1) {
-    throw 'Expected at least two usable themes and locked preview cards'
+if ($ready.Count -lt 2) {
+    throw 'Expected at least two usable themes'
 }
 foreach ($theme in $ready) {
     if (-not $theme.page) { throw 'Ready theme missing page: ' + $theme.id }
@@ -76,7 +77,7 @@ foreach ($file in $sources) {
     Copy-Item -LiteralPath (Join-Path $root $file) -Destination $target
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($sourceStage, (Join-Path $payload 'Deskland-source.zip'))
+[IO.Compression.ZipFile]::CreateFromDirectory($sourceStage, (Join-Path $payload 'DiyarDesk-source.zip'))
 # Only program data is installed. The accompanying ZIP contains the exact corresponding source.
 $runtimeFiles = @('host\bin\Deskland.exe', 'host\bin\DesklandPreview.ico', 'host\bin\Microsoft.Web.WebView2.Core.dll', 'host\bin\Microsoft.Web.WebView2.WinForms.dll', 'host\bin\WebView2Loader.dll')
 $installFiles = @('LICENSE', 'NOTICE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'TRADEMARKS.md') + @($themeFiles | Where-Object { $_ -ne 'serve.mjs' } | ForEach-Object { 'prototype\' + $_ }) + $runtimeFiles
@@ -85,7 +86,7 @@ foreach ($file in $installFiles) {
     New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
     Copy-Item -LiteralPath (Join-Path $root $file) -Destination $target
 }
-$installFiles += 'Deskland-source.zip'
+$installFiles += 'DiyarDesk-source.zip'
 $utf8 = New-Object Text.UTF8Encoding($true)
 $fileLines = @()
 $deleteLines = @()
@@ -103,7 +104,7 @@ $fileList = Join-Path $payload 'files.nsh'
 $deleteList = Join-Path $payload 'delete.nsh'
 [IO.File]::WriteAllLines($fileList, [string[]]$fileLines, $utf8)
 [IO.File]::WriteAllLines($deleteList, [string[]]$deleteLines, $utf8)
-$output = Join-Path $dist "Deskland-Preview-$version-win-x64-Setup.exe"
+$output = Join-Path $dist "DiyarDesk-$version-win-x64-Setup.exe"
 & $NsisCompiler /V2 "/DVERSION=$version" "/DPAYLOAD=$payload" "/DOUTPUT=$output" "/DBOOTSTRAPPER=$WebView2Bootstrapper" "/DFILE_LIST=$fileList" "/DDELETE_LIST=$deleteList" (Join-Path $PSScriptRoot 'installer.nsi')
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed' }
 $hash = (Get-FileHash -LiteralPath $output -Algorithm SHA256).Hash

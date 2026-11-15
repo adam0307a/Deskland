@@ -6,9 +6,9 @@ set -eu
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 LINUX=$(CDPATH= cd -- "$HERE/.." && pwd)
 ROOT=$(CDPATH= cd -- "$LINUX/.." && pwd)
-VERSION="0.1.4~linux1"
+VERSION="0.1.5~linux1"
 ARCH="all"
-PKG="deskland-preview"
+PKG="diyardesk"
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 
@@ -44,6 +44,8 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
+Replaces: deskland-preview
+Conflicts: deskland-preview
 Maintainer: DiyarDesk contributors
 Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, gir1.2-webkit2-4.0 | gir1.2-webkit2-4.1, gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1, libayatana-appindicator3-1 | libappindicator3-1, xdg-utils
 Recommends: gir1.2-gtklayershell-0.1, xdotool
