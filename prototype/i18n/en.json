@@ -807,6 +807,45 @@
           "hint": "Choose a local audio file for Roach Town and play or pause it anytime"
         }
       }
+    },
+    "rosebrook": {
+      "name": "Rose Brook",
+      "desc": "Lush green meadows crossed by a sparkling crystal brook. Dropping or moving an icon blooms layered roses and wildflowers around it as petals drift in the breeze.",
+      "groups": [
+        "Brook & Meadow",
+        "Roses & Petals"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Meadow radius",
+          "hint": "How far the sunlit lawn and floral ring spread around each icon",
+          "unit": "px"
+        },
+        "stream": {
+          "label": "Brook width",
+          "hint": "Width of the winding forest stream across the meadow"
+        },
+        "flow": {
+          "label": "Current speed",
+          "hint": "How briskly ripples and sun caustics travel downstream"
+        },
+        "sunlight": {
+          "label": "Water shimmer",
+          "hint": "Warm sunlight glow and sparkling highlights on the brook"
+        },
+        "roses": {
+          "label": "Rose density",
+          "hint": "Richness of roses and wildflowers blooming around dropped icons"
+        },
+        "petals": {
+          "label": "Drifting petals",
+          "hint": "Number of rose petals and garden butterflies floating in the air"
+        },
+        "breeze": {
+          "label": "Meadow breeze",
+          "hint": "Speed of swaying blossoms and drifting rose petals"
+        }
+      }
     }
   }
 }

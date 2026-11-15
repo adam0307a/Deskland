@@ -772,6 +772,97 @@
       ]
     },
     {
+      "id": "rosebrook",
+      "adaptive": true,
+      "name": "玫瑰溪畔",
+      "desc": "翠绿草地间清溪蜿蜒，拖动或放下桌面图标时，玫瑰与繁花围绕它悄然盛放，花瓣随风轻落。",
+      "thumb": "radial-gradient(circle at 28% 36%, rgba(225,58,86,0.52) 0%, rgba(225,58,86,0) 24%), radial-gradient(circle at 72% 30%, rgba(244,128,158,0.46) 0%, rgba(244,128,158,0) 22%), radial-gradient(circle at 52% 68%, rgba(255,222,168,0.42) 0%, rgba(255,222,168,0) 18%), linear-gradient(155deg, transparent 32%, rgba(92,202,216,0.58) 44%, rgba(44,148,168,0.68) 51%, rgba(124,224,232,0.50) 58%, transparent 70%), linear-gradient(180deg, #1b542f 0%, #2a703e 45%, #1d5730 100%)",
+      "page": "rosebrook.html",
+      "status": "ready",
+      "product": "free",
+      "groups": [
+        {
+          "name": "溪流与草地",
+          "params": [
+            {
+              "key": "sigma",
+              "label": "草地柔边",
+              "hint": "图标周围修剪草坪与鲜花围合的范围大小",
+              "min": 40,
+              "max": 180,
+              "step": 1,
+              "default": 72,
+              "unit": "px"
+            },
+            {
+              "key": "stream",
+              "label": "溪流宽度",
+              "hint": "林间溪水河道的宽窄比例",
+              "min": 0.25,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "flow",
+              "label": "水流速度",
+              "hint": "清溪涟漪与日光波纹的前行节奏",
+              "min": 0.2,
+              "max": 2.2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "sunlight",
+              "label": "水波日照",
+              "hint": "溪面碎金反光与林间暖光强度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.78,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "玫瑰与花瓣",
+          "params": [
+            {
+              "key": "roses",
+              "label": "玫瑰花丛",
+              "hint": "放下图标时环绕盛开的玫瑰与草花密度",
+              "min": 0,
+              "max": 1,
+              "step": 0.01,
+              "default": 0.85,
+              "format": "percent"
+            },
+            {
+              "key": "petals",
+              "label": "飘落花瓣",
+              "hint": "微风中漂浮的玫瑰花瓣与蝴蝶数量",
+              "min": 0,
+              "max": 24,
+              "step": 1,
+              "default": 12
+            },
+            {
+              "key": "breeze",
+              "label": "林间微风",
+              "hint": "花枝摇曳与花瓣随风飘移的速度",
+              "min": 0.2,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "beach-turquoise",
       "name": "马尔代夫",
       "desc": "青绿色海水与浅米黄沙滩，暗色珊瑚礁间的小鱼成群游动",
