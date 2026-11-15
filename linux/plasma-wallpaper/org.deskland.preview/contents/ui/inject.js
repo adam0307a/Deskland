@@ -133,6 +133,27 @@
     try { xhr.send(); } catch (e) {}
   }
 
+  function tryBuiltinOrCustomTheme(themeId) {
+    var xhr = new XMLHttpRequest();
+    try { xhr.open('GET', PROTO_BASE + 'themes.json', true); } catch (e) { tryCustomTheme(themeId); return; }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      try {
+        var reg = JSON.parse(xhr.responseText);
+        var list = (reg && Array.isArray(reg.themes)) ? reg.themes : [];
+        for (var i = 0; i < list.length; i++) {
+          var item = list[i];
+          if (item && item.id === themeId && item.page && item.status === 'ready') {
+            navigateToThemeUrl(PROTO_BASE + item.page, themeId);
+            return;
+          }
+        }
+      } catch (e) {}
+      tryCustomTheme(themeId);
+    };
+    try { xhr.send(); } catch (e) { tryCustomTheme(themeId); }
+  }
+
   function pollSettings() {
     var xhr = new XMLHttpRequest();
     try { xhr.open('GET', 'file://' + SETTINGS, true); } catch (e) { return; }
@@ -147,7 +168,7 @@
         if (page) {
           navigateToThemeUrl(PROTO_BASE + page, theme);
         } else {
-          tryCustomTheme(theme);
+          tryBuiltinOrCustomTheme(theme);
         }
         return;
       }
