@@ -8,6 +8,8 @@ DiyarDesk turns the space around your desktop icons into a living interactive la
 
 **English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build) · [Android Tablets](#android-tablets-sw600dp)
 
+![DiyarDesk Live Demo — Zen Archipelago](docs/images/demo.webp)
+
 ![DiyarDesk Settings & Theme Browser](docs/images/settings.webp)
 
 | Sahara Desert | Polar Night |
