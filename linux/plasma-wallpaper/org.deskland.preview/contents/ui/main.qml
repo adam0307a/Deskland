@@ -13,6 +13,7 @@
 import QtQuick
 import Qt.labs.platform
 import QtWebEngine
+import org.kde.kwindowsystem
 import org.kde.plasma.plasmoid
 import org.kde.taskmanager as TaskManager
 
@@ -31,7 +32,10 @@ WallpaperItem {
     }
     property bool pageReady: false
     property bool windowPaused: false
-    readonly property bool effectivePaused: pageReady && windowPaused
+    readonly property bool showingDesktop: KWindowSystem.showingDesktop
+    readonly property bool effectivePaused: pageReady && windowPaused && !showingDesktop
+
+    onShowingDesktopChanged: updateWindowPause()
 
     function dispatchPointer(kind, x, y) {
         if (root.effectivePaused) return;
@@ -44,6 +48,10 @@ WallpaperItem {
     }
 
     function updateWindowPause() {
+        if (KWindowSystem.showingDesktop) {
+            root.windowPaused = false;
+            return;
+        }
         var covered = false;
         var count = tasksModel.count;
         var screenArea = Math.max(1, root.width * root.height);
@@ -51,9 +59,16 @@ WallpaperItem {
             var idx = tasksModel.index(i, 0);
             if (!tasksModel.data(idx, TaskManager.AbstractTasksModel.IsWindow))
                 continue;
+            if (!tasksModel.data(idx, TaskManager.AbstractTasksModel.IsActive))
+                continue;
             if (tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized))
                 continue;
             if (tasksModel.data(idx, TaskManager.AbstractTasksModel.IsHidden))
+                continue;
+            if (tasksModel.data(idx, TaskManager.AbstractTasksModel.SkipTaskbar))
+                continue;
+            var appId = String(tasksModel.data(idx, TaskManager.AbstractTasksModel.AppId) || "").toLowerCase();
+            if (appId.indexOf("deskland") !== -1 || appId.indexOf("diyardesk") !== -1)
                 continue;
             var isMax = Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMaximized));
             var isFull = Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen));
@@ -62,7 +77,8 @@ WallpaperItem {
                 break;
             }
             var geom = tasksModel.data(idx, TaskManager.AbstractTasksModel.Geometry);
-            if (geom && geom.width > 0 && geom.height > 0 && (geom.width * geom.height) >= screenArea * 0.78) {
+            if (geom && root.width > 0 && root.height > 0
+                    && (geom.width * geom.height) >= screenArea * 0.85) {
                 covered = true;
                 break;
             }
@@ -99,12 +115,12 @@ WallpaperItem {
     TaskManager.TasksModel {
         id: tasksModel
         groupMode: TaskManager.TasksModel.GroupDisabled
-        filterByVirtualDesktop: true
-        virtualDesktop: virtualDesktopInfo.currentDesktop
+        filterByCurrentVirtualDesktop: true
         filterByActivity: true
         activity: activityInfo.currentActivity
         filterMinimized: true
         filterHidden: true
+        onActiveTaskChanged: root.updateWindowPause()
         onCountChanged: root.updateWindowPause()
         onDataChanged: root.updateWindowPause()
         onRowsInserted: root.updateWindowPause()
