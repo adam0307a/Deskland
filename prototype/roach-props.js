@@ -1627,8 +1627,8 @@ function stepRoachProps(dt, timeSec) {
         if (r.callTimer <= 0 && !jetStrikes.length) {
           const diva = roaches.find(x => x.kind === 5 && x.z <= 0);
           if (diva) {
-            diva.stopTimer = 3.0;
-            rPushBubble(diva.x, diva.y - diva.size * 0.56, 3, 4, 4.4, true);
+            diva.stopTimer = 4.0;
+            rPushBubble(diva.x, diva.y - diva.size * 0.56, 3, 4, 6.4, true);
             r.callPhase = 'diva_provoke';
             r.callTimer = 3.0;
           } else {
@@ -1650,8 +1650,8 @@ function stepRoachProps(dt, timeSec) {
         r.callMood = Math.min(1, r.callMood + dt / 1.35);
         if (r.callMood >= 1) {
           r.callPhase = 'calling';
-          r.callTimer = 2.6;
-          rPushBubble(r.x, r.y - r.size * 0.58, 5, 3, 2.8, true);
+          r.callTimer = 4.6;
+          rPushBubble(r.x, r.y - r.size * 0.58, 5, 3, 4.8, true);
         }
         continue;
       } else if (r.callPhase === 'calling') {
