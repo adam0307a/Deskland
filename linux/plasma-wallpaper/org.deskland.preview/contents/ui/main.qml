@@ -90,10 +90,7 @@ WallpaperItem {
         if (!root.pageReady) return;
         if (root.effectivePaused) {
             view.runJavaScript("window.__desklandSetHostPaused&&window.__desklandSetHostPaused(true);");
-            freezeDelayTimer.restart();
         } else {
-            freezeDelayTimer.stop();
-            view.lifecycleState = WebEngineView.LifecycleState.Active;
             view.runJavaScript(
                 "window.__desklandSetHostPaused&&window.__desklandSetHostPaused(false);"
                 + "window.__desklandForcePoll&&window.__desklandForcePoll();"
@@ -102,11 +99,6 @@ WallpaperItem {
     }
 
     onEffectivePausedChanged: applyEffectivePause()
-
-    TaskManager.VirtualDesktopInfo {
-        id: virtualDesktopInfo
-        onCurrentDesktopChanged: root.updateWindowPause()
-    }
 
     TaskManager.ActivityInfo {
         id: activityInfo
@@ -139,23 +131,11 @@ WallpaperItem {
         }
     }
 
-    Timer {
-        id: freezeDelayTimer
-        interval: 250
-        repeat: false
-        onTriggered: {
-            if (root.effectivePaused) {
-                view.lifecycleState = WebEngineView.LifecycleState.Frozen;
-            }
-        }
-    }
-
     WebEngineView {
         id: view
         anchors.fill: parent
         url: ""
         backgroundColor: "#000000"
-        lifecycleState: WebEngineView.LifecycleState.Active
         settings.localContentCanAccessFileUrls: true
         settings.localStorageEnabled: true
         settings.playbackRequiresUserGesture: false
@@ -176,10 +156,8 @@ WallpaperItem {
 
         onLoadingChanged: function (loadingInfo) {
             if (loadingInfo.status === WebEngineView.LoadStartedStatus) {
-                freezeDelayTimer.stop();
                 readyGraceTimer.stop();
                 root.pageReady = false;
-                view.lifecycleState = WebEngineView.LifecycleState.Active;
             } else if (loadingInfo.status === WebEngineView.LoadSucceededStatus) {
                 readyGraceTimer.restart();
             } else if (loadingInfo.status === WebEngineView.LoadFailedStatus) {
