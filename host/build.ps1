@@ -1,4 +1,4 @@
-﻿# 从源码构建 Deskland：使用 Windows 自带的 .NET Framework C# 编译器。
+# 从源码构建 Deskland：使用 Windows 自带的 .NET Framework C# 编译器。
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $lib = Join-Path $root 'lib'
@@ -56,6 +56,7 @@ using System.Reflection;
     /win32icon:"$root\DesklandPreview.ico" `
     /out:"$bin\Deskland.exe" `
     /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Web.Extensions.dll `
+    /r:System.IO.Compression.dll /r:System.IO.Compression.FileSystem.dll `
     /r:"$lib\Microsoft.Web.WebView2.Core.dll" /r:"$lib\Microsoft.Web.WebView2.WinForms.dll" `
     "$root\DesktopHost.cs" "$root\Themes.cs" "$versionSource"
 if ($LASTEXITCODE -ne 0) { throw '编译失败' }

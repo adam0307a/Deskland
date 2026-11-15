@@ -561,6 +561,12 @@ class HostContext : ApplicationContext
             case "pickAudio":
                 PickAudio(m["theme"] as string);
                 break;
+            case "importTheme":
+                ImportTheme();
+                break;
+            case "removeTheme":
+                RemoveTheme(m.ContainsKey("id") ? m["id"] as string : null);
+                break;
             case "reset":
             {
                 string theme = m["theme"] as string;
@@ -695,6 +701,56 @@ class HostContext : ApplicationContext
         settingsWin.Post(Json.Stringify(Json.Obj("t", "audioPicked", "theme", theme, "file", safeName, "name", origName, "play", 1)));
         if (theme == Settings.Theme && form != null)
             form.Post(Json.Stringify(Json.Obj("t", "settings", "v", Json.Obj("audioFile", safeName, "audioName", origName, "audioPlay", 1))));
+    }
+
+    void ImportTheme()
+    {
+        if (settingsWin == null) return;
+        string chosen = null;
+        using (var dlg = new OpenFileDialog())
+        {
+            string title = I18n.T("importTheme");
+            dlg.Title = string.IsNullOrEmpty(title) || title == "importTheme" ? "Import theme" : title;
+            dlg.Filter = "Theme packages, HTML, images, videos (*.zip;*.deskland;*.html;*.htm;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.svg;*.avif;*.bmp;*.mp4;*.webm;*.mkv;*.mov)|*.zip;*.deskland;*.html;*.htm;*.png;*.jpg;*.jpeg;*.webp;*.gif;*.svg;*.avif;*.bmp;*.mp4;*.webm;*.mkv;*.mov|All Files (*.*)|*.*";
+            dlg.RestoreDirectory = true;
+            if (dlg.ShowDialog(settingsWin) != DialogResult.OK) return;
+            chosen = dlg.FileName;
+        }
+        if (string.IsNullOrEmpty(chosen)) return;
+        try
+        {
+            var themeObj = CustomThemes.ImportFile(chosen, pageDir);
+            string newId = themeObj["id"] as string;
+            string newPage = themeObj["page"] as string;
+            Settings.Theme = newId;
+            SaveSoon();
+            if (form != null && !string.IsNullOrEmpty(newPage)) form.LoadPage(newPage);
+            settingsWin.Post(Json.Stringify(Json.Obj("t", "themeImported", "theme", themeObj, "select", true)));
+            Log.Write("已导入自定义主题：" + newId);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("导入主题失败：" + ex);
+            settingsWin.Post(Json.Stringify(Json.Obj("t", "importError", "msg", ex.Message)));
+        }
+    }
+
+    void RemoveTheme(string themeId)
+    {
+        if (string.IsNullOrEmpty(themeId)) return;
+        if (!CustomThemes.Remove(themeId)) return;
+        Settings.Params.Remove(themeId);
+        if (Settings.Theme == themeId)
+        {
+            string fallback = Themes.FirstReadyBuiltIn(pageDir);
+            Settings.Theme = fallback;
+            string page = Themes.PageFor(pageDir, fallback);
+            if (form != null && !string.IsNullOrEmpty(page)) form.LoadPage(page);
+        }
+        SaveSoon();
+        if (settingsWin != null)
+            settingsWin.Post(Json.Stringify(Json.Obj("t", "themeRemoved", "id", themeId, "active", Settings.Theme)));
+        Log.Write("已移除自定义主题：" + themeId);
     }
 
     // ---- 一键分享：壁纸页面画好的图 → 存到"图片\Deskland"，复制到剪贴板，缩略图发回设置页 ----
@@ -1027,6 +1083,126 @@ class HotkeyWindow : NativeWindow, IDisposable
     }
 }
 
+static class WebCustomHelper
+{
+    sealed class BoundedReadStream : Stream
+    {
+        readonly Stream inner;
+        long remaining;
+
+        public BoundedReadStream(Stream inner, long count)
+        {
+            this.inner = inner;
+            this.remaining = count;
+        }
+
+        public override bool CanRead { get { return true; } }
+        public override bool CanSeek { get { return false; } }
+        public override bool CanWrite { get { return false; } }
+        public override long Length { get { return remaining; } }
+        public override long Position
+        {
+            get { throw new NotSupportedException(); }
+            set { throw new NotSupportedException(); }
+        }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
+        public override void SetLength(long value) { throw new NotSupportedException(); }
+        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (remaining <= 0) return 0;
+            int toRead = count > remaining ? (int)remaining : count;
+            int n = inner.Read(buffer, offset, toRead);
+            remaining -= n;
+            return n;
+        }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    public static void Attach(CoreWebView2 core, string pageDir)
+    {
+        core.AddWebResourceRequestedFilter("https://app.local/themes.json*", CoreWebView2WebResourceContext.All);
+        core.AddWebResourceRequestedFilter("https://app.local/__custom/*", CoreWebView2WebResourceContext.All);
+        core.WebResourceRequested += delegate(object sender, CoreWebView2WebResourceRequestedEventArgs args)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out uri)) return;
+            string path = uri.AbsolutePath ?? "";
+            if (string.Equals(path, "/themes.json", StringComparison.Ordinal))
+            {
+                byte[] json = Themes.MergedThemesJsonBytes(pageDir);
+                args.Response = core.Environment.CreateWebResourceResponse(
+                    new MemoryStream(json), 200, "OK",
+                    "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store");
+                return;
+            }
+            if (!path.StartsWith("/__custom/", StringComparison.Ordinal)) return;
+
+            string fullPath, mime;
+            if (!CustomThemes.ResolveFile(path.Substring(1), out fullPath, out mime))
+            {
+                args.Response = core.Environment.CreateWebResourceResponse(new MemoryStream(new byte[0]), 404, "Not Found", "");
+                return;
+            }
+
+            string rangeHdr = null;
+            try { if (args.Request.Headers.Contains("Range")) rangeHdr = args.Request.Headers.GetHeader("Range"); }
+            catch { }
+
+            var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            long total = fs.Length;
+            if (!string.IsNullOrEmpty(rangeHdr) && rangeHdr.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase) && total > 0)
+            {
+                string spec = rangeHdr.Substring(6).Split(',')[0].Trim();
+                int dash = spec.IndexOf('-');
+                if (dash >= 0)
+                {
+                    long start = 0, end = total - 1;
+                    string sPart = spec.Substring(0, dash).Trim();
+                    string ePart = spec.Substring(dash + 1).Trim();
+                    bool ok = true;
+                    if (sPart.Length == 0 && ePart.Length > 0)
+                    {
+                        long suffix;
+                        if (long.TryParse(ePart, out suffix) && suffix > 0)
+                            start = Math.Max(0, total - suffix);
+                        else ok = false;
+                    }
+                    else
+                    {
+                        if (!long.TryParse(sPart, out start) || start < 0 || start >= total) ok = false;
+                        if (ok && ePart.Length > 0)
+                        {
+                            if (!long.TryParse(ePart, out end) || end < start) ok = false;
+                            if (end >= total) end = total - 1;
+                        }
+                    }
+                    if (ok)
+                    {
+                        long len = end - start + 1;
+                        fs.Seek(start, SeekOrigin.Begin);
+                        string hdrs = "Content-Type: " + mime
+                            + "\r\nAccept-Ranges: bytes"
+                            + "\r\nContent-Range: bytes " + start + "-" + end + "/" + total
+                            + "\r\nContent-Length: " + len
+                            + "\r\nCache-Control: no-store";
+                        args.Response = core.Environment.CreateWebResourceResponse(new BoundedReadStream(fs, len), 206, "Partial Content", hdrs);
+                        return;
+                    }
+                }
+            }
+
+            string fullHdrs = "Content-Type: " + mime + "\r\nAccept-Ranges: bytes\r\nContent-Length: " + total + "\r\nCache-Control: no-store";
+            args.Response = core.Environment.CreateWebResourceResponse(fs, 200, "OK", fullHdrs);
+        };
+    }
+}
+
 // 托盘和设置窗口共用 Deskland 图标；构建脚本会把图标复制到程序目录。
 static class AppIcon
 {
@@ -1113,6 +1289,7 @@ class SettingsForm : Form
             string audioDir = Path.Combine(InstallProfile.DataDir, "audio");
             Directory.CreateDirectory(audioDir);
             core.SetVirtualHostNameToFolderMapping("audio.local", audioDir, CoreWebView2HostResourceAccessKind.Allow);
+            WebCustomHelper.Attach(core, pageDir);
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsZoomControlEnabled = false;
@@ -1414,6 +1591,7 @@ class WallpaperForm : Form
             string audioDir = Path.Combine(InstallProfile.DataDir, "audio");
             Directory.CreateDirectory(audioDir);
             core.SetVirtualHostNameToFolderMapping("audio.local", audioDir, CoreWebView2HostResourceAccessKind.Allow);
+            WebCustomHelper.Attach(core, pageDir);
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = true;
             core.Settings.IsStatusBarEnabled = false;
