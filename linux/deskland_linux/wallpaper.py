@@ -184,52 +184,81 @@ class Wallpaper:
         except (OSError, subprocess.SubprocessError):
             pass
 
+    def _attach_layer_shell(
+        self, window: Gtk.Window, layer_shell: Any, namespace: str
+    ) -> None:
+        layer_shell.init_for_window(window)
+        layer_shell.set_namespace(window, namespace)
+        layer = layer_shell.Layer.BACKGROUND
+        if namespace == "deskland":
+            override = os.environ.get("DESKLAND_LAYER", "").lower()
+            if override in ("background", "bottom", "top", "overlay"):
+                layer = getattr(layer_shell.Layer, override.upper())
+        layer_shell.set_layer(window, layer)
+        for edge in (
+            layer_shell.Edge.TOP,
+            layer_shell.Edge.BOTTOM,
+            layer_shell.Edge.LEFT,
+            layer_shell.Edge.RIGHT,
+        ):
+            layer_shell.set_anchor(window, edge, True)
+        layer_shell.set_exclusive_zone(window, -1)
+        layer_shell.set_keyboard_mode(window, layer_shell.KeyboardMode.NONE)
+        if self.monitor is not None:
+            layer_shell.set_monitor(window, self.monitor)
+
+    def _create_hidden_render_surface(self, log_line: str) -> None:
+        # OffscreenWindow has no GdkWindow, so WebKitGTK cannot create a GL
+        # context. On Wayland, attach as a background layer-shell surface so KWin
+        # never gives it an xdg_toplevel titlebar, taskbar icon, or click area.
+        surface = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
+        surface.set_title("DesklandRender")
+        surface.set_decorated(False)
+        surface.set_resizable(False)
+        surface.set_skip_taskbar_hint(True)
+        surface.set_skip_pager_hint(True)
+        surface.set_accept_focus(False)
+        surface.set_focus_on_map(False)
+        surface.set_can_focus(False)
+        surface.set_opacity(0.0)
+        layer_shell = (
+            load_layer_shell() if os.environ.get("WAYLAND_DISPLAY") else None
+        )
+        if layer_shell is not None:
+            self._attach_layer_shell(surface, layer_shell, "deskland-render")
+        else:
+            if os.environ.get("DISPLAY"):
+                surface.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
+                surface.set_keep_below(True)
+                surface.stick()
+            surface.set_size_request(self.geo.width, self.geo.height)
+        if hasattr(self.web, "set_is_muted"):
+            try:
+                self.web.set_is_muted(True)
+            except Exception:
+                pass
+        surface.connect("realize", self._on_realize)
+        surface.add(self.web)
+        surface.show_all()
+        self.window = surface
+        self.log.write(log_line)
+
     def _create_surface(self) -> None:
         if self.backend == "plasma-plugin":
             # org.deskland.preview renders live inside plasmashell and reads
-            # settings.json + icons.json directly. Keep an invisible, paused
+            # settings.json + icons.json directly. Keep a background render-only
             # surface only so share snapshots/recordings still work, and never
             # touch StaticWallpaper (which would overwrite wallpaperPlugin with
             # org.kde.image).
             self._ensure_plasma_plugin()
-            surface = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-            surface.set_title("DesklandRender")
-            surface.set_decorated(False)
-            surface.set_resizable(False)
-            surface.set_skip_taskbar_hint(True)
-            surface.set_skip_pager_hint(True)
-            surface.set_accept_focus(False)
-            surface.set_focus_on_map(False)
-            surface.set_can_focus(False)
-            surface.set_opacity(0.0)
-            surface.set_size_request(self.geo.width, self.geo.height)
-            surface.connect("realize", self._on_realize)
-            surface.add(self.web)
-            surface.show_all()
-            self.window = surface
-            self.log.write("KDE Plasma duvar kağıdı eklentisi aktif: org.deskland.preview")
+            self._create_hidden_render_surface(
+                "KDE Plasma duvar kağıdı eklentisi aktif: org.deskland.preview"
+            )
             return
         if self.backend == "static":
-            # OffscreenWindow has no GdkWindow, so WebKitGTK cannot create a
-            # GL context and aborts. Use a real mapped window that is fully
-            # transparent and non-interactive: WebKit still renders (and can
-            # be snapshotted) but the user never sees it.
-            surface = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-            surface.set_title("DesklandRender")
-            surface.set_decorated(False)
-            surface.set_resizable(False)
-            surface.set_skip_taskbar_hint(True)
-            surface.set_skip_pager_hint(True)
-            surface.set_accept_focus(False)
-            surface.set_focus_on_map(False)
-            surface.set_can_focus(False)
-            surface.set_opacity(0.0)
-            surface.set_size_request(self.geo.width, self.geo.height)
-            surface.connect("realize", self._on_realize)
-            surface.add(self.web)
-            surface.show_all()
-            self.window = surface
-            self.log.write("Statik fallback: GNOME/KWin Wayland veya --static")
+            self._create_hidden_render_surface(
+                "Statik fallback: GNOME/KWin Wayland veya --static"
+            )
             return
 
         window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
@@ -248,24 +277,7 @@ class Wallpaper:
             if layer_shell is None:
                 self.backend = "x11" if os.environ.get("DISPLAY") else "static"
                 return self._create_surface()
-            layer_shell.init_for_window(window)
-            layer_shell.set_namespace(window, "deskland")
-            layer = layer_shell.Layer.BACKGROUND
-            override = os.environ.get("DESKLAND_LAYER", "").lower()
-            if override in ("background", "bottom", "top", "overlay"):
-                layer = getattr(layer_shell.Layer, override.upper())
-            layer_shell.set_layer(window, layer)
-            for edge in (
-                layer_shell.Edge.TOP,
-                layer_shell.Edge.BOTTOM,
-                layer_shell.Edge.LEFT,
-                layer_shell.Edge.RIGHT,
-            ):
-                layer_shell.set_anchor(window, edge, True)
-            layer_shell.set_exclusive_zone(window, -1)
-            layer_shell.set_keyboard_mode(window, layer_shell.KeyboardMode.NONE)
-            if self.monitor is not None:
-                layer_shell.set_monitor(window, self.monitor)
+            self._attach_layer_shell(window, layer_shell, "deskland")
         else:
             window.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
             window.set_keep_below(True)
