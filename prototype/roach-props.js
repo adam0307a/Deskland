@@ -2211,7 +2211,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       : { left: 0, top: 0 };
     return [e.clientX - rect.left, e.clientY - rect.top];
   };
-  const isUiTarget = t => !!(t && t.closest && t.closest('#panel, #taskbar, .icon'));
+  const isUiTarget = t => !!(t && t.closest && t.closest('#panel, #taskbar, .icon, #wallAudioBtn'));
   const setGrabCursor = mode => {
     if (document.body) document.body.style.cursor = mode;
   };
@@ -2220,6 +2220,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.roachPointerMove = roachDragMove;
   window.roachPointerUp = roachDragEnd;
   window.roachHostPointer = (kind, px, py) => {
+    if (typeof window.roachDesktopUiPointer === 'function' && window.roachDesktopUiPointer(kind, px, py)) return true;
     if (kind === 'down') return roachDragStart(px, py, 'host');
     if (kind === 'move') return roachDragMove(px, py, 'host');
     if (kind === 'up' || kind === 'cancel') return roachDragEnd('host');

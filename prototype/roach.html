@@ -61,6 +61,23 @@
   }
   #panel.hidden { display: none; }
   body.wall #panel, body.wall #taskbar, body.wall #desktop { display: none; }
+  #wallAudioBtn {
+    position: fixed; top: 18px; right: 18px; z-index: 60;
+    display: none; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid rgba(255,196,110,.36);
+    background: rgba(20,22,29,.78); color: #f6efe2;
+    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    font: 600 12px/1 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    letter-spacing: .02em; cursor: pointer; user-select: none;
+    box-shadow: 0 6px 20px rgba(0,0,0,.38);
+    transition: transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  body.wall:not(.preview) #wallAudioBtn.show { display: inline-flex; }
+  #wallAudioBtn:hover { background: rgba(34,37,48,.88); border-color: rgba(255,204,132,.65); }
+  #wallAudioBtn.playing { border-color: rgba(242,159,70,.72); background: rgba(36,27,20,.84); color: #ffe3ba; }
+  #wallAudioBtn:active, #wallAudioBtn.pressed { transform: scale(.94); }
+  #wallAudioBtn svg { width: 12px; height: 12px; flex: none; fill: currentColor; }
   #ghosts { position: fixed; inset: 0; pointer-events: none; display: none; }
   body.preview #ghosts { display: block; }
   .ghost { position: absolute; }
@@ -155,6 +172,7 @@
 </aside>
 
 <audio id="bgAudio" loop preload="auto"></audio>
+<button id="wallAudioBtn" type="button" aria-label="Play or Stop audio"></button>
 <div id="nogl">需要 WebGL 2 才能渲染</div>
 
 <script>
@@ -828,13 +846,33 @@ requestAnimationFrame(frame);
    托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
    ====================================================================== */
 const bgAudioEl = document.getElementById('bgAudio');
-const bgAudioState = { file: '', src: '', name: '', play: 0, allow: WALL ? 1 : (PREVIEW ? 0 : 1), blobUrl: '', lastUrl: '' };
+const wallAudioBtn = document.getElementById('wallAudioBtn');
+const bgAudioState = { file: '', src: '', name: '', play: 0, lastHostPlay: 0, allow: WALL ? 1 : (PREVIEW ? 0 : 1), blobUrl: '', lastUrl: '' };
 function resolveRoachAudioUrl() {
   if (bgAudioState.src) return bgAudioState.src;
   if (bgAudioState.file) {
     return (location.hostname === 'app.local' ? 'https://audio.local/' : '/__audio/') + encodeURIComponent(bgAudioState.file);
   }
   return '';
+}
+function updateWallAudioBtn(url) {
+  if (!wallAudioBtn || !(WALL && !PREVIEW)) return;
+  const hasUrl = !!url;
+  const playing = hasUrl && bgAudioState.play === 1;
+  wallAudioBtn.classList.toggle('show', hasUrl);
+  wallAudioBtn.classList.toggle('playing', playing);
+  wallAudioBtn.title = bgAudioState.name || '';
+  wallAudioBtn.innerHTML = playing
+    ? '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.4"/></svg><span>Stop</span>'
+    : '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.7a.7.7 0 0 1 1.05-.6l7.2 4.3a.7.7 0 0 1 0 1.2l-7.2 4.3a.7.7 0 0 1-1.05-.6Z"/></svg><span>Play</span>';
+}
+function toggleRoachAudio(resetOnStop) {
+  if (!resolveRoachAudioUrl()) return;
+  bgAudioState.play = bgAudioState.play === 1 ? 0 : 1;
+  if (bgAudioState.play === 0 && resetOnStop) {
+    try { bgAudioEl.currentTime = 0; } catch (_) {}
+  }
+  syncRoachAudio();
 }
 function syncRoachAudio() {
   const url = resolveRoachAudioUrl();
@@ -859,6 +897,7 @@ function syncRoachAudio() {
       bgAudioEl.pause();
     }
   }
+  updateWallAudioBtn(url);
   if (!(WALL || PREVIEW)) {
     const pickPlay = document.getElementById('panelAudioPlay');
     const nameEl = document.getElementById('panelAudioName');
@@ -869,6 +908,33 @@ function syncRoachAudio() {
     }
   }
 }
+if (wallAudioBtn) {
+  wallAudioBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleRoachAudio(true);
+  });
+}
+let wallBtnHostDown = false;
+window.roachDesktopUiPointer = (kind, px, py) => {
+  if (!(WALL && !PREVIEW) || !wallAudioBtn || !wallAudioBtn.classList.contains('show')) return false;
+  const r = wallAudioBtn.getBoundingClientRect();
+  const pad = kind === 'down' ? 4 : 8;
+  const hit = px >= r.left - pad && px <= r.right + pad && py >= r.top - pad && py <= r.bottom + pad;
+  if (kind === 'down') {
+    if (!hit) return false;
+    wallBtnHostDown = true;
+    wallAudioBtn.classList.add('pressed');
+    return true;
+  }
+  if (kind === 'move') return wallBtnHostDown;
+  if ((kind === 'up' || kind === 'cancel') && wallBtnHostDown) {
+    wallBtnHostDown = false;
+    wallAudioBtn.classList.remove('pressed');
+    if (kind === 'up' && hit) toggleRoachAudio(true);
+    return true;
+  }
+  return false;
+};
 document.getElementById('panelAudioPick').addEventListener('click', () => {
   const inp = document.getElementById('panelAudioInput');
   inp.value = '';
@@ -894,12 +960,21 @@ document.getElementById('panelAudioPlay').addEventListener('click', () => {
 function applySettings(v) {
   if (typeof v.seed === 'number' && v.seed !== seed) reseed(v.seed);
   let field = false, crowdChanged = false, adaptiveChanged = false, audioChanged = false;
+  const newFile = ('audioFile' in v && v.audioFile !== bgAudioState.file) || ('audioSrc' in v && v.audioSrc !== bgAudioState.src);
   for (const k in v) {
     if (k === 'audioAllow') { bgAudioState.allow = v[k] ? 1 : 0; audioChanged = true; continue; }
     if (k === 'audioSrc') { bgAudioState.src = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
     if (k === 'audioFile') { bgAudioState.file = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
     if (k === 'audioName') { bgAudioState.name = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
-    if (k === 'audioPlay') { bgAudioState.play = v[k] ? 1 : 0; audioChanged = true; continue; }
+    if (k === 'audioPlay') {
+      const nextPlay = v[k] ? 1 : 0;
+      if (newFile || nextPlay !== bgAudioState.lastHostPlay) {
+        bgAudioState.play = nextPlay;
+        audioChanged = true;
+      }
+      bgAudioState.lastHostPlay = nextPlay;
+      continue;
+    }
     if ((!SLIDERS.some(s => s.key === k) && !DISPLAY_KEYS.includes(k)) || typeof v[k] !== typeof P[k] || P[k] === v[k]) continue;
     if (DISPLAY_KEYS.includes(k) && v[k] !== 0 && v[k] !== 1) continue;
     P[k] = v[k];
