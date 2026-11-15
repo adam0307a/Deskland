@@ -7,7 +7,7 @@
 // streetlamp boulevard & floating reaction bubbles.
 
 const ROACH_COLS = 8;
-const ROACH_ROWS = 4;
+const ROACH_ROWS = 5;
 const ROACH_CELL = 128;
 
 let roachAtlasTex = null;
@@ -285,7 +285,7 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.fillStyle = '#94a3b8';
     ctx.fillRect(39, -15, 5, 1.8);
     ctx.fillRect(39, -11, 5, 1.8);
-  } else if (kind === 16) {
+  } else if (kind === 16 || kind === 17) {
     // Crisp white dress shirt + black waistcoat/suit + bow tie + silver name tag
     ctx.fillStyle = '#f8fafc';
     ctx.beginPath(); ctx.ellipse(0, 3, 14.5, 15.5, 0, 0, Math.PI * 2); ctx.fill();
@@ -317,10 +317,14 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
   } else if (kind === 12) {
     ctx.lineTo(-18, 5);
     ctx.lineTo(-4, 12);
+  } else if (kind === 17) {
+    // Arm bent tightly bringing phone/walkie-talkie right up to his ear!
+    ctx.lineTo(-24, -4);
+    ctx.lineTo(-15, -18);
   } else if (kind === 16) {
-    // Raised hand holding walkie-talkie up toward mouth
-    ctx.lineTo(-22, -2);
-    ctx.lineTo(-14, -14);
+    // Relaxed normal walking arm holding phone lowered at waist
+    ctx.lineTo(-21, 7);
+    ctx.lineTo(-17, 17);
   } else if (kind === 0) {
     ctx.lineTo(-20, 6);
     ctx.lineTo(-16, 18);
@@ -369,23 +373,21 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
     ctx.beginPath();
     ctx.moveTo(28, -14); ctx.lineTo(28, 12);
     ctx.stroke();
-  } else if (kind === 16) {
-    // Black walkie-talkie (telsiz) with long whip antenna next to mouth
+  } else if (kind === 16 || kind === 17) {
+    // Black walkie-talkie / phone lowered at side (kind 16) OR raised up to ear (kind 17)
     ctx.save();
-    ctx.translate(-14, -14);
-    ctx.rotate(-0.22);
+    ctx.translate(kind === 17 ? -15 : -17, kind === 17 ? -18 : 17);
+    ctx.rotate(kind === 17 ? -0.18 : 0.35);
     ctx.fillStyle = '#111827';
     ctx.strokeStyle = '#475569';
     ctx.lineWidth = 1.1;
     rRoundRect(ctx, -4.5, -7, 9, 14, 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#64748b';
     ctx.fillRect(-3, -4, 6, 4);
-    // Whip antenna
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 1.8;
-    ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(-3, -21); ctx.stroke();
-    // Little green LED light
-    ctx.fillStyle = '#22c55e';
+    ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(-3, -20); ctx.stroke();
+    ctx.fillStyle = kind === 17 ? '#ef4444' : '#22c55e';
     ctx.beginPath(); ctx.arc(2.5, -5.2, 1.1, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
@@ -572,19 +574,38 @@ function rPaintCarapaceRoach(ctx, ox, oy, kind) {
       ctx.moveTo(-0.3, headY - 2); ctx.lineTo(0.3, headY - 2);
       ctx.stroke();
     } else if (kind === 16) {
-      // Half-lidded stoic/tired eyes matching the viral monochrome manager look
-      ctx.fillStyle = '#8b4a26';
-      ctx.strokeStyle = '#3c1b0c';
-      ctx.lineWidth = 1.1;
+      // Calm relaxed eyes while walking normally
+      ctx.fillStyle = '#92522d';
       ctx.beginPath();
-      ctx.ellipse(-5.6, headY - 4.4, 5.2, 2.7, 0.08, Math.PI, Math.PI * 2);
-      ctx.ellipse(5.6, headY - 4.4, 5.2, 2.7, -0.08, Math.PI, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
+      ctx.ellipse(-5.6, headY - 5.2, 4.6, 1.8, 0, Math.PI, Math.PI * 2);
+      ctx.ellipse(5.6, headY - 5.2, 4.6, 1.8, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === 17) {
+      // Furious narrowed noir eyes + sharp V-furrowed angry eyebrows!
+      ctx.fillStyle = '#26140c';
+      ctx.beginPath();
+      ctx.moveTo(-11, headY - 7.5); ctx.lineTo(-1, headY - 3.0); ctx.lineTo(-10, headY - 2.2); ctx.closePath();
+      ctx.moveTo(11, headY - 7.5); ctx.lineTo(1, headY - 3.0); ctx.lineTo(10, headY - 2.2); ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#110804';
+      ctx.lineWidth = 2.0;
+      ctx.beginPath();
+      ctx.moveTo(-11, headY - 8.5); ctx.lineTo(-1.2, headY - 3.5);
+      ctx.moveTo(11, headY - 8.5); ctx.lineTo(1.2, headY - 3.5);
+      ctx.stroke();
     }
   }
 
   // Mouth expression
-  if (kind === 12 || kind === 13) {
+  if (kind === 17) {
+    // Angry gritted/scowling frown during phone airstrike order
+    ctx.fillStyle = '#1e0b08';
+    rRoundRect(ctx, -6.2, headY + 4.4, 12.4, 4.4, 1.8);
+    ctx.fill();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(-4.6, headY + 5.1, 9.2, 1.4);
+    ctx.fillRect(-4.6, headY + 6.9, 9.2, 1.2);
+  } else if (kind === 12 || kind === 13) {
     // Wide shouting "LÜLÜLÜLÜ!" mouth + pink tongue
     ctx.fillStyle = '#2b0d0a';
     ctx.beginPath();
@@ -1003,6 +1024,166 @@ function rPaintSoftShadow(ctx, ox, oy) {
   ctx.restore();
 }
 
+function rPaintDarkSpotlight(ctx, ox, oy) {
+  // Dramatic dark noir filter aura applied solely around the calling roach
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+  const g = ctx.createRadialGradient(0, 0, 6, 0, 0, 58);
+  g.addColorStop(0, 'rgba(2, 4, 8, 0.88)');
+  g.addColorStop(0.55, 'rgba(4, 6, 12, 0.56)');
+  g.addColorStop(1, 'rgba(4, 6, 12, 0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(0, 0, 58, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function rPaintFighterJet(ctx, ox, oy) {
+  // Top-down sleek swept-wing fighter jet pointing +X (rot = flight heading)
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  // Twin afterburner exhaust plumes
+  const jetGlow = ctx.createLinearGradient(-58, 0, -24, 0);
+  jetGlow.addColorStop(0, 'rgba(251, 146, 60, 0)');
+  jetGlow.addColorStop(0.5, 'rgba(249, 115, 22, 0.88)');
+  jetGlow.addColorStop(1, 'rgba(254, 240, 138, 0.98)');
+  ctx.fillStyle = jetGlow;
+  ctx.beginPath();
+  ctx.moveTo(-26, -6); ctx.lineTo(-58, 0); ctx.lineTo(-26, 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // Delta main wings + horizontal stabilizers
+  ctx.fillStyle = '#475569';
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(14, -4); ctx.lineTo(-16, -42); ctx.lineTo(-24, -42); ctx.lineTo(-14, -7);
+  ctx.lineTo(-26, -20); ctx.lineTo(-32, -20); ctx.lineTo(-28, -5);
+  ctx.lineTo(-28, 5); ctx.lineTo(-32, 20); ctx.lineTo(-26, 20); ctx.lineTo(-14, 7);
+  ctx.lineTo(-24, 42); ctx.lineTo(-16, 42); ctx.lineTo(14, 4);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Underwing missiles
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(-10, -25, 14, 3);
+  ctx.fillRect(-10, 22, 14, 3);
+
+  // Fuselage + nose cone
+  const fg = ctx.createLinearGradient(0, -10, 0, 10);
+  fg.addColorStop(0, '#94a3b8');
+  fg.addColorStop(0.5, '#e2e8f0');
+  fg.addColorStop(1, '#334155');
+  ctx.fillStyle = fg;
+  ctx.beginPath();
+  ctx.moveTo(46, 0);
+  ctx.quadraticCurveTo(24, -10, -28, -6);
+  ctx.lineTo(-28, 6);
+  ctx.quadraticCurveTo(24, 10, 46, 0);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Bubble canopy cockpit
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.ellipse(16, 0, 11, 4.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#bae6fd';
+  ctx.beginPath();
+  ctx.ellipse(18, -1, 5.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wing roundels
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath(); ctx.arc(-9, -24, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-9, 24, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(-9, -24, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-9, 24, 1.8, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function rPaintBomb(ctx, ox, oy) {
+  // Classic cartoon iron bomb/missile angled downward
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+  ctx.rotate(0.55);
+
+  // Tail fins
+  ctx.fillStyle = '#dc2626';
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-18, 0); ctx.lineTo(-30, -13); ctx.lineTo(-22, -3);
+  ctx.lineTo(-22, 3); ctx.lineTo(-30, 13); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Metallic dark casing
+  const bg = ctx.createLinearGradient(0, -14, 0, 14);
+  bg.addColorStop(0, '#64748b');
+  bg.addColorStop(0.4, '#1e293b');
+  bg.addColorStop(1, '#090d16');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.ellipse(4, 0, 22, 12, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+
+  // Yellow warhead band
+  ctx.fillStyle = '#facc15';
+  ctx.fillRect(10, -10, 5, 20);
+  // Gloss highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.beginPath(); ctx.ellipse(2, -5, 11, 3, 0, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+}
+
+function rPaintExplosion(ctx, ox, oy) {
+  // Bright comic blast fireball shockwave
+  ctx.save();
+  ctx.translate(ox + 64, oy + 64);
+
+  const outer = ctx.createRadialGradient(0, 0, 6, 0, 0, 56);
+  outer.addColorStop(0, 'rgba(255, 250, 210, 0.98)');
+  outer.addColorStop(0.35, 'rgba(251, 146, 60, 0.92)');
+  outer.addColorStop(0.75, 'rgba(220, 38, 38, 0.65)');
+  outer.addColorStop(1, 'rgba(120, 20, 10, 0)');
+  ctx.fillStyle = outer;
+  ctx.beginPath(); ctx.arc(0, 0, 56, 0, Math.PI * 2); ctx.fill();
+
+  // Spiky star blast silhouette
+  ctx.fillStyle = '#f97316';
+  ctx.strokeStyle = '#7c2d12';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const r = i % 2 === 0 ? 48 : 26;
+    if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  // Hot white-yellow core
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const r = i % 2 === 0 ? 28 : 14;
+    if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function buildRoachAtlas() {
   const c = document.createElement('canvas');
   c.width = ROACH_COLS * ROACH_CELL;
@@ -1032,13 +1213,28 @@ function buildRoachAtlas() {
   rPaintWallOutlet(ctx, 6 * ROACH_CELL, 2 * ROACH_CELL);
   rPaintZapSpark(ctx, 7 * ROACH_CELL, 2 * ROACH_CELL);
 
-  // Row 3: soft shadow, Turkish meme speech bubbles, plus walkie-talkie suit boss (col 4)
+  // Row 3: shadow, Turkish bubbles, walkie boss normal (4), call bubble (5), dark-noir angry (6), spotlight (7)
   rPaintSoftShadow(ctx, 0 * ROACH_CELL, 3 * ROACH_CELL);
   rPaintTextBubble(ctx, 1 * ROACH_CELL, 3 * ROACH_CELL, 'LÜLÜLÜLÜ!', '#fff7ed', '#9a3412', '#b91c1c');
   rPaintTextBubble(ctx, 2 * ROACH_CELL, 3 * ROACH_CELL, 'DUKTUR DUKTUR!', '#ecfeff', '#0e7490', '#0f172a');
   rPaintTextBubble(ctx, 3 * ROACH_CELL, 3 * ROACH_CELL, '⚡ ŞARJ %99', '#fefce8', '#0284c7', '#0369a1');
-  rPaintCarapaceRoach(ctx, 4 * ROACH_CELL, 3 * ROACH_CELL, 16); // radio_boss (telsizli memur)
+  rPaintCarapaceRoach(ctx, 4 * ROACH_CELL, 3 * ROACH_CELL, 16); // radio_boss normal
   rPaintTextBubble(ctx, 5 * ROACH_CELL, 3 * ROACH_CELL, 'Kurban olduğum\nşuraları bi aydınlat hele', '#fffbeb', '#b45309', '#1e293b');
+  {
+    const tc = document.createElement('canvas');
+    tc.width = ROACH_CELL;
+    tc.height = ROACH_CELL;
+    const tctx = tc.getContext('2d');
+    tctx.filter = 'grayscale(92%) contrast(155%) brightness(64%)';
+    rPaintCarapaceRoach(tctx, 0, 0, 17); // radio_boss dark noir angry phone-at-ear
+    ctx.drawImage(tc, 6 * ROACH_CELL, 3 * ROACH_CELL);
+  }
+  rPaintDarkSpotlight(ctx, 7 * ROACH_CELL, 3 * ROACH_CELL);
+
+  // Row 4: fighter jet (0), falling bomb (1), comic explosion fireball (2)
+  rPaintFighterJet(ctx, 0 * ROACH_CELL, 4 * ROACH_CELL);
+  rPaintBomb(ctx, 1 * ROACH_CELL, 4 * ROACH_CELL);
+  rPaintExplosion(ctx, 2 * ROACH_CELL, 4 * ROACH_CELL);
 
   return c;
 }
@@ -1118,9 +1314,11 @@ let streetProps = [];
 let trees = streetProps; // share.js settle alias
 let roaches = [];
 let bubbles = [];
+let jetStrikes = [];
+let bombs = [];
+let explosions = [];
 let bubbleTimer = 0;
 let bubbleCooldown = 0;
-let roachIntroDone = false;
 
 function rHash(a, b, k) {
   let h = Math.imul((a | 0) + 19, 374761393) ^ Math.imul((b | 0) + 41, 668265263) ^ Math.imul((seed | 0) + (k | 0) * 31, 2246822519);
@@ -1167,6 +1365,13 @@ function spawnRoachMember(i, total) {
     chargeTimer: 0,
     chargeCooldown: i < 4 ? 0.1 : 1.5,
     targetOutlet: null,
+    z: 0,
+    vz: 0,
+    airRot: 0,
+    spinVel: 0,
+    callPhase: 'idle',
+    callTimer: 2.2,
+    callMood: 0,
     moveTimer: 0.8 + rHash(i, 67, 8) * 2.2,
     facing: Math.cos(ang) >= 0 ? 1 : -1,
     size: kind === 10 ? 74 : (kind === 9 ? 94 : 90),
@@ -1176,8 +1381,10 @@ function spawnRoachMember(i, total) {
 function rebuildRoachProps() {
   roaches = [];
   bubbles = [];
+  jetStrikes = [];
+  bombs = [];
+  explosions = [];
   bubbleCooldown = 0;
-  roachIntroDone = false;
   const count = Math.max(0, Math.round(P.crowd == null ? 12 : P.crowd));
   for (let i = 0; i < count; i++) roaches.push(spawnRoachMember(i, count));
 
@@ -1286,11 +1493,37 @@ function syncRoachProps() {
   }
 }
 
-function rPushBubble(x, y, col, row, dur) {
-  // Desktop-friendly sparse chatter: max 2 bubbles on screen and 10-16s gap between lines
-  if (bubbleCooldown > 0 || bubbles.length >= 2) return;
+function rPushBubble(x, y, col, row, dur, force) {
+  // Desktop-friendly sparse chatter: max 2 bubbles on screen and 10-16s gap unless scripted event
+  if (!force && (bubbleCooldown > 0 || bubbles.length >= 2)) return;
   bubbleCooldown = 10 + Math.random() * 6;
   bubbles.push({ x, y, age: 0, dur: dur || 2.1, col, row: row == null ? 2 : row });
+}
+
+function spawnRoachJetStrike(caller) {
+  const targets = roaches
+    .filter(r => r !== caller && r.kind !== 16)
+    .slice(0, 5)
+    .map(r => ({ tx: r.x, ty: r.y, dropped: false }));
+  if (!targets.length) {
+    targets.push({ tx: W * 0.35, ty: H * 0.45, dropped: false }, { tx: W * 0.62, ty: H * 0.55, dropped: false });
+  }
+  targets.sort((a, b) => a.tx - b.tx);
+  const avgY = targets.reduce((acc, t) => acc + t.ty, 0) / targets.length;
+  const startY = Math.max(84, avgY - 125);
+  const endY = Math.max(84, avgY - 75);
+  const travelX = W + 260;
+  const spdX = 430;
+  const vx = spdX;
+  const vy = ((endY - startY) / travelX) * spdX;
+  jetStrikes.push({
+    x: -130,
+    y: startY,
+    vx,
+    vy,
+    rot: Math.atan2(vy, vx),
+    targets,
+  });
 }
 
 function stepRoachProps(dt, timeSec) {
@@ -1312,13 +1545,6 @@ function stepRoachProps(dt, timeSec) {
     if (r.kind === 12 || r.kind === 13) crazies.push(r);
   }
 
-  // Calm single opening line from walkie-talkie manager (then sparse 10-16s intervals)
-  if (!roachIntroDone && roaches.length) {
-    roachIntroDone = true;
-    const radio = roaches.find(r => r.kind === 16);
-    if (radio) rPushBubble(radio.x, radio.y - radio.size * 0.56, 5, 3, 2.8);
-  }
-
   // Stationary bed patients shout "LÜLÜLÜLÜ!" rarely
   for (const b of beds) {
     b.shoutTimer -= dt * spdMul;
@@ -1329,16 +1555,76 @@ function stepRoachProps(dt, timeSec) {
   }
 
   for (const r of roaches) {
+    // Airborne launch physics from jet bombing (cockroaches NEVER die; fly sky-high spinning then land fine!)
+    if (r.z > 0 || r.vz > 0) {
+      r.x += r.vx * dt;
+      r.y += r.vy * dt;
+      if (r.x < 34) { r.x = 34; r.vx = Math.abs(r.vx); }
+      if (r.x > W - 34) { r.x = W - 34; r.vx = -Math.abs(r.vx); }
+      if (r.y < 46) { r.y = 46; r.vy = Math.abs(r.vy); }
+      if (r.y > H - 64) { r.y = H - 64; r.vy = -Math.abs(r.vy); }
+      r.vz -= 720 * dt;
+      r.z += r.vz * dt;
+      r.airRot += r.spinVel * dt;
+      if (r.z <= 0) {
+        r.z = 0;
+        r.vz = 0;
+        r.airRot = 0;
+        r.spinVel = 0;
+        const curSpd = Math.hypot(r.vx, r.vy);
+        if (curSpd > 0.01) {
+          r.vx = (r.vx / curSpd) * r.baseSpeed;
+          r.vy = (r.vy / curSpd) * r.baseSpeed;
+        }
+      }
+      continue;
+    }
+
+    // Walkie-talkie suit boss (kind 16): roams normally, then stops -> raises phone + dark noir angry morph -> jet airstrike!
+    if (r.kind === 16) {
+      if (r.callPhase === 'idle') {
+        r.callTimer -= dt;
+        if (r.callTimer <= 0 && !jetStrikes.length) {
+          r.callPhase = 'raising';
+          r.callMood = 0;
+          r.stopTimer = 0;
+          continue;
+        }
+      } else if (r.callPhase === 'raising') {
+        r.callMood = Math.min(1, r.callMood + dt / 1.35);
+        if (r.callMood >= 1) {
+          r.callPhase = 'calling';
+          r.callTimer = 2.6;
+          rPushBubble(r.x, r.y - r.size * 0.58, 5, 3, 2.8, true);
+        }
+        continue;
+      } else if (r.callPhase === 'calling') {
+        r.callTimer -= dt;
+        if (r.callTimer <= 0) {
+          spawnRoachJetStrike(r);
+          r.callPhase = 'lowering';
+        }
+        continue;
+      } else if (r.callPhase === 'lowering') {
+        r.callMood = Math.max(0, r.callMood - dt / 0.85);
+        if (r.callMood <= 0) {
+          r.callPhase = 'idle';
+          r.callTimer = 24 + Math.random() * 14;
+        }
+        continue;
+      }
+    }
+
     if (r.chargeCooldown > 0) r.chargeCooldown -= dt;
 
     // Wall-outlet self-charging behavior for kind 15
     if (r.kind === 15 && r.chargeTimer > 0) {
       r.chargeTimer -= dt;
-      if (Math.random() < dt * 1.1) {
+      if (Math.random() < dt * 0.35) {
         rPushBubble(r.x, r.y - r.size * 0.54, 3, 3, 1.9);
       }
       if (r.chargeTimer <= 0) {
-        r.chargeCooldown = 3.5 + Math.random() * 2.5;
+        r.chargeCooldown = 4.5 + Math.random() * 3.5;
         r.targetOutlet = null;
         r.moveTimer = 2.0;
       }
@@ -1392,10 +1678,8 @@ function stepRoachProps(dt, timeSec) {
       if (Math.random() < 0.44) {
         r.stopTimer = (r.kind === 12 || r.kind === 13) ? (1.1 + Math.random() * 1.4) : (1.5 + Math.random() * 2.1);
         r.moveTimer = 3.0 + Math.random() * 4.0;
-        if (Math.random() < 0.25) {
-          if (r.kind === 16) {
-            rPushBubble(r.x, r.y - r.size * 0.54, 5, 3, 2.5);
-          } else if (r.kind === 11) {
+        if (r.kind !== 16 && Math.random() < 0.25) {
+          if (r.kind === 11) {
             rPushBubble(r.x, r.y - r.size * 0.52, 2, 3, 2.2);
           } else if (r.kind === 12 || r.kind === 13) {
             const textCol = Math.random() < 0.72 ? 1 : 2;
@@ -1457,20 +1741,63 @@ function stepRoachProps(dt, timeSec) {
     r.x = nx; r.y = ny;
   }
 
+  // Fighter jets flying across and dropping non-lethal bombs onto other roaches
+  for (let i = jetStrikes.length - 1; i >= 0; i--) {
+    const j = jetStrikes[i];
+    j.x += j.vx * dt;
+    j.y += j.vy * dt;
+    for (const t of j.targets) {
+      if (!t.dropped && j.x >= t.tx - 36) {
+        t.dropped = true;
+        bombs.push({ sx: j.x, sy: j.y + 8, tx: t.tx, ty: t.ty, age: 0, dur: 0.50 });
+      }
+    }
+    if (j.x > W + 160) jetStrikes.splice(i, 1);
+  }
+
+  // Falling bombs -> explosion fireball -> launch nearby cockroaches sky-high!
+  for (let i = bombs.length - 1; i >= 0; i--) {
+    const b = bombs[i];
+    b.age += dt;
+    if (b.age >= b.dur) {
+      explosions.push({ x: b.tx, y: b.ty, age: 0, dur: 0.96, size: 176 });
+      for (const r of roaches) {
+        if (r.kind === 16) continue;
+        const dx = r.x - b.tx, dy = r.y - b.ty;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 210) {
+          const fall = 1 - dist / 210;
+          const ang = dist > 4 ? Math.atan2(dy, dx) : (Math.random() * Math.PI * 2);
+          const kick = 220 + 260 * fall;
+          r.vx = Math.cos(ang) * kick;
+          r.vy = Math.sin(ang) * kick;
+          r.vz = Math.max(r.vz, 320 + 280 * fall);
+          r.spinVel = (Math.random() < 0.5 ? -1 : 1) * (10 + 9 * Math.random());
+          r.chargeTimer = 0;
+          r.stopTimer = 0;
+        }
+      }
+      bombs.splice(i, 1);
+    }
+  }
+
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    explosions[i].age += dt;
+    if (explosions[i].age >= explosions[i].dur) explosions.splice(i, 1);
+  }
+
   // Ambient speech & reaction bubbles (sparse, gated by global bubbleCooldown)
   bubbleTimer += dt * spdMul;
   if (bubbleTimer > 4.5 && roaches.length) {
     bubbleTimer = 0;
     const star = roaches[Math.floor(Math.random() * roaches.length)];
-    if (star.kind === 16) {
-      rPushBubble(star.x, star.y - star.size * 0.54, 5, 3, 2.6);
-    } else if (star.kind === 11) {
+    if (star.kind === 11) {
       rPushBubble(star.x, star.y - star.size * 0.52, 2, 3, 2.3);
     } else if (star.kind === 12 || star.kind === 13) {
       rPushBubble(star.x, star.y - star.size * 0.52, Math.random() < 0.72 ? 1 : 2, 3, 2.3);
     } else if (star.kind === 15 && star.chargeTimer > 0) {
       rPushBubble(star.x, star.y - star.size * 0.52, 3, 3, 2.1);
-    } else {
+    } else if (star.kind !== 16) {
       const col = (star.kind === 8 || star.kind === 9) ? 3 : (star.kind === 5 ? 4 : 5);
       rPushBubble(star.x + (Math.random() - 0.5) * 14, star.y - star.size * 0.45, col, 2, 1.7);
     }
@@ -1494,7 +1821,6 @@ function drawRoachProps(timeSec) {
     for (const p of streetProps) {
       let sway = 0, bounceY = 0;
       if (p.type === 'bed') {
-        // Hospital bed wiggles when shouting "LÜLÜLÜLÜ!"
         sway = Math.sin(timeSec * 8.5 + p.phase) * 0.035;
         bounceY = Math.abs(Math.sin(timeSec * 6.0 + p.phase)) * 2.2;
       } else if (p.type === 'prop' && p.col !== 0) {
@@ -1504,6 +1830,7 @@ function drawRoachProps(timeSec) {
         sortY: p.y + p.size * 0.28,
         x: p.x,
         y: p.y - bounceY,
+        groundY: p.y,
         size: p.size,
         rot: sway,
         col: p.col,
@@ -1511,36 +1838,50 @@ function drawRoachProps(timeSec) {
         alpha: 0.98,
         shadowSize: p.type === 'bed' ? 92 : (p.col === 0 && p.type === 'prop' ? 54 : 30),
         shadowOffY: p.type === 'bed' ? 28 + bounceY : (p.col === 0 && p.type === 'prop' ? 44 : 18),
+        darkAura: 0,
+        angryOverlay: 0,
       });
     }
   }
 
   for (const r of roaches) {
-    const charging = r.kind === 15 && r.chargeTimer > 0;
+    const charging = r.kind === 15 && r.chargeTimer > 0 && r.z <= 0;
     const crazy = r.kind === 12 || r.kind === 13;
-    const moving = r.stopTimer <= 0 && !charging;
+    const calling = r.kind === 16 && r.callMood > 0;
+    const moving = r.stopTimer <= 0 && !charging && !calling && r.z <= 0;
     const jitterX = charging ? Math.sin(timeSec * 48 + r.phase) * 2.2 : 0;
-    const bounce = charging
-      ? Math.abs(Math.sin(timeSec * 28 + r.phase)) * 3.0
-      : moving
-        ? Math.abs(Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase)) * (crazy ? 6.5 : 4.5)
-        : Math.sin(timeSec * 2.8 + r.phase) * (crazy ? 3.0 : 1.5);
-    const tilt = charging
-      ? Math.sin(timeSec * 42 + r.phase) * 0.14
-      : moving
-        ? Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase) * (crazy ? 0.17 : 0.09)
-        : (r.kind === 5 || crazy ? Math.sin(timeSec * 4.5 + r.phase) * 0.16 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
+    const bounce = r.z > 0 ? 0 : (
+      charging
+        ? Math.abs(Math.sin(timeSec * 28 + r.phase)) * 3.0
+        : moving
+          ? Math.abs(Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase)) * (crazy ? 6.5 : 4.5)
+          : Math.sin(timeSec * 2.8 + r.phase) * (crazy ? 3.0 : 1.5)
+    );
+    const tilt = r.z > 0
+      ? r.airRot
+      : charging
+        ? Math.sin(timeSec * 42 + r.phase) * 0.14
+        : moving
+          ? Math.sin(timeSec * ((crazy ? 8.0 : 5.5) * spdMul) + r.phase) * (crazy ? 0.17 : 0.09)
+          : (r.kind === 5 || crazy ? Math.sin(timeSec * 4.5 + r.phase) * 0.16 : Math.sin(timeSec * 1.8 + r.phase) * 0.04);
+
+    const mood = calling ? (r.callMood * r.callMood * (3 - 2 * r.callMood)) : 0;
+    const heightScale = 1 + r.z / 420;
+    const shadowScale = Math.max(0.45, 1 - r.z / 280);
     actors.push({
-      sortY: r.y + r.size * 0.34,
+      sortY: r.y + r.size * 0.34 + (r.z > 0 ? 120 : 0),
       x: r.x + jitterX,
-      y: r.y - bounce,
-      size: r.size,
+      y: r.y - bounce - r.z,
+      groundY: r.y,
+      size: r.size * heightScale,
       rot: tilt,
       col: r.col,
       row: r.row,
       alpha: 1.0,
-      shadowSize: r.size * 0.72,
-      shadowOffY: r.size * 0.35 + bounce,
+      shadowSize: r.size * 0.72 * shadowScale,
+      shadowOffY: r.size * 0.35,
+      darkAura: mood,
+      angryOverlay: mood,
     });
 
     if (charging && r.targetOutlet) {
@@ -1556,17 +1897,55 @@ function drawRoachProps(timeSec) {
 
   actors.sort((a, b) => a.sortY - b.sortY);
 
-  // Soft shadows first, then sprites
+  // Soft shadows first
   for (const a of actors) {
-    items.push({ x: a.x, y: a.y + a.shadowOffY, size: a.shadowSize, rot: 0, col: 0, row: 3, alpha: 0.85 * a.alpha });
+    items.push({ x: a.x, y: a.groundY + a.shadowOffY, size: a.shadowSize, rot: 0, col: 0, row: 3, alpha: 0.85 * a.alpha });
   }
+  // Dramatic dark noir filter spotlight ONLY around the calling roach, then actor sprites
   for (const a of actors) {
+    if (a.darkAura > 0.01) {
+      items.push({ x: a.x, y: a.y, size: a.size * 1.95, rot: 0, col: 7, row: 3, alpha: 0.78 * a.darkAura });
+    }
     items.push({ x: a.x, y: a.y, size: a.size, rot: a.rot, col: a.col, row: a.row, alpha: a.alpha });
+    if (a.angryOverlay > 0.01) {
+      // Smoothly crossfade dark-noir furious phone-at-ear sprite over normal sprite
+      items.push({ x: a.x, y: a.y, size: a.size, rot: a.rot, col: 6, row: 3, alpha: a.angryOverlay });
+    }
   }
 
-  // Electric discharge flashes between outlet and charging roach
+  // Electric discharge flashes
   for (const z of zaps) {
     items.push({ x: z.x, y: z.y, size: z.size, rot: z.rot, col: 7, row: 2, alpha: z.alpha });
+  }
+
+  // Falling bombs + ground target shadows
+  for (const b of bombs) {
+    const t = Math.min(1, b.age / b.dur);
+    const bx = b.sx + (b.tx - b.sx) * t;
+    const by = b.sy + (b.ty - b.sy) * (t * t);
+    items.push({ x: b.tx, y: b.ty, size: 22 + 34 * t, rot: 0, col: 0, row: 3, alpha: 0.55 * t });
+    items.push({ x: bx, y: by, size: 54 - 14 * t, rot: 0.3, col: 1, row: 4, alpha: 0.98 });
+  }
+
+  // Comic explosions
+  for (const e of explosions) {
+    const t = e.age / e.dur;
+    const grow = Math.min(1, t * 4.5);
+    items.push({
+      x: e.x,
+      y: e.y - 12,
+      size: e.size * (0.45 + 0.75 * grow),
+      rot: t * 1.6,
+      col: 2,
+      row: 4,
+      alpha: t < 0.55 ? 0.98 : Math.max(0, (1 - t) / 0.45),
+    });
+  }
+
+  // Fighter jet flying overhead with ground shadow
+  for (const j of jetStrikes) {
+    items.push({ x: j.x + 28, y: j.y + 96, size: 96, rot: j.rot, col: 0, row: 3, alpha: 0.44 });
+    items.push({ x: j.x, y: j.y, size: 156, rot: j.rot, col: 0, row: 4, alpha: 0.99 });
   }
 
   // Reaction & Turkish speech bubbles on top
