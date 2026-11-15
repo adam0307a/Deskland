@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>İstanbul — Boğaz'da Gün Batımı</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="wall-icons.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a45; }
+  #art { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #ghosts { position: fixed; inset: 0; pointer-events: none; }
+  .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .3; }
+  .ghost i { width: 40px; height: 40px; border-radius: 9px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+  .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 3px; background: #fff; }
+</style></head>
+<body>
+<canvas id="art"></canvas>
+<script src="istanbul-city.js"></script>
+<script src="istanbul-props.js"></script>
+<script>
+'use strict';
+/* İstanbul teması · ana sayfa: host mesajları, parametreler, döngü.
+   share.js'in beklediği global isimler: cv, draw(), icons, W, H, WALL, cacheOK */
+const QS = new URLSearchParams(location.search), WALL = QS.has('wallpaper'), PREVIEW = QS.has('preview');
+const cv = document.getElementById('art'), ctx = cv.getContext('2d'), sc = document.createElement('canvas'), sctx = sc.getContext('2d');
+const DEFAULTS = { time: 3, glow: 1, ferries: 3, flow: 1, gulls: 1, pad: 14, tulips: 1, cats: 1, landmarks: 1 };
+const P = Object.assign({}, DEFAULTS);
+let W = innerWidth, H = innerHeight, icons = [], plazas = [], ferries = [], gulls = [], gullN = -1, ferN = -1;
+let paused = false, cacheOK = false, geo = null, T = 3, lastT = 0, lastClock = 0, pid = 0, frameN = 0;
+const timeNow = () => P.time > 0 ? P.time : (h => h >= 5 && h < 10 ? 1 : h >= 10 && h < 17 ? 2 : h >= 17 && h < 20 ? 3 : 4)(new Date().getHours());
+
+function resize() {
+  const d = Math.min(devicePixelRatio || 1, 2), b = cv.getBoundingClientRect();
+  W = b.width || innerWidth; H = b.height || innerHeight;
+  cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv._scale = d; cacheOK = false;
+}
+function rebuild() {   // statik katman: Boğaz, çatılar, yapılar (boyut / zaman / yapı ayarı değişince)
+  const s = cv._scale || 1, w = cv.width / s, h = cv.height / s;
+  if (!geo || geo.W !== w || geo.H !== h) { geo = IST.geo(w, h); gullN = -1; }
+  T = timeNow(); sc.width = cv.width; sc.height = cv.height; sctx.setTransform(s, 0, 0, s, 0, 0);
+  IST.build(sctx, geo, T, !!P.landmarks); IST.prep(geo, T); cacheOK = true;
+}
+function step(dt) {   // durum güncelle: meydanlar, vapurlar, martılar (draw() sadece okur)
+  if (ferN !== P.ferries) { ferries = IST.mkFerries(P.ferries, IST.rng(7)); ferN = P.ferries; }
+  if (gullN !== P.gulls) { gulls = IST.mkGulls([0, 5, 12][P.gulls] || 0, geo.W, geo.H); gullN = P.gulls; }
+  IST.stepFerries(ferries, geo, P, dt);
+  const f = Math.min(1, dt * 9);
+  for (const p of plazas) p.used = false;
+  for (const ic of icons) {   // her ikona en yakın (90px içindeki) meydanı eşle, yoksa yenisini doğur
+    let best = null, bd = 8100;
+    for (const p of plazas) { if (p.used) continue; const d = (p.tx - ic.x) ** 2 + (p.ty - ic.y) ** 2; if (d < bd) { bd = d; best = p; } }
+    if (!best) { best = { id: ++pid, x: ic.x, y: ic.y, w: ic.w, h: ic.h, k: 0 }; plazas.push(best); }
+    best.used = true; best.tx = ic.x; best.ty = ic.y; best.tw = ic.w; best.th = ic.h;
+  }
+  for (const p of plazas) {
+    p.x += (p.tx - p.x) * f; p.y += (p.ty - p.y) * f; p.w += (p.tw - p.w) * f; p.h += (p.th - p.h) * f;
+    p.k += ((p.used ? 1 : 0) - p.k) * Math.min(1, dt * 4); p.sea = geo.inW(p.tx + p.tw / 2, p.ty + p.th / 2);
+  }
+  plazas = plazas.filter(p => p.used || p.k > .02);
+}
+function draw(now) {
+  const s = cv._scale || 1, w = cv.width / s, h = cv.height / s, t = now / 1000;
+  if (!cacheOK || sc.width !== cv.width || sc.height !== cv.height) rebuild();
+  const L = IST.PAL[T];
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(sc, 0, 0);
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  IST.sea(ctx, geo, t, P, L);
+  for (const f of ferries) IST.ferry(ctx, f, L, P);
+  for (const p of plazas) IST.plaza(ctx, p, t, P, L);
+  IST.drawGulls(ctx, gulls, t);
+  ctx.fillStyle = L.tint; ctx.fillRect(0, 0, w, h);   // gün ışığı rengi
+  const sx = w * L.sun[0], sy = h * L.sun[1], g = ctx.createRadialGradient(sx, sy, 0, sx, sy, w * .75);
+  g.addColorStop(0, 'rgba(' + L.sunCol + ',' + (.30 * Math.min(1.5, P.glow)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + L.sunCol + ',0)');
+  ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'source-over';
+  const v = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * .45, w / 2, h / 2, Math.max(w, h) * .75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.32)'); ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (paused || now - lastT < 30) return;   // ~30 fps hedefi
+  const dt = Math.min(.1, (now - lastT) / 1000 || .033); lastT = now;
+  if (P.time === 0 && now - lastClock > 60000) { lastClock = now; if (timeNow() !== T) cacheOK = false; }
+  if (!cacheOK) rebuild();
+  step(dt); draw(now); frameN++;
+}
+/* Host / ayarlar penceresi mesajları: icons (fiziksel piksel), settings, reset, pause */
+function applySettings(v) { for (const k in v) if (k in P && typeof v[k] === 'number' && P[k] !== v[k]) { P[k] = v[k]; if (k === 'time' || k === 'landmarks') cacheOK = false; } }
+function drawGhosts() { document.getElementById('ghosts').innerHTML = icons.map(ic => `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`).join(''); }
+function handle(m) {
+  if (!m) return;
+  if (m.t === 'pause') paused = PREVIEW ? false : !!m.v;
+  else if (m.t === 'settings') applySettings(m.v || m.params || {});
+  else if (m.t === 'reset') applySettings(Object.assign({}, DEFAULTS, m.v || {}));
+  else if (m.t === 'icons') { const k = devicePixelRatio || 1; icons = m.vis ? (m.r || []).map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : []; if (PREVIEW || !WALL) drawGhosts(); }
+}
+resize(); addEventListener('resize', resize);
+if (!WALL) { const gd = document.createElement('div'); gd.id = 'ghosts'; document.body.appendChild(gd); }
+if (PREVIEW) {
+  addEventListener('message', ev => { if (ev.source === parent) handle(typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data); });
+  parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+} else if (WALL) {
+  const host = window.chrome && window.chrome.webview;
+  if (host) { host.addEventListener('message', ev => { try { handle(JSON.parse(ev.data)); } catch (_) {} }); host.postMessage('ready'); }
+} else {   // tarayıcıda doğrudan açılırsa örnek ikonlarla çalışır
+  icons = [[.04, .06], [.04, .2], [.04, .34], [.15, .06], [.15, .2], [.88, .06], [.88, .2], [.5, .84], [.62, .84], [.3, .6]].map(([a, b]) => ({ x: W * a, y: H * b, w: 76, h: 90 })); drawGhosts();
+}
+requestAnimationFrame(frame);
+</script>
+<script src="share.js"></script>
+</body></html>

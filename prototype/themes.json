@@ -1079,6 +1079,240 @@
           ]
         }
       ]
+    },
+    {
+      "id": "zen-archipelago",
+      "adaptive": true,
+      "name": "禅意群岛",
+      "desc": "围绕桌面图标生成的荧光锦鲤泻湖、木桥、樱花岛屿与漂浮河灯，点击水面可投喂锦鲤",
+      "page": "zen-archipelago.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "radial-gradient(ellipse 26% 18% at 32% 40%, rgba(255,148,184,0.68) 0%, rgba(78,242,255,0.22) 60%, transparent 78%), radial-gradient(ellipse 22% 16% at 68% 64%, rgba(255,194,217,0.62) 0%, rgba(28,128,148,0.26) 62%, transparent 80%), radial-gradient(circle at 52% 28%, rgba(255,220,140,0.48) 0%, transparent 32%), linear-gradient(155deg, #07131e 0%, #0f384e 52%, #155c6e 100%)",
+      "groups": [
+        {
+          "name": "光影与氛围",
+          "params": [
+            {
+              "key": "timeOfDay",
+              "label": "时段氛围",
+              "hint": "切换荧光夜晚、金色日落或翡翠白昼配色",
+              "options": [
+                "荧光夜晚",
+                "金色日落",
+                "翡翠白昼"
+              ],
+              "default": 0
+            },
+            {
+              "key": "waveIntensity",
+              "label": "水波强度",
+              "hint": "岸边荧光涟漪与水波波动幅度",
+              "min": 0.2,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "群岛与木桥",
+          "params": [
+            {
+              "key": "islandMargin",
+              "label": "岛屿尺寸",
+              "hint": "图标四周砂石与草坪岛屿的外延半径",
+              "min": 18,
+              "max": 64,
+              "step": 1,
+              "default": 44,
+              "unit": "px"
+            },
+            {
+              "key": "bridgeDistance",
+              "label": "木桥距离",
+              "hint": "相邻图标岛屿自动架设木桥的最大间距",
+              "min": 100,
+              "max": 500,
+              "step": 10,
+              "default": 230,
+              "unit": "px"
+            }
+          ]
+        },
+        {
+          "name": "生态与河灯",
+          "params": [
+            {
+              "key": "koiCount",
+              "label": "锦鲤数量",
+              "hint": "泻湖里自由游弋的锦鲤数量",
+              "min": 4,
+              "max": 30,
+              "step": 1,
+              "default": 14,
+              "unit": "条"
+            },
+            {
+              "key": "lanternCount",
+              "label": "漂浮河灯",
+              "hint": "水面缓缓漂流的木质暖光河灯数量",
+              "min": 0,
+              "max": 25,
+              "step": 1,
+              "default": 10,
+              "unit": "盏"
+            },
+            {
+              "key": "sakuraDensity",
+              "label": "樱花密度",
+              "hint": "岛屿樱树与飘落樱瓣的繁茂程度",
+              "min": 0,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "fireflies",
+              "label": "萤火虫",
+              "hint": "空中闪烁的荧光粒子数量",
+              "min": 0,
+              "max": 100,
+              "step": 5,
+              "default": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "istanbul",
+      "adaptive": true,
+      "name": "伊斯坦布尔 — 博斯普鲁斯日落",
+      "desc": "俯瞰伊斯坦布尔：博斯普鲁斯海峡、金角湾、穹顶清真寺、宣礼塔、轮渡与海鸥。陆地图标化作郁金香瓷砖广场，海中图标则延伸出木质码头。",
+      "page": "istanbul.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/istanbul.jpg) center / cover no-repeat, linear-gradient(160deg, #1b2d45 0%, #c97745 55%, #1b3d59 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "时间与光线",
+          "params": [
+            {
+              "key": "time",
+              "label": "时段",
+              "hint": "自动模式会随系统时间切换清晨、正午、日落或夜色",
+              "options": [
+                "自动",
+                "清晨",
+                "正午",
+                "日落",
+                "夜晚"
+              ],
+              "default": 3
+            },
+            {
+              "key": "glow",
+              "label": "灯光强度",
+              "hint": "水面反光、万家灯火与广场路灯的亮度",
+              "min": 0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "博斯普鲁斯海峡",
+          "params": [
+            {
+              "key": "ferries",
+              "label": "轮渡数量",
+              "hint": "海峡中穿梭往来的城市轮渡数量",
+              "min": 0,
+              "max": 6,
+              "step": 1,
+              "default": 3,
+              "unit": "艘"
+            },
+            {
+              "key": "flow",
+              "label": "水流与航速",
+              "hint": "海浪与轮渡的整体流动速度",
+              "min": 0,
+              "max": 3,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            },
+            {
+              "key": "gulls",
+              "label": "海鸥",
+              "hint": "在海面上空盘旋的海鸥数量",
+              "options": [
+                "无",
+                "少许",
+                "成群"
+              ],
+              "default": 1
+            }
+          ]
+        },
+        {
+          "name": "图标周围",
+          "params": [
+            {
+              "key": "pad",
+              "label": "广场宽度",
+              "hint": "陆地图标旁瓷砖广场与海面木质码头的延伸范围",
+              "min": 6,
+              "max": 50,
+              "step": 1,
+              "default": 14,
+              "unit": "px"
+            },
+            {
+              "key": "tulips",
+              "label": "郁金香",
+              "hint": "广场边缘盛开的郁金香花带",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            },
+            {
+              "key": "cats",
+              "label": "街猫",
+              "hint": "在广场上晒太阳的伊斯坦布尔街猫",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            }
+          ]
+        },
+        {
+          "name": "城市",
+          "params": [
+            {
+              "key": "landmarks",
+              "label": "历史地标",
+              "hint": "圣索菲亚、蓝色清真寺、苏莱曼尼耶、加拉太塔与少女塔",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "default": 1
+            }
+          ]
+        }
+      ]
     }
   ]
 }

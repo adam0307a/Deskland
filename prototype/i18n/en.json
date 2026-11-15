@@ -629,6 +629,129 @@
           "unit": ""
         }
       }
+    },
+    "zen-archipelago": {
+      "name": "Zen Archipelago",
+      "desc": "Bioluminescent koi lagoon, wooden bridges, sakura islands and floating lanterns adapting around your icons",
+      "groups": [
+        "Atmosphere & waves",
+        "Islands & bridges",
+        "Lagoon & lanterns"
+      ],
+      "params": {
+        "timeOfDay": {
+          "label": "Time of day",
+          "hint": "Switch between bioluminescent night, golden sunset, and emerald day",
+          "options": [
+            "Bioluminescent Night",
+            "Golden Sunset",
+            "Emerald Day"
+          ]
+        },
+        "waveIntensity": {
+          "label": "Wave intensity",
+          "hint": "Strength and glow of ripples washing around each island"
+        },
+        "islandMargin": {
+          "label": "Island size",
+          "hint": "How wide each icon island grows into sand, grass, and reef"
+        },
+        "bridgeDistance": {
+          "label": "Bridge span",
+          "hint": "Maximum distance between nearby icon islands to span wooden bridges"
+        },
+        "koiCount": {
+          "label": "Koi fish",
+          "hint": "Number of koi swimming gracefully through the lagoon",
+          "unit": ""
+        },
+        "lanternCount": {
+          "label": "Floating lanterns",
+          "hint": "Warm wooden tōrō lanterns drifting across the lagoon",
+          "unit": ""
+        },
+        "sakuraDensity": {
+          "label": "Sakura bloom",
+          "hint": "Density of cherry blossom trees and drifting petals"
+        },
+        "fireflies": {
+          "label": "Fireflies",
+          "hint": "Number of bioluminescent spores and fireflies hovering above"
+        }
+      }
+    },
+    "istanbul": {
+      "name": "Istanbul — Bosphorus Sunset",
+      "desc": "Overhead view of Istanbul: the Bosphorus, Golden Horn, domes, minarets, ferries, and seagulls with tulip-lined tiled plazas and wooden piers around your icons",
+      "groups": [
+        "Time & glow",
+        "Bosphorus",
+        "Icon surroundings",
+        "City"
+      ],
+      "params": {
+        "time": {
+          "label": "Time of day",
+          "hint": "Auto follows your system clock across morning, noon, sunset, and night",
+          "options": [
+            "Auto",
+            "Morning",
+            "Noon",
+            "Sunset",
+            "Night"
+          ]
+        },
+        "glow": {
+          "label": "Light glow",
+          "hint": "Intensity of water shimmer, city windows, and plaza lanterns"
+        },
+        "ferries": {
+          "label": "Ferries",
+          "hint": "Number of Bosphorus commuter ferries crossing the strait",
+          "unit": ""
+        },
+        "flow": {
+          "label": "Water & ferry speed",
+          "hint": "Speed of passing waves and commuting ferries"
+        },
+        "gulls": {
+          "label": "Seagulls",
+          "hint": "Flocks of seagulls circling above the Bosphorus",
+          "options": [
+            "None",
+            "Few",
+            "Many"
+          ]
+        },
+        "pad": {
+          "label": "Plaza size",
+          "hint": "How wide the tiled plaza on land and wooden pier on water spread around icons"
+        },
+        "tulips": {
+          "label": "Tulips",
+          "hint": "Tulip flower borders lining the plazas around land icons",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "cats": {
+          "label": "Street cats",
+          "hint": "Cats sunbathing on peaceful Istanbul plazas",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "landmarks": {
+          "label": "Historic landmarks",
+          "hint": "Hagia Sophia, Blue Mosque, Süleymaniye, Galata Tower, and Maiden's Tower",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        }
+      }
     }
   }
 }

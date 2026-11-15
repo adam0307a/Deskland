@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<script src="wall-icons.js"></script>
+<title>Zen Archipelago — Deskland Theme</title>
+<meta name="deskland-theme" content='{"id":"zen-archipelago","name":{"en":"Zen Archipelago","zh":"禅意群岛"},"desc":{"en":"Bioluminescent koi lagoon, wooden bridges, sakura islands and floating lanterns adapting around your icons.","zh":"围绕桌面图标生成的荧光锦鲤泻湖、木桥、樱花岛屿与漂浮河灯。"},"page":"zen-archipelago.html"}'>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#07131e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+canvas{position:fixed;top:0;left:0;width:100%;height:100%;display:block;pointer-events:none}
+#ui-layer{position:fixed;inset:0;pointer-events:none;z-index:10}
+.demo-icon{position:absolute;width:76px;height:86px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:grab;pointer-events:auto;transition:background .15s,transform .1s;color:#eef6ff;font-size:11px;text-shadow:0 1px 3px rgba(0,0,0,.85)}
+.demo-icon:hover{background:rgba(255,255,255,.08)}
+.demo-icon:active{cursor:grabbing;transform:scale(.96)}
+.demo-icon .ico{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.35);position:relative;overflow:hidden}
+.demo-icon .lbl{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:1px 4px;border-radius:3px;background:rgba(6,18,30,.45)}
+#ctrl-bar{position:fixed;right:14px;bottom:64px;z-index:20;display:flex;gap:8px;align-items:center;background:rgba(10,22,36,.86);backdrop-filter:blur(10px);border:1px solid rgba(110,210,255,.24);padding:7px 11px;border-radius:10px;color:#cde8ff;font-size:12px;pointer-events:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+#ctrl-bar.hidden{display:none}
+#ctrl-bar.collapsed{gap:6px;padding:6px 10px}
+#ctrl-bar.collapsed .ctrl-item{display:none}
+#ctrl-bar .ctrl-toggle{padding:3px 7px;font-weight:700;font-size:13px;line-height:1;min-width:24px;display:inline-flex;align-items:center;justify-content:center}
+#ctrl-bar .ctrl-title{white-space:nowrap;user-select:none}
+#ctrl-bar button,#ctrl-bar select{background:rgba(255,255,255,.09);color:#e6f4ff;border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer;outline:none}
+#ctrl-bar select{-webkit-appearance:none;appearance:none;background-color:#122638;color:#e6f4ff;padding-right:22px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23cde8ff' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 7px center}
+#ctrl-bar button:hover,#ctrl-bar select:hover{background-color:rgba(100,210,255,.22)}
+#ctrl-bar button.active{background:rgba(100,210,255,.25);border-color:rgba(110,210,255,.45)}
+#ctrl-bar select option{background:#0d1e2d;color:#e6f4ff}
+</style>
+</head>
+<body>
+<canvas id="mainCanvas"></canvas>
+<div id="ui-layer"></div>
+<div id="ctrl-bar" class="hidden">
+  <button id="btnCollapse" class="ctrl-toggle" title="Collapse" aria-expanded="true">‹</button>
+  <span class="ctrl-title"><b>Zen Archipelago</b> <span class="ctrl-item">(Preview)</span></span>
+  <select id="selTime" class="ctrl-item" title="Time of Day">
+    <option value="night">Bioluminescent Night</option>
+    <option value="sunset">Golden Sunset</option>
+    <option value="day">Emerald Day</option>
+  </select>
+  <button id="btnAddIcon" class="ctrl-item">+ Icon</button>
+  <button id="btnRandom" class="ctrl-item">Shuffle</button>
+  <button id="btnClear" class="ctrl-item">Clear</button>
+  <button id="btnHideUI" class="ctrl-item" title="Hide Demo Icons">Hide UI</button>
+</div>
+<script>
+(()=>{
+"use strict";
+
+/* ============================================================================
+ * 1. DESKLAND THEME PARAMETERS & METADATA (Matches themes.json schema)
+ * ============================================================================ */
+const QS = new URLSearchParams(location.search);
+const WALL = QS.has("wallpaper");
+const PREVIEW = QS.has("preview");
+
+const DEFAULT_PARAMS = {
+  adaptive: 1,
+  timeOfDay: "night",     // "day" | "sunset" | "night" (or 0 | 1 | 2)
+  koiCount: 14,           // 4 .. 30
+  lanternCount: 10,       // 0 .. 25
+  islandMargin: 44,       // 24 .. 72 (Radius around icons)
+  bridgeDistance: 230,    // 100 .. 360 (Max distance to build wooden bridge)
+  waveIntensity: 1.0,     // 0.2 .. 2.0
+  sakuraDensity: 1.0,     // 0.0 .. 2.0
+  fireflies: 45,          // 0 .. 100
+  targetFps: 30           // 30fps target per AGENTS.md
+};
+
+const PALETTES = {
+  night: {
+    deep: [6, 17, 30], mid: [10, 33, 54], shallow: [16, 74, 102],
+    reef: [28, 128, 148], foam: "rgba(95,245,255,", glow: "#4ef2ff",
+    sand: "#273b4a", grassOuter: "#1b433c", grassInner: "#286153",
+    sakuraMain: "#ff85b3", sakuraLight: "#ffc2d9",
+    bridgeWood: "#6e2b2b", bridgeRail: "#9e3b33",
+    ambientShadow: "rgba(2,8,16,0.55)", sunDir: [0.65, 0.55],
+    waterTint: "rgba(12, 40, 68, 0.18)"
+  },
+  sunset: {
+    deep: [22, 20, 42], mid: [44, 34, 64], shallow: [86, 62, 88],
+    reef: [145, 96, 104], foam: "rgba(255,215,175,", glow: "#ffae66",
+    sand: "#8c6d53", grassOuter: "#3d5a3b", grassInner: "#5c7a46",
+    sakuraMain: "#ff7a9e", sakuraLight: "#ffd1dc",
+    bridgeWood: "#7a3028", bridgeRail: "#b04636",
+    ambientShadow: "rgba(18,10,24,0.45)", sunDir: [0.85, 0.45],
+    waterTint: "rgba(255, 140, 80, 0.08)"
+  },
+  day: {
+    deep: [11, 58, 78], mid: [18, 92, 114], shallow: [38, 148, 158],
+    reef: [78, 198, 185], foam: "rgba(235,252,255,", glow: "#b8fff9",
+    sand: "#d8c398", grassOuter: "#498448", grassInner: "#6aad59",
+    sakuraMain: "#ff94b8", sakuraLight: "#ffe3ed",
+    bridgeWood: "#8c382b", bridgeRail: "#bd4f3c",
+    ambientShadow: "rgba(8,32,42,0.34)", sunDir: [0.55, 0.65],
+    waterTint: "rgba(140, 235, 255, 0.07)"
+  }
+};
+
+let params = { ...DEFAULT_PARAMS };
+let paused = false;
+let isHosted = false;
+let width = window.innerWidth || 1920;
+let height = window.innerHeight || 1080;
+let dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+/* ============================================================================
+ * 2. DETERMINISTIC HASH & NOISE UTILITIES
+ * ============================================================================ */
+function hash2(x, y) {
+  let h = Math.imul(x ^ 0x27d4eb2d, 0x85ebca6b) ^ Math.imul(y ^ 0x165667b1, 0xc2b2ae35);
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  return (h >>> 0) / 4294967296;
+}
+
+function valueNoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi), b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+function fbm(x, y) {
+  return valueNoise(x, y) * 0.55 + valueNoise(x * 2.03, y * 2.03) * 0.3 + valueNoise(x * 4.07, y * 4.07) * 0.15;
+}
+
+/* ============================================================================
+ * 3. CANVAS & STATIC CACHE INITIALIZATION (AGENTS.md compliant)
+ * ============================================================================ */
+const mainCanvas = document.getElementById("mainCanvas");
+const ctx = mainCanvas.getContext("2d", { alpha: false });
+
+// Offscreen static cache for terrain, water depth, islands, bridges, and trees
+const terrainCanvas = document.createElement("canvas");
+const terrainCtx = terrainCanvas.getContext("2d");
+
+// Low-res SDF grid for fast per-pixel organic island rendering & physics queries
+const SDF_SCALE = 6; // 1 SDF cell = 6x6 CSS pixels
+let sdfW = 0, sdfH = 0;
+let sdfGrid = new Float32Array(0);
+let terrainDirty = true;
+
+/* ============================================================================
+ * 4. ADAPTIVE ICON STATE & SMOOTH TRANSITION SYSTEM
+ * ============================================================================ */
+let targetIcons = [];
+let currentIcons = []; // Smoothly interpolated icon positions
+let islandFeatures = []; // Trees, shrines, rocks, bridges generated per layout
+let bridges = [];
+let lilyPads = [];
+
+function normalizeIconRect(r, idx) {
+  const x = Number.isFinite(r.x) ? r.x : (Number.isFinite(r.left) ? r.left : 100);
+  const y = Number.isFinite(r.y) ? r.y : (Number.isFinite(r.top) ? r.top : 100);
+  const w = Number.isFinite(r.w) ? r.w : (Number.isFinite(r.width) ? r.width : 76);
+  const h = Number.isFinite(r.h) ? r.h : (Number.isFinite(r.height) ? r.height : 86);
+  const cx = x + w * 0.5;
+  const cy = y + h * 0.5;
+  return { id: r.id || `ico_${idx}`, x, y, w, h, cx, cy, r: Math.max(w, h) * 0.48 + params.islandMargin };
+}
+
+function setIconsInput(rawList) {
+  if (!Array.isArray(rawList)) return;
+  targetIcons = rawList.map((r, i) => normalizeIconRect(r, i));
+  if (currentIcons.length === 0) {
+    currentIcons = targetIcons.map(o => ({ ...o, alpha: 1 }));
+    rebuildTerrainCache();
+  } else {
+    // Match existing icons by ID or proximity for smooth morphing
+    const next = [];
+    const used = new Set();
+    for (const t of targetIcons) {
+      let best = null, bestDist = 1e9, bestIdx = -1;
+      for (let i = 0; i < currentIcons.length; i++) {
+        if (used.has(i)) continue;
+        const c = currentIcons[i];
+        const d = Math.hypot(c.cx - t.cx, c.cy - t.cy);
+        if (c.id === t.id || d < bestDist) {
+          bestDist = d; best = c; bestIdx = i;
+          if (c.id === t.id) break;
+        }
+      }
+      if (best && bestDist < 350) {
+        used.add(bestIdx);
+        next.push({ ...best, tx: t.x, ty: t.y, tw: t.w, th: t.h, tcx: t.cx, tcy: t.cy, tr: t.r, id: t.id });
+      } else {
+        next.push({ ...t, tx: t.x, ty: t.y, tw: t.w, th: t.h, tcx: t.cx, tcy: t.cy, tr: t.r, alpha: 0.05 });
+      }
+    }
+    currentIcons = next;
+    terrainDirty = true;
+  }
+}
+
+function stepIconInterpolation(dt) {
+  let moved = false;
+  const speed = Math.min(1, dt * 6.5);
+  for (const ic of currentIcons) {
+    if (ic.tx !== undefined) {
+      const dx = ic.tx - ic.x, dy = ic.ty - ic.y, dr = ic.tr - ic.r;
+      if (Math.abs(dx) > 0.35 || Math.abs(dy) > 0.35 || Math.abs(dr) > 0.35 || ic.alpha < 0.99) {
+        ic.x += dx * speed;
+        ic.y += dy * speed;
+        ic.cx = ic.x + ic.w * 0.5;
+        ic.cy = ic.y + ic.h * 0.5;
+        ic.r += dr * speed;
+        ic.alpha = Math.min(1, (ic.alpha || 1) + dt * 2.5);
+        moved = true;
+      } else {
+        ic.x = ic.tx; ic.y = ic.ty; ic.cx = ic.tcx; ic.cy = ic.tcy; ic.r = ic.tr; ic.alpha = 1;
+      }
+    }
+  }
+  if (moved || terrainDirty) {
+    rebuildTerrainCache();
+    terrainDirty = false;
+  }
+}
+
+/* ============================================================================
+ * 5. SDF METABALL FIELD & STATIC TERRAIN CACHE GENERATOR
+ * ============================================================================ */
+function sampleSDF(px, py) {
+  if (sdfW === 0 || sdfH === 0) return -100;
+  const gx = Math.max(0, Math.min(sdfW - 1, (px / SDF_SCALE) | 0));
+  const gy = Math.max(0, Math.min(sdfH - 1, (py / SDF_SCALE) | 0));
+  return sdfGrid[gy * sdfW + gx];
+}
+
+function sampleSDFGradient(px, py) {
+  const eps = SDF_SCALE * 1.5;
+  const dx = sampleSDF(px + eps, py) - sampleSDF(px - eps, py);
+  const dy = sampleSDF(px, py + eps) - sampleSDF(px, py - eps);
+  const len = Math.hypot(dx, dy) || 1;
+  return [dx / len, dy / len];
+}
+
+function rebuildTerrainCache() {
+  if (width <= 0 || height <= 0) return;
+  sdfW = Math.ceil(width / SDF_SCALE);
+  sdfH = Math.ceil(height / SDF_SCALE);
+  if (sdfGrid.length !== sdfW * sdfH) sdfGrid = new Float32Array(sdfW * sdfH);
+
+  const pal = PALETTES[params.timeOfDay] || PALETTES.night;
+  const k = 38; // Smooth minimum (metaball) blending factor
+
+  // 1. Compute Smooth SDF Grid around all desktop icons
+  for (let gy = 0; gy < sdfH; gy++) {
+    const py = (gy + 0.5) * SDF_SCALE;
+    for (let gx = 0; gx < sdfW; gx++) {
+      const px = (gx + 0.5) * SDF_SCALE;
+      let res = 0;
+      for (let i = 0; i < currentIcons.length; i++) {
+        const ic = currentIcons[i];
+        const dx = px - ic.cx;
+        const dy = py - ic.cy;
+        // Rounded box + organic noise distance
+        const qx = Math.abs(dx) - ic.w * 0.28;
+        const qy = Math.abs(dy) - ic.h * 0.30;
+        const boxDist = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0);
+        const rad = params.islandMargin * (ic.alpha || 1);
+        const d = boxDist - rad;
+        res += Math.exp(-d / k);
+      }
+      const rawDist = res > 1e-9 ? -k * Math.log(res) : 500;
+      // Add subtle coastline organic noise
+      const n = (fbm(px * 0.014, py * 0.014) - 0.5) * 26;
+      // Positive inside island, negative in water
+      sdfGrid[gy * sdfW + gx] = -(rawDist + n);
+    }
+  }
+
+  // 2. Render Low-Res Pixel Map for Deep Water -> Reef -> Sand -> Mossy Island
+  const offImgCanvas = document.createElement("canvas");
+  offImgCanvas.width = sdfW;
+  offImgCanvas.height = sdfH;
+  const offCtx = offImgCanvas.getContext("2d");
+  const imgData = offCtx.createImageData(sdfW, sdfH);
+  const data = imgData.data;
+
+  const sandRGB = hexToRgb(pal.sand);
+  const grassOutRGB = hexToRgb(pal.grassOuter);
+  const grassInRGB = hexToRgb(pal.grassInner);
+
+  for (let gy = 0; gy < sdfH; gy++) {
+    for (let gx = 0; gx < sdfW; gx++) {
+      const idx = gy * sdfW + gx;
+      const v = sdfGrid[idx]; // > 0 is island, < 0 is water
+      const n = valueNoise(gx * 0.12, gy * 0.12);
+      let r, g, b;
+
+      if (v < -95) {
+        // Deep Abyssal Lagoon
+        const t = Math.min(1, (-v - 95) / 180);
+        r = lerp(pal.mid[0], pal.deep[0], t);
+        g = lerp(pal.mid[1], pal.deep[1], t);
+        b = lerp(pal.mid[2], pal.deep[2], t);
+      } else if (v < -32) {
+        // Mid to Shallow Lagoon
+        const t = (v + 95) / 63;
+        r = lerp(pal.mid[0], pal.shallow[0], t);
+        g = lerp(pal.mid[1], pal.shallow[1], t);
+        b = lerp(pal.mid[2], pal.shallow[2], t);
+      } else if (v < 0) {
+        // Coral Reef Shelf
+        const t = (v + 32) / 32;
+        r = lerp(pal.shallow[0], pal.reef[0], t);
+        g = lerp(pal.shallow[1], pal.reef[1], t);
+        b = lerp(pal.shallow[2], pal.reef[2], t);
+      } else if (v < 7) {
+        //Sandy / Pebble Shore
+        const t = v / 7;
+        r = lerp(pal.reef[0], sandRGB[0], t * 0.85 + 0.15);
+        g = lerp(pal.reef[1], sandRGB[1], t * 0.85 + 0.15);
+        b = lerp(pal.reef[2], sandRGB[2], t * 0.85 + 0.15);
+      } else if (v < 22) {
+        // Outer Moss / Grass
+        const t = (v - 7) / 15;
+        r = lerp(sandRGB[0], grassOutRGB[0], t);
+        g = lerp(sandRGB[1], grassOutRGB[1], t);
+        b = lerp(sandRGB[2], grassOutRGB[2], t);
+      } else {
+        // Lush Inner Zen Island
+        const t = Math.min(1, (v - 22) / 30) * 0.7 + n * 0.3;
+        r = lerp(grassOutRGB[0], grassInRGB[0], t);
+        g = lerp(grassOutRGB[1], grassInRGB[1], t);
+        b = lerp(grassOutRGB[2], grassInRGB[2], t);
+      }
+
+      // Subtle directional hill-shading on land
+      if (v > 0 && gx > 0 && gy > 0) {
+        const slope = (sdfGrid[idx] - sdfGrid[ idx - 1 ]) * pal.sunDir[0] + (sdfGrid[idx] - sdfGrid[idx - sdfW]) * pal.sunDir[1];
+        const shade = Math.max(-18, Math.min(18, slope * 2.2));
+        r = Math.max(0, Math.min(255, r + shade));
+        g = Math.max(0, Math.min(255, g + shade));
+        b = Math.max(0, Math.min(255, b + shade));
+      }
+
+      const p = idx * 4;
+      data[p] = r; data[p + 1] = g; data[p + 2] = b; data[p + 3] = 255;
+    }
+  }
+  offCtx.putImageData(imgData, 0, 0);
+
+  // 3. Draw Upscaled Smooth Terrain onto Full-Res Offscreen Cache
+  terrainCtx.save();
+  terrainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  terrainCtx.imageSmoothingEnabled = true;
+  terrainCtx.imageSmoothingQuality = "high";
+  terrainCtx.drawImage(offImgCanvas, 0, 0, width, height);
+
+  // 4. Build Minimum Spanning Tree Bridges between nearby Icon Islands
+  buildBridgesAndFeatures(pal);
+
+  // 5. Render Static Wooden Bridges onto Cache
+  for (const br of bridges) {
+    drawWoodenBridge(terrainCtx, br, pal);
+  }
+
+  // 6. Render Stepping Stones, Rocks & Stone Lantern Bases onto Cache
+  for (const feat of islandFeatures) {
+    drawIslandStaticFeature(terrainCtx, feat, pal);
+  }
+
+  terrainCtx.restore();
+}
+
+function buildBridgesAndFeatures(pal) {
+  bridges = [];
+  islandFeatures = [];
+  lilyPads = [];
+
+  const n = currentIcons.length;
+  const maxDist = params.bridgeDistance;
+
+  // Connect nearby islands that have water between them (MST-like)
+  const edges = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = currentIcons[i], b = currentIcons[j];
+      const d = Math.hypot(a.cx - b.cx, a.cy - b.cy);
+      if (d > 85 && d < maxDist) {
+        edges.push({ i, j, d });
+      }
+    }
+  }
+  edges.sort((a, b) => a.d - b.d);
+  const degree = new Int32Array(n);
+
+  for (const e of edges) {
+    if (degree[e.i] >= 2 || degree[e.j] >= 2) continue;
+    const a = currentIcons[e.i], b = currentIcons[e.j];
+    const midX = (a.cx + b.cx) * 0.5, midY = (a.cy + b.cy) * 0.5;
+    // Check if midpoint dips into shallow water or isthmus
+    if (sampleSDF(midX, midY) < 16) {
+      const ang = Math.atan2(b.cy - a.cy, b.cx - a.cx);
+      const startX = a.cx + Math.cos(ang) * (a.w * 0.42);
+      const startY = a.cy + Math.sin(ang) * (a.h * 0.42);
+      const endX = b.cx - Math.cos(ang) * (b.w * 0.42);
+      const endY = b.cy - Math.sin(ang) * (b.h * 0.42);
+      bridges.push({ x1: startX, y1: startY, x2: endX, y2: endY, ang, len: Math.hypot(endX - startX, endY - startY) });
+      degree[e.i]++;
+      degree[e.j]++;
+    }
+  }
+
+  // Generate deterministic Sakura trees, stone lanterns (Toro), and coastal rocks per icon
+  for (let i = 0; i < n; i++) {
+    const ic = currentIcons[i];
+    const seed = Math.floor(ic.cx * 0.13 + ic.cy * 0.29) + i * 17;
+    const h1 = hash2(seed, 1), h2 = hash2(seed, 2), h3 = hash2(seed, 3);
+
+    // Place feature on the corner of the icon's island so the icon itself stays clear and readable
+    const cornerAng = (h1 * Math.PI * 2);
+    const dist = Math.max(ic.w, ic.h) * 0.54 + params.islandMargin * 0.35;
+    const fx = ic.cx + Math.cos(cornerAng) * dist;
+    const fy = ic.cy + Math.sin(cornerAng) * dist;
+
+    if (params.sakuraDensity > 0 && h2 < 0.72 * params.sakuraDensity) {
+      islandFeatures.push({
+        type: "sakura",
+        x: fx, y: fy,
+        size: 16 + h3 * 12,
+        seed: h1 * 100
+      });
+    } else {
+      islandFeatures.push({
+        type: "toro", // Japanese stone lantern
+        x: fx, y: fy,
+        size: 9 + h3 * 4,
+        seed: h2 * 100
+      });
+    }
+
+    // Coastal moss rocks
+    const rockAng = cornerAng + 2.2;
+    const rx = ic.cx + Math.cos(rockAng) * (dist + 6);
+    const ry = ic.cy + Math.sin(rockAng) * (dist + 6);
+    islandFeatures.push({ type: "rock", x: rx, y: ry, size: 6 + h1 * 6, seed });
+  }
+
+  // Generate Lily Pads in shallow reef zones (-42 < SDF < -8)
+  const padAttempts = 90;
+  for (let i = 0; i < padAttempts; i++) {
+    const px = hash2(i, 77) * (width - 80) + 40;
+    const py = hash2(i, 99) * (height - 80) + 40;
+    const sdf = sampleSDF(px, py);
+    if (sdf > -48 && sdf < -10) {
+      let tooClose = false;
+      for (const lp of lilyPads) {
+        if (Math.hypot(lp.x - px, lp.y - py) < 26) { tooClose = true; break; }
+      }
+      if (!tooClose) {
+        lilyPads.push({
+          x: px, y: py,
+          r: 6 + hash2(i, 12) * 6,
+          rot: hash2(i, 34) * Math.PI * 2,
+          hasFlower: hash2(i, 56) < 0.28,
+          flowerColor: hash2(i, 88) < 0.5 ? "#ff9ebb" : "#fff3d6"
+        });
+      }
+    }
+  }
+}
+
+function drawWoodenBridge(c, br, pal) {
+  c.save();
+  c.translate(br.x1, br.y1);
+  c.rotate(br.ang);
+
+  const w = 14;
+  // Drop shadow on water
+  c.fillStyle = pal.ambientShadow;
+  c.beginPath();
+  c.roundRect(2, -w * 0.5 + 5, br.len, w, 3);
+  c.fill();
+
+  // Bridge curved planks
+  const steps = Math.max(5, Math.floor(br.len / 6));
+  const stepLen = br.len / steps;
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    const arch = Math.sin(t * Math.PI) * 2.5;
+    c.fillStyle = i % 2 === 0 ? pal.bridgeWood : "#582020";
+    c.fillRect(i * stepLen, -w * 0.5 - arch, stepLen - 1, w);
+  }
+
+  // Side railings & posts
+  c.fillStyle = pal.bridgeRail;
+  c.fillRect(0, -w * 0.5 - 2, br.len, 2.5);
+  c.fillRect(0, w * 0.5 - 1.5, br.len, 2.5);
+
+  const posts = Math.max(2, Math.floor(br.len / 28));
+  for (let i = 0; i <= posts; i++) {
+    const px = (i / posts) * br.len;
+    c.fillStyle = "#ffcf96";
+    c.beginPath();
+    c.arc(px, -w * 0.5 - 1, 2, 0, Math.PI * 2);
+    c.arc(px, w * 0.5, 2, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+
+function drawIslandStaticFeature(c, f, pal) {
+  c.save();
+  if (f.type === "rock") {
+    c.fillStyle = pal.ambientShadow;
+    c.beginPath();
+    c.arc(f.x + 3, f.y + 3, f.size, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = "#4b5c66";
+    c.beginPath();
+    c.ellipse(f.x, f.y, f.size * 1.15, f.size * 0.85, f.seed, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = pal.grassOuter;
+    c.beginPath();
+    c.arc(f.x - 1, f.y - 1, f.size * 0.55, 0, Math.PI * 2);
+    c.fill();
+  } else if (f.type === "toro") {
+    // Japanese Stone Lantern (Tōrō)
+    c.fillStyle = pal.ambientShadow;
+    c.beginPath();
+    c.ellipse(f.x + 4, f.y + 4, f.size * 1.1, f.size * 0.8, 0, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = "#7a868c";
+    c.beginPath();
+    c.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+    c.fill();
+
+    c.fillStyle = "#9aa6ac";
+    c.beginPath();
+    c.moveTo(f.x, f.y - f.size * 1.1);
+    c.lineTo(f.x + f.size * 1.1, f.y);
+    c.lineTo(f.x, f.y + f.size * 1.1);
+    c.lineTo(f.x - f.size * 1.1, f.y);
+    c.closePath();
+    c.fill();
+  } else if (f.type === "sakura") {
+    // Tree shadow on island/water
+    c.fillStyle = pal.ambientShadow;
+    c.beginPath();
+    c.arc(f.x + 6, f.y + 6, f.size * 1.05, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+
+/* ============================================================================
+ * 6. DYNAMIC ENTITIES: KOI FISH (VERLET SPINE), LANTERNS, RIPPLES, PETALS
+ * ============================================================================ */
+let kois = [];
+let lanterns = [];
+let ripples = [];
+let petals = [];
+let baits = [];
+
+const KOI_PATTERNS = [
+  { base: "#f7f9fc", spots: ["#e83f25", "#f05423"], headSpot: true },  // Kohaku (White + Red)
+  { base: "#f7f9fc", spots: ["#e83f25", "#1c222b"], headSpot: false }, // Sanke (White + Red + Black)
+  { base: "#ff9e2c", spots: ["#ffffff", "#d9381e"], headSpot: true },  // Yamabuki / Gold
+  { base: "#232a36", spots: ["#ff5926", "#f7f9fc"], headSpot: false }  // Showa
+];
+
+function createKoi(i) {
+  let x = hash2(i, 301) * width;
+  let y = hash2(i, 302) * height;
+  // Ensure spawns in water
+  for (let a = 0; a < 15; a++) {
+    if (sampleSDF(x, y) < -18) break;
+    x = Math.random() * width;
+    y = Math.random() * height;
+  }
+  const ang = Math.random() * Math.PI * 2;
+  const scale = 0.78 + (i % 5) * 0.11;
+  const spine = [];
+  const segLen = 5.2 * scale;
+  for (let s = 0; s < 9; s++) {
+    spine.push({ x: x - Math.cos(ang) * s * segLen, y: y - Math.sin(ang) * s * segLen });
+  }
+  return {
+    x, y, ang,
+    targetAng: ang,
+    speed: (28 + (i % 4) * 7) * scale,
+    scale,
+    segLen,
+    spine,
+    swimPhase: Math.random() * Math.PI * 2,
+    pattern: KOI_PATTERNS[i % KOI_PATTERNS.length],
+    seed: i * 31
+  };
+}
+
+function createLantern(i) {
+  let x = hash2(i, 401) * width;
+  let y = hash2(i, 402) * height;
+  return {
+    x, y,
+    vx: (Math.random() - 0.5) * 8,
+    vy: (Math.random() - 0.5) * 8,
+    rot: Math.random() * Math.PI * 2,
+    vrot: (Math.random() - 0.5) * 0.25,
+    pulse: Math.random() * Math.PI * 2,
+    size: 8 + (i % 3) * 2
+  };
+}
+
+function createPetal(i) {
+  return {
+    x: Math.random() * width,
+    y: Math.random() * height,
+    vx: 10 + Math.random() * 14,
+    vy: 6 + Math.random() * 10,
+    rot: Math.random() * Math.PI * 2,
+    phase: Math.random() * Math.PI * 2,
+    size: 2.5 + Math.random() * 2.5,
+    isFirefly: i % 2 === 0
+  };
+}
+
+function syncEntityCounts() {
+  while (kois.length < params.koiCount) kois.push(createKoi(kois.length));
+  if (kois.length > params.koiCount) kois.length = params.koiCount;
+
+  while (lanterns.length < params.lanternCount) lanterns.push(createLantern(lanterns.length));
+  if (lanterns.length > params.lanternCount) lanterns.length = params.lanternCount;
+
+  const totalParticles = Math.round(params.fireflies + params.sakuraDensity * 25);
+  while (petals.length < totalParticles) petals.push(createPetal(petals.length));
+  if (petals.length > totalParticles) petals.length = totalParticles;
+}
+
+function updateEntities(dt, time) {
+  syncEntityCounts();
+
+  // Update Ripples
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const rp = ripples[i];
+    rp.r += rp.speed * dt;
+    rp.alpha -= dt * rp.fade;
+    if (rp.alpha <= 0) ripples.splice(i, 1);
+  }
+
+  // Update Baits
+  for (let i = baits.length - 1; i >= 0; i--) {
+    baits[i].life -= dt;
+    if (baits[i].life <= 0) baits.splice(i, 1);
+  }
+
+  // Update Koi Fish with Island Avoidance & Spine Kinematics
+  for (let i = 0; i < kois.length; i++) {
+    const k = kois[i];
+    k.swimPhase += dt * (4.8 + k.speed * 0.05);
+
+    // Look ahead for island collision
+    const lookDist = 38 * k.scale;
+    const aheadX = k.x + Math.cos(k.ang) * lookDist;
+    const aheadY = k.y + Math.sin(k.ang) * lookDist;
+    const sdfAhead = sampleSDF(aheadX, aheadY);
+
+    if (sdfAhead > -16) {
+      // Steer away from island shore using SDF gradient
+      const [gx, gy] = sampleSDFGradient(aheadX, aheadY);
+      const escapeAng = Math.atan2(-gy, -gx);
+      k.targetAng = escapeAng + (Math.sin(time + k.seed) * 0.35);
+    } else if (baits.length > 0) {
+      // Swim toward nearest bait
+      let nearest = null, bestD = 320;
+      for (const b of baits) {
+        const d = Math.hypot(b.x - k.x, b.y - k.y);
+        if (d < bestD) { bestD = d; nearest = b; }
+      }
+      if (nearest) {
+        k.targetAng = Math.atan2(nearest.y - k.y, nearest.x - k.x);
+        if (bestD < 18) {
+          nearest.life -= dt * 2.5;
+          if (Math.random() < 0.15) addRipple(nearest.x, nearest.y, 22, 0.55);
+        }
+      }
+    } else if (Math.random() < 0.02) {
+      k.targetAng += (Math.random() - 0.5) * 1.1;
+    }
+
+    // Screen boundary steering
+    const margin = 45;
+    if (k.x < margin) k.targetAng = 0;
+    else if (k.x > width - margin) k.targetAng = Math.PI;
+    if (k.y < margin) k.targetAng = Math.PI * 0.5;
+    else if (k.y > height - margin) k.targetAng = -Math.PI * 0.5;
+
+    // Smooth angle turn
+    let diff = ((k.targetAng - k.ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    k.ang += diff * Math.min(1, dt * 3.8);
+
+    const wiggle = Math.sin(k.swimPhase) * 0.14;
+    const moveAng = k.ang + wiggle;
+    const curSpeed = baits.length > 0 ? k.speed * 1.45 : k.speed;
+
+    k.x += Math.cos(moveAng) * curSpeed * dt;
+    k.y += Math.sin(moveAng) * curSpeed * dt;
+
+    // Emergency push out if trapped inside newly moved icon island
+    const curSdf = sampleSDF(k.x, k.y);
+    if (curSdf > -6) {
+      const [gx, gy] = sampleSDFGradient(k.x, k.y);
+      k.x -= gx * (curSdf + 10);
+      k.y -= gy * (curSdf + 10);
+    }
+
+    // Inverse kinematics for spine segments
+    k.spine[0].x = k.x;
+    k.spine[0].y = k.y;
+    for (let s = 1; s < k.spine.length; s++) {
+      const prev = k.spine[s - 1];
+      const cur = k.spine[s];
+      const sway = Math.sin(k.swimPhase - s * 0.65) * (s * 0.42 * k.scale);
+      const dx = cur.x - prev.x;
+      const dy = cur.y - prev.y;
+      const segAng = Math.atan2(dy, dx);
+      const perpX = -Math.sin(segAng) * sway * dt * 12;
+      const perpY = Math.cos(segAng) * sway * dt * 12;
+      const dist = Math.hypot(dx + perpX, dy + perpY) || 1;
+      cur.x = prev.x + ((dx + perpX) / dist) * k.segLen;
+      cur.y = prev.y + ((dy + perpY) / dist) * k.segLen;
+    }
+
+    // Occasional subtle wake ripple
+    if (Math.random() < 0.015) {
+      addRipple(k.x, k.y, 18 * k.scale, 0.22);
+    }
+  }
+
+  // Update Floating Water Lanterns
+  for (const l of lanterns) {
+    l.pulse += dt * 2.2;
+    l.rot += l.vrot * dt;
+    // Gentle breeze + current
+    l.vx += (Math.cos(time * 0.3 + l.y * 0.01) * 4 - l.vx) * dt;
+    l.vy += (Math.sin(time * 0.25 + l.x * 0.01) * 4 - l.vy) * dt;
+
+    const nx = l.x + l.vx * dt;
+    const ny = l.y + l.vy * dt;
+    const sdf = sampleSDF(nx, ny);
+    if (sdf > -12) {
+      const [gx, gy] = sampleSDFGradient(nx, ny);
+      l.vx = -gx * 12;
+      l.vy = -gy * 12;
+    } else {
+      l.x = (nx + width) % width;
+      l.y = (ny + height) % height;
+    }
+  }
+
+  // Update Sakura Petals & Bioluminescent Fireflies
+  for (const p of petals) {
+    p.phase += dt * 2.4;
+    p.rot += dt * 1.2;
+    p.x += (p.vx + Math.sin(p.phase) * 8) * dt;
+    p.y += (p.vy + Math.cos(p.phase * 0.8) * 6) * dt;
+    if (p.x > width + 20) p.x = -20;
+    if (p.y > height + 20) p.y = -20;
+  }
+}
+
+function addRipple(x, y, maxR = 36, alpha = 0.5) {
+  if (ripples.length > 45) ripples.shift();
+  ripples.push({ x, y, r: 2, speed: maxR * 0.85, alpha, fade: alpha * 0.7 });
+}
+
+/* ============================================================================
+ * 7. LAYERED RENDERING ENGINE (30 FPS Target, High Visual Detail)
+ * ============================================================================ */
+const BODY_WIDTHS = [5.5, 6.8, 6.4, 5.4, 4.2, 3.0, 2.0, 1.2, 0.6];
+
+function drawKoi(c, k, pal, isShadow) {
+  const sp = k.spine;
+  const sc = k.scale;
+  const ox = isShadow ? 6 : 0;
+  const oy = isShadow ? 8 : 0;
+
+  c.save();
+  // Pectoral & Pelvic Fins
+  const finAng = Math.atan2(sp[0].y - sp[2].y, sp[0].x - sp[2].x);
+  const finFlutter = Math.sin(k.swimPhase * 1.3) * 0.22;
+  c.fillStyle = isShadow ? pal.ambientShadow : "rgba(255,255,255,0.65)";
+
+  for (const side of [-1, 1]) {
+    c.save();
+    c.translate(sp[2].x + ox, sp[2].y + oy);
+    c.rotate(finAng + side * (1.1 + finFlutter));
+    c.beginPath();
+    c.ellipse(0, side * 4 * sc, 7.5 * sc, 3.2 * sc, 0, 0, Math.PI * 2);
+    c.fill();
+    c.restore();
+  }
+
+  // Compute Left & Right Contour Points along Verlet Spine
+  const leftPts = [], rightPts = [];
+  for (let i = 0; i < sp.length; i++) {
+    let dx, dy;
+    if (i === 0) {
+      dx = sp[0].x - sp[1].x; dy = sp[0].y - sp[1].y;
+    } else {
+      dx = sp[i - 1].x - sp[i].x; dy = sp[i - 1].y - sp[i].y;
+    }
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const w = BODY_WIDTHS[i] * sc;
+    leftPts.push({ x: sp[i].x + nx * w + ox, y: sp[i].y + ny * w + oy });
+    rightPts.push({ x: sp[i].x - nx * w + ox, y: sp[i].y - ny * w + oy });
+  }
+
+  // Draw Body Silhouette
+  c.beginPath();
+  const headAng = Math.atan2(sp[0].y - sp[1].y, sp[0].x - sp[1].x);
+  const noseX = sp[0].x + Math.cos(headAng) * 4.5 * sc + ox;
+  const noseY = sp[0].y + Math.sin(headAng) * 4.5 * sc + oy;
+  c.moveTo(noseX, noseY);
+
+  for (let i = 0; i < leftPts.length; i++) c.lineTo(leftPts[i].x, leftPts[i].y);
+
+  // Flowing Tail Fin
+  const tailAng = Math.atan2(sp[7].y - sp[8].y, sp[7].x - sp[8].x);
+  const tailSway = Math.sin(k.swimPhase - 2.2) * 4 * sc;
+  const tailTipX = sp[8].x - Math.cos(tailAng) * 8 * sc - Math.sin(tailAng) * tailSway + ox;
+  const tailTipY = sp[8].y - Math.sin(tailAng) * 8 * sc + Math.cos(tailAng) * tailSway + oy;
+  c.lineTo(tailTipX, tailTipY);
+
+  for (let i = rightPts.length - 1; i >= 0; i--) c.lineTo(rightPts[i].x, rightPts[i].y);
+  c.closePath();
+
+  if (isShadow) {
+    c.fillStyle = pal.ambientShadow;
+    c.fill();
+    c.restore();
+    return;
+  }
+
+  c.fillStyle = k.pattern.base;
+  c.fill();
+
+  // Clip to body and draw procedural Koi spots
+  c.save();
+  c.clip();
+  if (k.pattern.headSpot) {
+    c.fillStyle = k.pattern.spots[0];
+    c.beginPath();
+    c.arc(sp[1].x, sp[1].y, 4.5 * sc, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.fillStyle = k.pattern.spots[0];
+  c.beginPath();
+  c.arc(sp[3].x + 1.5 * sc, sp[3].y, 5.2 * sc, 0, Math.PI * 2);
+  c.fill();
+
+  c.fillStyle = k.pattern.spots[1];
+  c.beginPath();
+  c.arc(sp[5].x - 1.2 * sc, sp[5].y, 4.0 * sc, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
+
+  // Dorsal Ridge Fin
+  c.strokeStyle = "rgba(255,255,255,0.55)";
+  c.lineWidth = 1.4 * sc;
+  c.beginPath();
+  c.moveTo(sp[2].x, sp[2].y);
+  c.quadraticCurveTo(sp[4].x, sp[4].y, sp[6].x, sp[6].y);
+  c.stroke();
+
+  c.restore();
+}
+
+function renderScene(time) {
+  const pal = PALETTES[params.timeOfDay] || PALETTES.night;
+  const scale = mainCanvas._scale || dpr;
+  const viewW = mainCanvas.width / scale || width;
+  const viewH = mainCanvas.height / scale || height;
+  if (Math.round(viewW) !== Math.round(width) || Math.round(viewH) !== Math.round(height)) {
+    width = viewW;
+    height = viewH;
+    dpr = scale;
+    terrainCanvas.width = mainCanvas.width;
+    terrainCanvas.height = mainCanvas.height;
+    rebuildTerrainCache();
+  }
+
+  ctx.save();
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+  // 1. Blit Cached Terrain & Island Map
+  ctx.drawImage(terrainCanvas, 0, 0, width, height);
+
+  // 2. Animated Shoreline Bioluminescent / Foam Waves around Islands
+  const waveAmp = params.waveIntensity;
+  if (waveAmp > 0.05) {
+    ctx.lineWidth = 1.6;
+    for (let ring = 0; ring < 2; ring++) {
+      const phase = ((time * 0.42 + ring * 0.5) % 1);
+      const alpha = Math.sin(phase * Math.PI) * 0.38 * Math.min(1.5, waveAmp);
+      ctx.strokeStyle = `${pal.foam}${alpha.toFixed(3)})`;
+      const targetSdf = -4 - phase * 22 * waveAmp;
+
+      ctx.beginPath();
+      for (const ic of currentIcons) {
+        const steps = 28;
+        const baseR = Math.max(ic.w, ic.h) * 0.42 + params.islandMargin + phase * 18 * waveAmp;
+        for (let s = 0; s <= steps; s++) {
+          const a = (s / steps) * Math.PI * 2;
+          const wobble = Math.sin(a * 4 + time * 1.8 + ic.cx) * 3.5;
+          const px = ic.cx + Math.cos(a) * (baseR + wobble);
+          const py = ic.cy + Math.sin(a) * (baseR + wobble);
+          // Only draw wave crest if not merged inside another adjacent island
+          if (sampleSDF(px, py) < 2) {
+            if (s === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          } else {
+            ctx.moveTo(px, py);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+  }
+
+  // 3. Draw Koi Shadows on Lagoon Floor
+  for (const k of kois) drawKoi(ctx, k, pal, true);
+
+  // 4. Draw Swimming Koi Fish
+  for (const k of kois) drawKoi(ctx, k, pal, false);
+
+  // 5. Draw Water Ripples & Fish Bait
+  for (const rp of ripples) {
+    ctx.strokeStyle = `${pal.foam}${Math.max(0, rp.alpha).toFixed(3)})`;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  for (const b of baits) {
+    ctx.fillStyle = "#ffd27d";
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 6. Draw Lily Pads & Lotus Flowers in Shallow Reefs
+  for (const lp of lilyPads) {
+    const bob = Math.sin(time * 1.5 + lp.x * 0.05) * 0.06;
+    ctx.save();
+    ctx.translate(lp.x, lp.y);
+    ctx.rotate(lp.rot + bob);
+
+    ctx.fillStyle = pal.ambientShadow;
+    ctx.beginPath();
+    ctx.arc(2, 3, lp.r, 0.25, Math.PI * 2 - 0.25);
+    ctx.lineTo(2, 3);
+    ctx.fill();
+
+    ctx.fillStyle = params.timeOfDay === "night" ? "#1e594e" : "#3f8f54";
+    ctx.beginPath();
+    ctx.arc(0, 0, lp.r, 0.22, Math.PI * 2 - 0.22);
+    ctx.lineTo(0, 0);
+    ctx.fill();
+
+    if (lp.hasFlower) {
+      ctx.fillStyle = lp.flowerColor;
+      for (let p = 0; p < 6; p++) {
+        ctx.save();
+        ctx.rotate((p / 6) * Math.PI * 2);
+        ctx.beginPath();
+        ctx.ellipse(lp.r * 0.35, 0, lp.r * 0.38, lp.r * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.fillStyle = "#ffdf6b";
+      ctx.beginPath();
+      ctx.arc(0, 0, lp.r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 7. Draw Floating Wooden Lanterns (Tōrō Nagashi)
+  for (const l of lanterns) {
+    const glowR = l.size * (2.6 + Math.sin(l.pulse) * 0.35);
+    const grad = ctx.createRadialGradient(l.x, l.y, 1, l.x, l.y, glowR);
+    grad.addColorStop(0, "rgba(255, 220, 140, 0.95)");
+    grad.addColorStop(0.35, "rgba(255, 150, 60, 0.42)");
+    grad.addColorStop(1, "rgba(255, 120, 30, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(l.x, l.y);
+    ctx.rotate(l.rot);
+    ctx.fillStyle = "#5c2c1d";
+    ctx.fillRect(-l.size * 0.7, -l.size * 0.7, l.size * 1.4, l.size * 1.4);
+    ctx.fillStyle = "#ffefc2";
+    ctx.fillRect(-l.size * 0.48, -l.size * 0.48, l.size * 0.96, l.size * 0.96);
+    ctx.restore();
+  }
+
+  // 8. Draw Animated Sakura Canopies & Stone Lantern Glows on Islands
+  for (const f of islandFeatures) {
+    if (f.type === "sakura") {
+      const swayX = Math.sin(time * 1.3 + f.seed) * 2.2;
+      const swayY = Math.cos(time * 1.1 + f.seed) * 1.8;
+      ctx.save();
+      ctx.translate(f.x + swayX, f.y + swayY);
+
+      // Foliage clusters
+      const clusters = 5;
+      for (let c = 0; c < clusters; c++) {
+        const a = (c / clusters) * Math.PI * 2 + f.seed;
+        const cx = Math.cos(a) * f.size * 0.38;
+        const cy = Math.sin(a) * f.size * 0.38;
+        ctx.fillStyle = c % 2 === 0 ? pal.sakuraMain : pal.sakuraLight;
+        ctx.beginPath();
+        ctx.arc(cx, cy, f.size * 0.62, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = pal.sakuraLight;
+      ctx.beginPath();
+      ctx.arc(-2, -2, f.size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (f.type === "toro" && params.timeOfDay !== "day") {
+      // Warm light from island stone lantern
+      const g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, f.size * 2.8);
+      g.addColorStop(0, "rgba(255, 210, 120, 0.75)");
+      g.addColorStop(1, "rgba(255, 160, 60, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.size * 2.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 9. Draw Drifting Sakura Petals & Bioluminescent Spores / Fireflies
+  for (const p of petals) {
+    if (p.isFirefly) {
+      const alpha = (Math.sin(p.phase) * 0.5 + 0.5) * 0.85;
+      ctx.fillStyle = params.timeOfDay === "night" ? `rgba(110, 250, 255, ${alpha.toFixed(2)})` : `rgba(255, 240, 170, ${alpha.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (params.sakuraDensity > 0) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = pal.sakuraLight;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
+}
+
+/* ============================================================================
+ * 8. ANIMATION LOOP (30 FPS Throttle per AGENTS.md) & RESIZE HANDLER
+ * ============================================================================ */
+let lastFrameTime = 0;
+let startTime = performance.now();
+window.frameN = 0;
+
+function handleResize() {
+  const rect = document.documentElement.getBoundingClientRect();
+  width = rect.width || window.innerWidth || 1920;
+  height = rect.height || window.innerHeight || 1080;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  mainCanvas.width = Math.round(width * dpr);
+  mainCanvas.height = Math.round(height * dpr);
+  mainCanvas._scale = dpr;
+  terrainCanvas.width = Math.round(width * dpr);
+  terrainCanvas.height = Math.round(height * dpr);
+
+  terrainDirty = true;
+  rebuildTerrainCache();
+}
+
+window.addEventListener("resize", handleResize);
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  if (paused) return;
+
+  const frameInterval = 1000 / (params.targetFps || 30);
+  const elapsed = now - lastFrameTime;
+  if (elapsed < frameInterval * 0.92) return;
+
+  const dt = Math.min(0.1, elapsed / 1000);
+  lastFrameTime = now - (elapsed % frameInterval);
+
+  const time = (now - startTime) * 0.001;
+  stepIconInterpolation(dt);
+  updateEntities(dt, time);
+  renderScene(time);
+  window.frameN++;
+}
+
+/* ============================================================================
+ * 9. INTERACTION (Click to drop Koi bait & ripples)
+ * ============================================================================ */
+window.addEventListener("pointerdown", (e) => {
+  if (e.target.closest("#ctrl-bar") || e.target.closest(".demo-icon")) return;
+  const x = e.clientX, y = e.clientY;
+  addRipple(x, y, 52, 0.75);
+  if (sampleSDF(x, y) < -5) {
+    for (let i = 0; i < 3; i++) {
+      baits.push({
+        x: x + (Math.random() - 0.5) * 18,
+        y: y + (Math.random() - 0.5) * 18,
+        life: 6 + Math.random() * 3
+      });
+    }
+  }
+});
+
+/* ============================================================================
+ * 10. DESKLAND HOST, WEBVIEW2, SETTINGS PREVIEW & SHARE.JS BRIDGE
+ * ============================================================================ */
+let lastHostRawIcons = [];
+const TIME_MODES = ["night", "sunset", "day"];
+
+function applyParams(newParams) {
+  if (!newParams || typeof newParams !== "object") return;
+  let needRebuild = false;
+  let adaptiveChanged = false;
+  for (const k of Object.keys(newParams)) {
+    let val = newParams[k];
+    if (k === "timeOfDay" && typeof val === "number") {
+      val = TIME_MODES[val] || "night";
+    }
+    if (params[k] !== val) {
+      if (k === "timeOfDay" || k === "islandMargin" || k === "bridgeDistance" || k === "sakuraDensity") {
+        needRebuild = true;
+      }
+      if (k === "adaptive") adaptiveChanged = true;
+      params[k] = val;
+    }
+  }
+  const sel = document.getElementById("selTime");
+  if (sel && params.timeOfDay) sel.value = params.timeOfDay;
+  if (adaptiveChanged) {
+    setIconsInput(params.adaptive === 0 ? [] : lastHostRawIcons);
+  }
+  if (needRebuild) {
+    for (const ic of currentIcons) ic.tr = Math.max(ic.w, ic.h) * 0.48 + params.islandMargin;
+    terrainDirty = true;
+    rebuildTerrainCache();
+  }
+}
+
+function handleHostMessage(msg) {
+  if (!msg) return;
+  if (typeof msg === "string") {
+    try { msg = JSON.parse(msg); } catch { return; }
+  }
+  isHosted = true;
+  document.getElementById("ctrl-bar")?.classList.add("hidden");
+  document.getElementById("ui-layer").innerHTML = "";
+
+  // Standard Deskland protocol (msg.t)
+  if (msg.t === "pause") {
+    paused = PREVIEW ? false : !!msg.v;
+    return;
+  }
+  if (msg.t === "settings") {
+    applyParams(msg.v || msg.params || {});
+    if (terrainDirty) {
+      rebuildTerrainCache();
+      terrainDirty = false;
+      renderScene((performance.now() - startTime) * 0.001);
+    }
+    return;
+  }
+  if (msg.t === "reset") {
+    applyParams(Object.assign({}, DEFAULT_PARAMS, msg.v || {}));
+    if (terrainDirty) {
+      rebuildTerrainCache();
+      terrainDirty = false;
+      renderScene((performance.now() - startTime) * 0.001);
+    }
+    return;
+  }
+  if (msg.t === "icons") {
+    const k = window.devicePixelRatio || 1;
+    const raw = msg.vis ? (msg.r || []).map((b, i) => ({
+      id: "ico_" + i,
+      x: b[0] / k,
+      y: b[1] / k,
+      w: (b[2] - b[0]) / k,
+      h: (b[3] - b[1]) / k
+    })) : [];
+    lastHostRawIcons = raw;
+    setIconsInput(params.adaptive === 0 ? [] : raw);
+    if (terrainDirty) {
+      rebuildTerrainCache();
+      terrainDirty = false;
+      renderScene((performance.now() - startTime) * 0.001);
+    }
+    return;
+  }
+
+  // Legacy / custom embed conventions
+  if (Array.isArray(msg.icons)) { lastHostRawIcons = msg.icons; setIconsInput(params.adaptive === 0 ? [] : msg.icons); }
+  else if (Array.isArray(msg.iconRects)) { lastHostRawIcons = msg.iconRects; setIconsInput(params.adaptive === 0 ? [] : msg.iconRects); }
+  else if (msg.type === "icons" && Array.isArray(msg.data)) { lastHostRawIcons = msg.data; setIconsInput(params.adaptive === 0 ? [] : msg.data); }
+
+  if (msg.params || msg.settings) applyParams(msg.params || msg.settings);
+  if (msg.type === "params" && msg.data) applyParams(msg.data);
+
+  if (typeof msg.paused === "boolean") paused = msg.paused;
+  if (msg.type === "pause") paused = true;
+  if (msg.type === "resume") paused = false;
+
+  if (terrainDirty) {
+    rebuildTerrainCache();
+    terrainDirty = false;
+    renderScene((performance.now() - startTime) * 0.001);
+  }
+}
+
+window.addEventListener("message", (e) => handleHostMessage(e.data));
+if (window.chrome && window.chrome.webview) {
+  window.chrome.webview.addEventListener("message", (e) => handleHostMessage(e.data));
+}
+
+// Expose global hooks for Deskland Host & share.js
+window.WALL = WALL;
+window.cv = mainCanvas;
+Object.defineProperties(window, {
+  W: { get: () => width, configurable: true },
+  H: { get: () => height, configurable: true },
+  paused: { get: () => paused, set: (v) => { paused = !!v; }, configurable: true },
+  icons: { get: () => currentIcons.map((c) => ({ x: c.x, y: c.y, w: c.w, h: c.h })), configurable: true }
+});
+window.draw = function (now) {
+  if (!Number.isFinite(now)) now = performance.now();
+  if (terrainDirty) {
+    rebuildTerrainCache();
+    terrainDirty = false;
+  }
+  renderScene((now - startTime) * 0.001);
+};
+window.deskland = {
+  setIcons: setIconsInput,
+  setParams: applyParams,
+  setPaused: (p) => { paused = !!p; },
+  captureFrame: () => mainCanvas.toDataURL("image/png")
+};
+window.setIcons = setIconsInput;
+window.updateIcons = setIconsInput;
+window.setParams = applyParams;
+window.updateParams = applyParams;
+
+/* ============================================================================
+ * 11. BROWSER PREVIEW MODE (Sample Draggable Desktop Icons)
+ * ============================================================================ */
+function initBrowserPreview() {
+  if (PREVIEW) {
+    parent.postMessage(JSON.stringify({ t: "ready" }), "*");
+    return;
+  }
+  if (WALL) {
+    isHosted = true;
+    document.getElementById("ctrl-bar")?.classList.add("hidden");
+    document.getElementById("ui-layer").innerHTML = "";
+    if (window.chrome && window.chrome.webview) {
+      window.chrome.webview.postMessage("ready");
+    }
+    return;
+  }
+
+  // Wait briefly to see if Windows Host injects real desktop icons
+  setTimeout(() => {
+    if (isHosted || targetIcons.length > 0) return;
+    document.getElementById("ctrl-bar").classList.remove("hidden");
+    const sampleIcons = [
+      { id: "pc", name: "Bu Bilgisayar", color: "#38a3ff", x: 64, y: 54, w: 76, h: 86 },
+      { id: "bin", name: "Çöp Kutusu", color: "#68d391", x: 64, y: 164, w: 76, h: 86 },
+      { id: "docs", name: "Projeler", color: "#f6ad55", x: 174, y: 110, w: 76, h: 86 },
+      { id: "code", name: "DiyarDesk", color: "#b794f4", x: 64, y: 310, w: 76, h: 86 },
+      { id: "notes", name: "Notlar.md", color: "#fc8181", x: 420, y: 180, w: 76, h: 86 },
+      { id: "design", name: "Taslaklar", color: "#4fd1c5", x: 540, y: 240, w: 76, h: 86 },
+      { id: "music", name: "Müzik", color: "#f687b3", x: Math.max(680, width - 260), y: 140, w: 76, h: 86 },
+      { id: "archive", name: "Yedekler", color: "#63b3ed", x: Math.max(680, width - 220), y: 270, w: 76, h: 86 }
+    ];
+    renderDemoIconsDOM(sampleIcons);
+  }, 120);
+}
+
+let demoIconsList = [];
+let ctrlBarBound = false;
+let addedIconSeq = 0;
+const EXTRA_TURKISH_NAMES = [
+  "Yeni Klasör", "Notlar.txt", "Belgeler", "Projeler",
+  "Tablo.xlsx", "Görsel.png", "Arşiv.zip", "Müzik"
+];
+
+function reportCtrlBarRect() {
+  const bar = document.getElementById("ctrl-bar");
+  if (!bar || bar.classList.contains("hidden") || !window.chrome?.webview?.postMessage) return;
+  const r = bar.getBoundingClientRect();
+  window.chrome.webview.postMessage(JSON.stringify({
+    t: "uiRect",
+    r: [Math.round(r.left), Math.round(r.top), Math.round(r.right), Math.round(r.bottom)]
+  }));
+}
+
+function bindCtrlBar() {
+  if (ctrlBarBound) return;
+  ctrlBarBound = true;
+  const bar = document.getElementById("ctrl-bar");
+  const layer = document.getElementById("ui-layer");
+  const btnCollapse = document.getElementById("btnCollapse");
+  const btnHideUI = document.getElementById("btnHideUI");
+
+  btnCollapse.onclick = () => {
+    const collapsed = bar.classList.toggle("collapsed");
+    btnCollapse.textContent = collapsed ? "›" : "‹";
+    btnCollapse.setAttribute("aria-expanded", String(!collapsed));
+    btnCollapse.title = collapsed ? "Expand" : "Collapse";
+    reportCtrlBarRect();
+  };
+
+  document.getElementById("btnAddIcon").onclick = () => {
+    const colors = ["#38a3ff", "#68d391", "#f6ad55", "#f687b3", "#4fd1c5"];
+    layer.style.display = "block";
+    btnHideUI.classList.remove("active");
+    demoIconsList.push({
+      id: "ico_" + Date.now() + "_" + demoIconsList.length,
+      name: EXTRA_TURKISH_NAMES[addedIconSeq++ % EXTRA_TURKISH_NAMES.length],
+      color: colors[demoIconsList.length % colors.length],
+      x: 120 + Math.random() * Math.max(40, width - 260),
+      y: 80 + Math.random() * Math.max(40, height - 200),
+      w: 76, h: 86
+    });
+    renderDemoIconsDOM(demoIconsList);
+  };
+
+  document.getElementById("btnRandom").onclick = () => {
+    demoIconsList.forEach(ic => {
+      ic.x = 60 + Math.random() * Math.max(40, width - 180);
+      ic.y = 50 + Math.random() * Math.max(40, height - 180);
+    });
+    renderDemoIconsDOM(demoIconsList);
+  };
+
+  document.getElementById("btnClear").onclick = () => {
+    demoIconsList.length = 0;
+    renderDemoIconsDOM(demoIconsList);
+  };
+
+  btnHideUI.onclick = () => {
+    const hide = layer.style.display !== "none";
+    layer.style.display = hide ? "none" : "block";
+    btnHideUI.classList.toggle("active", hide);
+  };
+
+  document.getElementById("selTime").onchange = (e) => {
+    applyParams({ timeOfDay: e.target.value });
+  };
+
+  window.addEventListener("resize", reportCtrlBarRect);
+  setTimeout(reportCtrlBarRect, 50);
+}
+
+function renderDemoIconsDOM(list) {
+  demoIconsList = list;
+  bindCtrlBar();
+  const layer = document.getElementById("ui-layer");
+  layer.innerHTML = "";
+  list.forEach((item, idx) => {
+    const el = document.createElement("div");
+    el.className = "demo-icon";
+    el.style.left = `${item.x}px`;
+    el.style.top = `${item.y}px`;
+    el.innerHTML = `
+      <div class="ico" style="background:linear-gradient(135deg,${item.color},#1a2a3a)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/>
+        </svg>
+      </div>
+      <div class="lbl">${item.name || "Simge " + (idx + 1)}</div>
+    `;
+    let dragging = false, ox = 0, oy = 0;
+    el.addEventListener("pointerdown", (e) => {
+      dragging = true;
+      ox = e.clientX - item.x;
+      oy = e.clientY - item.y;
+      el.setPointerCapture(e.pointerId);
+      e.stopPropagation();
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      item.x = Math.max(16, Math.min(width - 92, e.clientX - ox));
+      item.y = Math.max(16, Math.min(height - 102, e.clientY - oy));
+      el.style.left = `${item.x}px`;
+      el.style.top = `${item.y}px`;
+      setIconsInput(list);
+    });
+    el.addEventListener("pointerup", () => { dragging = false; });
+    el.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      const i = list.indexOf(item);
+      if (i > -1) list.splice(i, 1);
+      renderDemoIconsDOM(list);
+    });
+    layer.appendChild(el);
+  });
+  setIconsInput(list);
+}
+
+function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+function hexToRgb(hex) {
+  const v = parseInt(hex.replace("#", ""), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+// Boot
+handleResize();
+initBrowserPreview();
+requestAnimationFrame(loop);
+})();
+</script>
+<script src="share.js"></script>
+</body>
+</html>

@@ -93,6 +93,8 @@
     rosebrook: 'rosebrook.html',
     polarnight: 'polarnight.html',
     desert: 'desert.html',
+    'zen-archipelago': 'zen-archipelago.html',
+    istanbul: 'istanbul.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';
