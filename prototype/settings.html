@@ -97,6 +97,13 @@
   /* ---------- 主题 ---------- */
   .themes { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .collection-head { flex: none; padding: 2px 4px 22px; }
+  .collection-head { margin-bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .collection-head-copy { min-width: 0; }
+  .import-btn { gap: 6px; padding: 8px 13px; border-radius: 12px; font-size: 12px; flex: none; }
+  .import-btn svg { width: 14px; height: 14px; }
+  .preview-head-right { display: flex; align-items: center; gap: 10px; }
+  .remove-theme-btn { padding: 5px 10px; border-radius: 9px; font-size: 11px; color: var(--muted); }
+  .remove-theme-btn:hover { color: #c43e3e; border-color: rgba(196,62,62,.35); }
   .collection-head h1 { font-size: clamp(26px, 2.8vw, 36px); font-weight: 650; letter-spacing: -.05em; line-height: 1.25; }
   .collection-head p { color: var(--muted); font-size: 12px; margin-top: 8px; }
   .section-title { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .04em; margin-bottom: 10px; }
@@ -291,8 +298,14 @@
 <main class="layout">
   <section class="themes">
     <div class="collection-head">
-      <h1 data-i18n="collectionTitle">选一片风景。</h1>
-      <p data-i18n="collectionSubtitle">让图标成为风景的一部分。</p>
+      <div class="collection-head-copy">
+        <h1 data-i18n="collectionTitle">选一片风景。</h1>
+        <p data-i18n="collectionSubtitle">让图标成为风景的一部分。</p>
+      </div>
+      <button class="ghost-btn import-btn" id="importTheme" data-i18n-title="importThemeTitle" title="导入主题包（.zip / .deskland）、HTML、图片或视频">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.5v11M2.5 8h11"/></svg>
+        <span data-i18n="importTheme">导入主题…</span>
+      </button>
     </div>
     <div class="update-notice" id="updateNotice" hidden role="status" aria-live="polite">
       <span class="update-symbol" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5"/><path d="M4 12v3.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V12"/></svg></span>
@@ -305,7 +318,12 @@
 
   <div class="side">
     <section class="card preview-card">
-      <div class="preview-head"><h2 id="themeName">　</h2><label class="switch-row adaptive-switch" id="adaptiveRow" hidden><span data-i18n="adaptive">自适应</span><input type="checkbox" id="adaptive" role="switch" checked><i class="switch" aria-hidden="true"></i></label></div>
+      <div class="preview-head"><h2 id="themeName">　</h2>
+        <div class="preview-head-right">
+          <button class="ghost-btn remove-theme-btn" id="removeTheme" hidden data-i18n="removeTheme" data-i18n-title="removeThemeTitle" title="移除此导入的主题">移除</button>
+          <label class="switch-row adaptive-switch" id="adaptiveRow" hidden><span data-i18n="adaptive">自适应</span><input type="checkbox" id="adaptive" role="switch" checked><i class="switch" aria-hidden="true"></i></label>
+        </div>
+      </div>
       <div class="stage" id="stage"><div class="preview" id="previewBox"><iframe id="preview" data-i18n-title="livePreview" title="实时预览" tabindex="-1"></iframe></div></div>
       <p class="preview-foot"><span class="live-dot"></span><span id="previewFoot">实时预览</span></p>
       <div class="preview-actions">
@@ -487,7 +505,7 @@ function fmt(p, v) {
   return p.unit ? s + ' ' + p.unit : s;
 }
 
-const thumbUrl = (value, id) => window.DESKLAND_THUMBS?.[id] || String(value || '').match(/^url\(([^)]+)\)/)?.[1] || '';
+const thumbUrl = (value, id) => window.DESKLAND_THUMBS?.[id] || String(value || '').match(/^url\(['"]?([^)'"]+)['"]?\)/)?.[1] || '';
 function renderThemes() {
   $('themes').innerHTML = state.registry.themes.map(th => {
     const ready = th.status === 'ready', on = th.id === state.theme;
@@ -751,10 +769,20 @@ function updateFoot() {
 function renderHead() {
   const th = themeById(state.theme);
   $('themeName').textContent = th.name;
+  $('removeTheme').hidden = !th.imported || !host;
   $('adaptiveRow').hidden = !th.adaptive;
   $('adaptive').checked = valuesOf(th).adaptive !== 0;
   $('adaptive').setAttribute('aria-label', t('adaptive'));
 }
+$('importTheme').addEventListener('click', () => {
+  if (host) send({ t: 'importTheme' });
+  else alert('Import theme is available in the desktop app (supports .zip, .deskland, .html, images, and videos).');
+});
+$('removeTheme').addEventListener('click', () => {
+  const th = themeById(state.theme);
+  if (!th || !th.imported || !host) return;
+  send({ t: 'removeTheme', id: th.id });
+});
 function showTheme() {
   renderHead();
   renderThemes();
@@ -880,6 +908,26 @@ function onHost(m) {
     shareProgress(m.p);
   } else if (m.t === 'shareResult') {
     showShare(m);
+  } else if (m.t === 'themeImported') {
+    if (!m.theme || !m.theme.id) return;
+    if (!themeById(m.theme.id)) {
+      state.registry0.themes.push(m.theme);
+      localizeRegistry();
+    }
+    if (m.select) {
+      state.theme = m.theme.id;
+      showTheme();
+    } else {
+      renderThemes();
+    }
+    flashSaved();
+  } else if (m.t === 'themeRemoved') {
+    state.registry0.themes = state.registry0.themes.filter(x => x.id !== m.id);
+    localizeRegistry();
+    state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'beach');
+    showTheme();
+  } else if (m.t === 'importError') {
+    alert(t('importError', { msg: m.msg || t('unknownReason') }));
   } else if (m.t === 'audioPicked') {
     const thId = m.theme || state.theme;
     const cur = (state.params[thId] = state.params[thId] || {});

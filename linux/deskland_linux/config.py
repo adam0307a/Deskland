@@ -184,31 +184,75 @@ class SettingsStore:
 
 
 class ThemeRegistry:
-    def __init__(self, prototype: Path, log: Log) -> None:
+    def __init__(self, prototype: Path, log: Log, custom_dir: Path | None = None) -> None:
         self.path = prototype / "themes.json"
+        if custom_dir is not None:
+            self.custom_dir: Path | None = custom_dir
+        elif os.environ.get("DESKLAND_CUSTOM_THEMES_DIR"):
+            self.custom_dir = Path(os.environ["DESKLAND_CUSTOM_THEMES_DIR"]).expanduser().resolve()
+        else:
+            self.custom_dir = None
         self.log = log
+        self.base_themes: list[dict[str, Any]] = []
         self.themes: list[dict[str, Any]] = []
         self._mtime_ns: int | None = None
+        self._custom_mtime_ns: int | None = None
         self.load()
 
+    def _custom_registry_path(self) -> Path | None:
+        return (self.custom_dir / "registry.json") if self.custom_dir is not None else None
+
+    def _stat_mtime(self, p: Path | None) -> int | None:
+        if p is None:
+            return None
+        try:
+            return p.stat().st_mtime_ns
+        except OSError:
+            return None
+
     def load(self) -> None:
+        base: list[dict[str, Any]] = []
         try:
             self._mtime_ns = self.path.stat().st_mtime_ns
             data = json.loads(self.path.read_text(encoding="utf-8"))
             themes = data.get("themes") if isinstance(data, dict) else None
             if isinstance(themes, list):
-                self.themes = [t for t in themes if isinstance(t, dict)]
+                base = [t for t in themes if isinstance(t, dict)]
         except (OSError, ValueError) as exc:
             self.log.exception("themes.json okunamadı", exc)
-            self.themes = []
+            base = []
+        self.base_themes = base
+
+        custom_path = self._custom_registry_path()
+        self._custom_mtime_ns = self._stat_mtime(custom_path)
+        custom: list[dict[str, Any]] = []
+        if custom_path is not None and custom_path.is_file():
+            try:
+                cdata = json.loads(custom_path.read_text(encoding="utf-8"))
+                cthemes = cdata.get("themes") if isinstance(cdata, dict) else None
+                if isinstance(cthemes, list):
+                    custom = [t for t in cthemes if isinstance(t, dict)]
+            except (OSError, ValueError) as exc:
+                self.log.exception("custom registry.json okunamadı", exc)
+
+        seen_ids = {t.get("id") for t in base if t.get("id")}
+        merged = list(base)
+        for item in custom:
+            tid = item.get("id")
+            if isinstance(tid, str) and tid and tid not in seen_ids:
+                seen_ids.add(tid)
+                merged.append(item)
+        self.themes = merged
 
     def _reload_if_stale(self) -> None:
-        try:
-            mtime_ns = self.path.stat().st_mtime_ns
-        except OSError:
-            return
-        if mtime_ns != self._mtime_ns:
+        mtime_ns = self._stat_mtime(self.path)
+        cmtime_ns = self._stat_mtime(self._custom_registry_path())
+        if mtime_ns != self._mtime_ns or cmtime_ns != self._custom_mtime_ns:
             self.load()
+
+    def merged_json_bytes(self) -> bytes:
+        self._reload_if_stale()
+        return json.dumps({"themes": self.themes}, ensure_ascii=False, indent=2).encode("utf-8")
 
     def find(self, theme_id: str | None) -> dict[str, Any] | None:
         if not theme_id:

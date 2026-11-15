@@ -35,6 +35,7 @@ from .config import (
     prototype_dir,
     repo_root,
 )
+from .importer import SUPPORTED_EXTS, custom_themes_dir, import_theme_file, remove_custom_theme
 from .server import LocalServer
 from .settings_window import SettingsWindow
 from .share import copy_files, copy_image, open_path, reveal_path, save_share
@@ -63,9 +64,16 @@ class DesklandHost:
         self.settings = SettingsStore()
         self.settings.load()
         self.i18n = I18n(prototype_dir(), self.settings.lang, self.log)
-        self.themes = ThemeRegistry(prototype_dir(), self.log)
+        self.custom_themes_dir = custom_themes_dir()
+        self.themes = ThemeRegistry(prototype_dir(), self.log, custom_dir=self.custom_themes_dir)
         self.audio_dir = config_dir() / "audio"
-        self.server = LocalServer(prototype_dir(), pictures_dir() / "Deskland Preview", self.audio_dir)
+        self.server = LocalServer(
+            prototype_dir(),
+            pictures_dir() / "Deskland Preview",
+            audio_dir=self.audio_dir,
+            custom_themes_dir=self.custom_themes_dir,
+            themes_provider=self.themes.merged_json_bytes,
+        )
         self.server.start()
         self.wallpaper: Wallpaper | None = None
         self.settings_window: SettingsWindow | None = None
@@ -253,6 +261,10 @@ class DesklandHost:
             self._on_set(message)
         elif kind == "pickAudio":
             self._on_pick_audio(message)
+        elif kind == "importTheme":
+            self._on_import_theme()
+        elif kind == "removeTheme":
+            self._on_remove_theme(message)
         elif kind == "reset":
             self._on_reset(message)
         elif kind == "theme":
@@ -364,6 +376,63 @@ class DesklandHost:
         )
         if theme == self.settings.theme and self.wallpaper is not None:
             self.wallpaper.set_settings({"audioFile": safe_name, "audioName": src.name, "audioPlay": 1})
+
+    def _on_import_theme(self) -> None:
+        parent = self.settings_window.window if self.settings_window is not None else None
+        dialog = Gtk.FileChooserDialog(
+            title=self.i18n.t("importTheme") or "Import theme",
+            transient_for=parent,
+            action=Gtk.FileChooserAction.OPEN,
+        )
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+            Gtk.STOCK_OPEN, Gtk.ResponseType.OK,
+        )
+        flt = Gtk.FileFilter()
+        flt.set_name("Theme packages, HTML, images, videos")
+        for ext in sorted(SUPPORTED_EXTS):
+            flt.add_pattern(f"*{ext}")
+            flt.add_pattern(f"*{ext.upper()}")
+        dialog.add_filter(flt)
+        all_flt = Gtk.FileFilter()
+        all_flt.set_name("All files")
+        all_flt.add_pattern("*")
+        dialog.add_filter(all_flt)
+        resp = dialog.run()
+        chosen = dialog.get_filename()
+        dialog.destroy()
+        if resp != Gtk.ResponseType.OK or not chosen:
+            return
+        try:
+            reserved = {str(t.get("id")) for t in self.themes.base_themes if t.get("id")}
+            theme_obj = import_theme_file(Path(chosen), custom_dir=self.custom_themes_dir, reserved_ids=reserved)
+        except Exception as exc:
+            self.log.exception("Tema içe aktarılamadı", exc)
+            self._post_settings({"t": "importError", "msg": str(exc)})
+            return
+        self.themes.load()
+        self.settings.theme = theme_obj["id"]
+        self.schedule_save()
+        if self.wallpaper is not None:
+            self.wallpaper.load_page(theme_obj["page"])
+        self._post_settings({"t": "themeImported", "theme": theme_obj, "select": True})
+        self.log.write(f"Tema içe aktarıldı: {theme_obj['id']}")
+
+    def _on_remove_theme(self, message: dict[str, Any]) -> None:
+        theme_id = message.get("id")
+        if not isinstance(theme_id, str) or not theme_id:
+            return
+        if not remove_custom_theme(theme_id, custom_dir=self.custom_themes_dir):
+            return
+        self.settings.params.pop(theme_id, None)
+        self.themes.load()
+        if self.settings.theme == theme_id:
+            self.choose_theme()
+            if self.wallpaper is not None:
+                self.wallpaper.load_page(self.current_page)
+        self.schedule_save()
+        self._post_settings({"t": "themeRemoved", "id": theme_id, "active": self.settings.theme})
+        self.log.write(f"Özel tema kaldırıldı: {theme_id}")
 
     def _on_set(self, message: dict[str, Any]) -> None:
         theme = message.get("theme")

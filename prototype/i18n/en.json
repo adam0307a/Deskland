@@ -97,7 +97,12 @@
     "audioNone": "No file selected",
     "audioPick": "Choose audio…",
     "audioPlay": "▶ Play",
-    "audioPause": "⏸ Pause"
+    "audioPause": "⏸ Pause",
+    "importTheme": "Import theme…",
+    "importThemeTitle": "Import a theme package (.zip, .deskland), HTML page, image, or video",
+    "removeTheme": "Remove",
+    "removeThemeTitle": "Remove this imported theme",
+    "importError": "Couldn't import theme: {msg}"
   },
   "host": {
     "traySettings": "Settings…",

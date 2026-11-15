@@ -93,6 +93,44 @@
     rosebrook: 'rosebrook.html',
   };
 
+  var CUSTOM_DIR = HOME + '/.config/deskland/themes';
+  var PROTO_BASE = (function () {
+    var p = QS.get('proto');
+    if (p) return decodeURIComponent(p);
+    var cur = location.href.split('?')[0];
+    if (cur.indexOf('/.config/deskland/themes/') === -1) return cur.replace(/[^/]+$/, '');
+    return 'file:///usr/lib/deskland/prototype/';
+  })();
+
+  function navigateToThemeUrl(baseUrl, themeId) {
+    location.replace(
+      baseUrl
+      + '?wallpaper=1&v=' + Date.now()
+      + '&theme=' + encodeURIComponent(themeId)
+      + '&home=' + encodeURIComponent(HOME)
+      + '&proto=' + encodeURIComponent(PROTO_BASE)
+    );
+  }
+
+  function tryCustomTheme(themeId) {
+    var xhr = new XMLHttpRequest();
+    try { xhr.open('GET', 'file://' + CUSTOM_DIR + '/registry.json', true); } catch (e) { return; }
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      var reg;
+      try { reg = JSON.parse(xhr.responseText); } catch (e) { return; }
+      var list = (reg && Array.isArray(reg.themes)) ? reg.themes : [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        if (item && item.id === themeId && item.entry) {
+          navigateToThemeUrl('file://' + CUSTOM_DIR + '/' + encodeURIComponent(themeId) + '/' + item.entry, themeId);
+          return;
+        }
+      }
+    };
+    try { xhr.send(); } catch (e) {}
+  }
+
   function pollSettings() {
     var xhr = new XMLHttpRequest();
     try { xhr.open('GET', 'file://' + SETTINGS, true); } catch (e) { return; }
@@ -103,12 +141,12 @@
       if (!data) return;
       var theme = data.theme || 'meadow';
       var page = THEME_PAGES[theme];
-      if (theme !== CURRENT_THEME && page) {
-        var base = location.href.split('?')[0];
-        var url = base.replace(/[^/]+$/, page)
-          + '?wallpaper=1&v=' + Date.now() + '&theme=' + encodeURIComponent(theme)
-          + '&home=' + encodeURIComponent(HOME);
-        location.replace(url);
+      if (theme !== CURRENT_THEME) {
+        if (page) {
+          navigateToThemeUrl(PROTO_BASE + page, theme);
+        } else {
+          tryCustomTheme(theme);
+        }
         return;
       }
       var params = (data.params && data.params[theme]) || {};
