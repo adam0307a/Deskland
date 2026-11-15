@@ -1195,7 +1195,7 @@
       "page": "istanbul.html",
       "status": "ready",
       "product": "free",
-      "thumb": "url(thumbs/istanbul.jpg) center / cover no-repeat, linear-gradient(160deg, #1b2d45 0%, #c97745 55%, #1b3d59 100%)",
+      "thumb": "url(thumbs/istanbul.webp) center / cover no-repeat, linear-gradient(160deg, #1b2d45 0%, #c97745 55%, #1b3d59 100%)",
       "thumbSource": "custom",
       "groups": [
         {
