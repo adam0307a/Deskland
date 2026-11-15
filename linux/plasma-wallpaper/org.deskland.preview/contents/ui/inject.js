@@ -90,6 +90,7 @@
     strike: 'strike.html',
     pocket: 'pocket.html',
     roach: 'roach.html',
+    rosebrook: 'rosebrook.html',
   };
 
   function pollSettings() {
