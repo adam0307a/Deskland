@@ -70,15 +70,7 @@ WallpaperItem {
             var appId = String(tasksModel.data(idx, TaskManager.AbstractTasksModel.AppId) || "").toLowerCase();
             if (appId.indexOf("deskland") !== -1 || appId.indexOf("diyardesk") !== -1)
                 continue;
-            var isMax = Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMaximized));
-            var isFull = Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen));
-            if (isMax || isFull) {
-                covered = true;
-                break;
-            }
-            var geom = tasksModel.data(idx, TaskManager.AbstractTasksModel.Geometry);
-            if (geom && root.width > 0 && root.height > 0
-                    && (geom.width * geom.height) >= screenArea * 0.85) {
+            if (Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen))) {
                 covered = true;
                 break;
             }

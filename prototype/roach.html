@@ -675,7 +675,7 @@ for (let i = 0; i < 2; i++) {
 
 function resize() {
   W = innerWidth; H = innerHeight;
-  const s = WALL ? (devicePixelRatio || 1) : Math.min(devicePixelRatio || 1, 2);
+  const s = Math.min(devicePixelRatio || 1, 1.5);
   cv.width = Math.max(1, Math.round(W * s));
   cv.height = Math.max(1, Math.round(H * s));
   cv._scale = s;

@@ -778,7 +778,7 @@ function draw(now) {
 function resize() {
   const box = cv.getBoundingClientRect();
   W = box.width || innerWidth; H = box.height || innerHeight;    // 显示尺寸带小数
-  S = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 2);
+  S = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 1.5);
   cv.width = Math.round(W * S); cv.height = Math.round(H * S); cv._scale = S;
   layout();
   buildStatic();

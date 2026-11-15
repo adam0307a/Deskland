@@ -42,6 +42,51 @@ def test_settings_window_unloads_webview_when_hidden(monkeypatch) -> None:
     sw.show()
     fake_bridge.load_uri.assert_called_once_with("http://127.0.0.1:9999/settings.html")
 
+    # Minimizing unloads to about:blank; un-minimizing reloads when visible.
+    fake_bridge.reset_mock()
+    fake_gtk_win.get_visible.return_value = True
+    iconified = settings_window_mod.Gdk.WindowState.ICONIFIED
+    sw._on_window_state(fake_gtk_win, SimpleNamespace(changed_mask=iconified, new_window_state=iconified))
+    fake_bridge.load_uri.assert_called_once_with("about:blank")
+
+    fake_bridge.reset_mock()
+    sw._on_window_state(fake_gtk_win, SimpleNamespace(changed_mask=iconified, new_window_state=0))
+    fake_bridge.load_uri.assert_called_once_with("http://127.0.0.1:9999/settings.html")
+
+
+def test_select_single_egl_vendor_hybrid_laptop(tmp_path) -> None:
+    from deskland_linux.gpu import select_single_egl_vendor
+
+    egl = tmp_path / "egl"
+    egl.mkdir()
+    (egl / "10_nvidia.json").write_text("{}", encoding="utf-8")
+    (egl / "50_mesa.json").write_text("{}", encoding="utf-8")
+
+    drm = tmp_path / "drm"
+    (drm / "card1" / "device").mkdir(parents=True)
+    (drm / "card1" / "device" / "vendor").write_text("0x10de\n", encoding="utf-8")
+    (drm / "card1-HDMI-A-1").mkdir(parents=True)
+    (drm / "card1-HDMI-A-1" / "status").write_text("disconnected\n", encoding="utf-8")
+
+    (drm / "card2" / "device").mkdir(parents=True)
+    (drm / "card2" / "device" / "vendor").write_text("0x1002\n", encoding="utf-8")
+    (drm / "card2-eDP-1").mkdir(parents=True)
+    (drm / "card2-eDP-1" / "status").write_text("connected\n", encoding="utf-8")
+
+    # Only AMD eDP panel connected -> locks EGL to Mesa to prevent dual EGL loading.
+    assert select_single_egl_vendor({}, drm_root=drm, egl_dir=egl) == str(egl / "50_mesa.json")
+
+    # Respects explicit user override.
+    assert select_single_egl_vendor({"__EGL_VENDOR_LIBRARY_FILENAMES": "/custom.json"}, drm_root=drm, egl_dir=egl) is None
+
+    # External NVIDIA monitor connected alongside eDP -> do not force single vendor.
+    (drm / "card1-HDMI-A-1" / "status").write_text("connected\n", encoding="utf-8")
+    assert select_single_egl_vendor({}, drm_root=drm, egl_dir=egl) is None
+
+    # Only NVIDIA output connected -> locks EGL to NVIDIA.
+    (drm / "card2-eDP-1" / "status").write_text("disconnected\n", encoding="utf-8")
+    assert select_single_egl_vendor({}, drm_root=drm, egl_dir=egl) == str(egl / "10_nvidia.json")
+
 
 def _make_fake_plasma_wallpaper() -> Wallpaper:
     wp = Wallpaper.__new__(Wallpaper)

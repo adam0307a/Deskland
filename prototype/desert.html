@@ -754,7 +754,7 @@ function applyLayout(kind) {
    尺寸调整 & 渲染循环
    ====================================================================== */
 function resize() {
-  sc = devicePixelRatio || 1;
+  sc = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 1.5);
   const dw = cv.clientWidth || innerWidth, dh = cv.clientHeight || innerHeight;
   W = Wc = Math.max(1, Math.round(dw)); H = Hc = Math.max(1, Math.round(dh));
   cv.width = Math.round(dw * sc); cv.height = Math.round(dh * sc);

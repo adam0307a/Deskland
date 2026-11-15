@@ -27,7 +27,7 @@ let paused = false, cacheOK = false, geo = null, T = 3, lastT = 0, lastClock = 0
 const timeNow = () => P.time > 0 ? P.time : (h => h >= 5 && h < 10 ? 1 : h >= 10 && h < 17 ? 2 : h >= 17 && h < 20 ? 3 : 4)(new Date().getHours());
 
 function resize() {
-  const d = Math.min(devicePixelRatio || 1, 2), b = cv.getBoundingClientRect();
+  const d = Math.min(devicePixelRatio || 1, 1.5), b = cv.getBoundingClientRect();
   W = b.width || innerWidth; H = b.height || innerHeight;
   cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv._scale = d; cacheOK = false;
 }

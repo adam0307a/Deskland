@@ -7,8 +7,9 @@ from typing import Any
 import gi
 
 gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
 
-from gi.repository import Gtk  # noqa: E402
+from gi.repository import Gdk, Gtk  # noqa: E402
 
 from .bridge import BridgeWebView  # noqa: E402
 
@@ -25,7 +26,14 @@ class SettingsWindow:
         self.window.set_position(Gtk.WindowPosition.CENTER)
         self.window.add(self.bridge.webview)
         self.window.connect("delete-event", self._on_delete)
+        self.window.connect("window-state-event", self._on_window_state)
         self._loaded = False
+
+    def _ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        self.bridge.load_uri(self.url)
 
     def _unload(self) -> None:
         if not self._loaded:
@@ -36,14 +44,22 @@ class SettingsWindow:
         except Exception:
             pass
 
+    def _on_window_state(self, _window, event) -> bool:
+        iconified_mask = Gdk.WindowState.ICONIFIED
+        if (event.changed_mask & iconified_mask) == 0:
+            return False
+        if event.new_window_state & iconified_mask:
+            self._unload()
+        elif self.window.get_visible():
+            self._ensure_loaded()
+        return False
+
     def _on_delete(self, _window, _event) -> bool:
         self.hide()
         return True
 
     def show(self) -> None:
-        if not self._loaded:
-            self._loaded = True
-            self.bridge.load_uri(self.url)
+        self._ensure_loaded()
         self.window.show_all()
         self.window.present()
 
