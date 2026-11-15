@@ -844,7 +844,7 @@ const DEFAULT_ROACH_AUDIO_URL = 'assets/roach-default.mp3';
 const DEFAULT_ROACH_AUDIO_NAME = 'Roach Town (Default)';
 let bgAudioEl = null;
 const wallAudioBtn = document.getElementById('wallAudioBtn');
-const bgAudioState = { file: '', src: '', name: '', play: 1, lastHostPlay: 1, allow: MUTE ? 0 : (WALL ? 1 : (PREVIEW ? 0 : 1)), blobUrl: '', lastUrl: '' };
+const bgAudioState = { file: '', src: '', name: '', play: 0, lastHostPlay: 0, allow: MUTE ? 0 : (WALL ? 1 : (PREVIEW ? 0 : 1)), blobUrl: '', lastUrl: '' };
 function ensureBgAudioEl() {
   if (!bgAudioEl) {
     bgAudioEl = document.createElement('audio');
@@ -1017,7 +1017,7 @@ function startHostedMode() {
   const handle = m => {
     if (m.t === 'pause') { paused = PREVIEW ? false : m.v; syncRoachAudio(); return; }
     if (m.t === 'settings') { applySettings(m.v || {}); return; }
-    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, { audioFile: '', audioSrc: '', audioName: '', audioPlay: 1 }, m.v || {})); return; }
+    if (m.t === 'reset') { applySettings(Object.assign({}, DEFAULTS, { audioFile: '', audioSrc: '', audioName: '', audioPlay: 0 }, m.v || {})); return; }
     if (m.t !== 'icons') return;
     const k = window.devicePixelRatio || 1;
     icons = m.vis ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k })) : [];

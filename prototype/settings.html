@@ -486,7 +486,7 @@ function defaultsOf(theme) {
   if (theme.adaptive) d.adaptive = 1;
   for (const g of theme.groups || []) for (const p of g.params) {
     if (p.type === 'audio') {
-      if (p.defaultSrc) d.audioPlay = 1;
+      if (p.defaultSrc) d.audioPlay = 0;
       continue;
     }
     d[p.key] = p.default;
@@ -547,10 +547,10 @@ function renderControls() {
         if (p.type === 'audio') {
           const isCustom = !!(vals.audioFile || vals.audioSrc);
           const hasAudio = isCustom || !!p.defaultSrc;
-          const playing = hasAudio && (vals.audioPlay !== undefined ? vals.audioPlay : (p.defaultSrc ? 1 : 0)) === 1;
+          const playing = hasAudio && vals.audioPlay === 1;
           const defaultLabel = p.defaultName || t('audioNone');
           return `
-        <div class="param${isCustom || (p.defaultSrc && !playing) ? ' changed' : ''}" id="p-${p.key}">
+        <div class="param${isCustom ? ' changed' : ''}" id="p-${p.key}">
           <div class="row"><span class="label">${p.label}${p.hint ? `<span class="hint">${p.hint}</span>` : ''}</span>
             <span class="right">
               <button class="undo" data-reset-audio="1" title="${t('resetOne', { v: defaultLabel })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
@@ -586,11 +586,9 @@ function syncAudioUi() {
   const cur = state.params[state.theme] || {};
   const isCustom = !!(cur.audioFile || cur.audioSrc);
   const hasAudio = isCustom || !!(p && p.defaultSrc);
-  const defaultPlay = p && p.defaultSrc ? 1 : 0;
-  const playVal = cur.audioPlay !== undefined ? cur.audioPlay : defaultPlay;
-  const playing = hasAudio && playVal === 1;
+  const playing = hasAudio && cur.audioPlay === 1;
   const row = $('p-audio'), nameEl = $('v-audioName'), playEl = $('btnPlayAudio');
-  if (row) row.classList.toggle('changed', isCustom || (!!(p && p.defaultSrc) && !playing));
+  if (row) row.classList.toggle('changed', isCustom);
   if (nameEl) nameEl.textContent = cur.audioName || (p && p.defaultName) || t('audioNone');
   if (playEl) {
     playEl.disabled = !hasAudio;
@@ -632,14 +630,12 @@ $('controls').addEventListener('click', e => {
   if (b) setParam(b.dataset.reset, paramOf(b.dataset.reset).default);
   const ra = e.target.closest('[data-reset-audio]');
   if (ra) {
-    const p = (themeById(state.theme)?.groups || []).flatMap(g => g.params).find(x => x.type === 'audio');
-    const nextPlay = p && p.defaultSrc ? 1 : 0;
     const cur = (state.params[state.theme] = state.params[state.theme] || {});
-    cur.audioFile = ''; cur.audioSrc = ''; cur.audioName = ''; cur.audioPlay = nextPlay;
-    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: nextPlay });
+    cur.audioFile = ''; cur.audioSrc = ''; cur.audioName = ''; cur.audioPlay = 0;
+    send({ t: 'set', theme: state.theme, key: 'audioPlay', value: 0 });
     send({ t: 'set', theme: state.theme, key: 'audioFile', value: '' });
     send({ t: 'set', theme: state.theme, key: 'audioName', value: '' });
-    toPreview({ t: 'settings', v: { audioFile: '', audioSrc: '', audioPlay: nextPlay } });
+    toPreview({ t: 'settings', v: { audioFile: '', audioSrc: '', audioPlay: 0 } });
     syncAudioUi();
     flashSaved();
     return;
@@ -653,8 +649,7 @@ $('controls').addEventListener('click', e => {
     const p = (themeById(state.theme)?.groups || []).flatMap(g => g.params).find(x => x.type === 'audio');
     const cur = (state.params[state.theme] = state.params[state.theme] || {});
     if (!(cur.audioFile || cur.audioSrc || (p && p.defaultSrc))) return;
-    const curPlay = cur.audioPlay !== undefined ? cur.audioPlay : (p && p.defaultSrc ? 1 : 0);
-    cur.audioPlay = curPlay === 1 ? 0 : 1;
+    cur.audioPlay = cur.audioPlay === 1 ? 0 : 1;
     send({ t: 'set', theme: state.theme, key: 'audioPlay', value: cur.audioPlay });
     if (!host) toPreview({ t: 'settings', v: { audioPlay: cur.audioPlay, audioAllow: 1 } });
     syncAudioUi();
