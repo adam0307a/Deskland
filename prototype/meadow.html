@@ -1069,11 +1069,7 @@ window.__dbg = {
     return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height, gpu: GPU };
   },
 };
-resize();
-buildNoiseTex();
-if (WALL || PREVIEW) startHostedMode();
-else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
+/* Startup runs after external prop & share scripts finish loading */
 
 /* ======================================================================
    托管模式：画面由外部驱动
@@ -1137,5 +1133,12 @@ function startHostedMode() {
 <script src="meadow-boy.js"></script>
 <script src="meadow-cat.js"></script>
 <script src="share.js"></script>   <!-- 分享图片 / 分享动画（示例图标、名字是色块） -->
+<script>
+resize();
+buildNoiseTex();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+</script>
 </body>
 </html>

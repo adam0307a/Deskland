@@ -839,11 +839,7 @@ window.__dbg = {
     return { frame: +ts[5].toFixed(1), canvas: cv.width + 'x' + cv.height, gpu: GPU };
   },
 };
-resize();
-buildNoiseTex();
-if (WALL || PREVIEW) startHostedMode();
-else { applyLayout('mine'); syncPanel(); }
-requestAnimationFrame(frame);
+/* Startup runs after external prop & share scripts finish loading */
 
 /* ======================================================================
    托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
@@ -903,5 +899,12 @@ function startHostedMode() {
 </script>
 <script src="rift-props.js"></script>
 <script src="share.js"></script>
+<script>
+resize();
+buildNoiseTex();
+if (WALL || PREVIEW) startHostedMode();
+else { applyLayout('mine'); syncPanel(); }
+requestAnimationFrame(frame);
+</script>
 </body>
 </html>

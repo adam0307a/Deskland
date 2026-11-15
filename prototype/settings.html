@@ -994,6 +994,14 @@ function onHost(m) {
       syncAudioUi();
       flashSaved();
     }
+  } else if (m.t === 'audioPlay') {
+    const thId = m.theme || state.theme;
+    const cur = (state.params[thId] = state.params[thId] || {});
+    cur.audioPlay = m.play ? 1 : 0;
+    if (thId === state.theme) {
+      syncAudioUi();
+      flashSaved();
+    }
   }
 }
 

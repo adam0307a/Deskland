@@ -171,7 +171,7 @@
   </div>
 </aside>
 
-<button id="wallAudioBtn" type="button" aria-label="Play or Stop audio"></button>
+<button id="wallAudioBtn" type="button" data-deskland-safe="1" aria-label="Play or Stop audio"></button>
 <div id="nogl">需要 WebGL 2 才能渲染</div>
 
 <script>
@@ -181,6 +181,8 @@ const QS = new URLSearchParams(location.search);
 const WALL = QS.has('wallpaper');
 const PREVIEW = QS.has('preview');
 const MUTE = QS.has('mute');
+const SAFE_TOP = Math.max(0, Math.min(240, parseInt(QS.get('safeTop') || '0', 10) || 0));
+const SAFE_RIGHT = Math.max(0, Math.min(240, parseInt(QS.get('safeRight') || '0', 10) || 0));
 
 const P = {
   sigma: 78, warp: 24, glow: 0.78,
@@ -680,6 +682,7 @@ function resize() {
   Gh = Math.max(8, Math.ceil(H / STEP));
   FA = new Uint16Array(Gw * Gh);
   FB = new Uint16Array(Gw * Gh);
+  if (typeof reportWallUiRect === 'function') requestAnimationFrame(reportWallUiRect);
 }
 
 /* ======================================================================
@@ -862,8 +865,26 @@ function resolveRoachAudioUrl() {
   }
   return DEFAULT_ROACH_AUDIO_URL;
 }
+let lastReportedUiRect = '';
+function reportWallUiRect() {
+  const host = (WALL && !PREVIEW) && window.chrome && window.chrome.webview;
+  if (!host || !wallAudioBtn) return;
+  let rect = null;
+  if (wallAudioBtn.classList.contains('show')) {
+    const r = wallAudioBtn.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      rect = [Math.floor(r.left), Math.floor(r.top), Math.ceil(r.width), Math.ceil(r.height)];
+    }
+  }
+  const sig = rect ? rect.join(',') : 'none';
+  if (sig === lastReportedUiRect) return;
+  lastReportedUiRect = sig;
+  host.postMessage(JSON.stringify({ t: 'uiRect', r: rect }));
+}
 function updateWallAudioBtn(url) {
   if (!wallAudioBtn || !(WALL && !PREVIEW)) return;
+  if (SAFE_TOP > 18) wallAudioBtn.style.top = SAFE_TOP + 'px';
+  if (SAFE_RIGHT > 18) wallAudioBtn.style.right = SAFE_RIGHT + 'px';
   const hasUrl = !!url;
   const playing = hasUrl && bgAudioState.play === 1;
   wallAudioBtn.classList.toggle('show', hasUrl);
@@ -872,6 +893,7 @@ function updateWallAudioBtn(url) {
   wallAudioBtn.innerHTML = playing
     ? '<svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1.4"/></svg><span>Stop</span>'
     : '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.7a.7.7 0 0 1 1.05-.6l7.2 4.3a.7.7 0 0 1 0 1.2l-7.2 4.3a.7.7 0 0 1-1.05-.6Z"/></svg><span>Play</span>';
+  requestAnimationFrame(reportWallUiRect);
 }
 function toggleRoachAudio(resetOnStop) {
   if (!resolveRoachAudioUrl()) return;
@@ -879,15 +901,20 @@ function toggleRoachAudio(resetOnStop) {
   if (bgAudioState.play === 0 && resetOnStop && bgAudioEl) {
     try { bgAudioEl.currentTime = 0; } catch (_) {}
   }
+  const host = (WALL && !PREVIEW) && window.chrome && window.chrome.webview;
+  if (host) {
+    host.postMessage(JSON.stringify({ t: 'setAudioPlay', v: bgAudioState.play }));
+  }
   syncRoachAudio();
 }
 function syncRoachAudio() {
   const url = resolveRoachAudioUrl();
   const canLoad = !!(url && !MUTE && bgAudioState.allow === 1);
-  if (!url || !canLoad) {
+  const shouldPlay = canLoad && bgAudioState.play === 1 && !paused;
+  if (!shouldPlay) {
     if (bgAudioEl) {
       if (!bgAudioEl.paused) bgAudioEl.pause();
-      if (!url && bgAudioState.lastUrl) {
+      if ((!url || !canLoad) && bgAudioState.lastUrl) {
         bgAudioEl.removeAttribute('src');
         bgAudioEl.load();
         bgAudioState.lastUrl = '';
@@ -900,12 +927,9 @@ function syncRoachAudio() {
       el.src = url;
       el.load();
     }
-    const shouldPlay = bgAudioState.play === 1 && !paused;
-    if (shouldPlay && el.paused) {
+    if (el.paused) {
       const p = el.play();
       if (p && p.catch) p.catch(() => {});
-    } else if (!shouldPlay && !el.paused) {
-      el.pause();
     }
   }
   updateWallAudioBtn(url);
@@ -1037,13 +1061,16 @@ function startHostedMode() {
   host.postMessage('ready');
 }
 
+/* Startup runs after external prop & share scripts finish loading */
+</script>
+<script src="roach-props.js"></script>
+<script src="share.js"></script>
+<script>
 resize();
 buildNoiseTex();
 if (WALL || PREVIEW) startHostedMode();
 else { applyLayout('mine'); syncPanel(); syncRoachAudio(); }
 requestAnimationFrame(frame);
 </script>
-<script src="roach-props.js"></script>
-<script src="share.js"></script>
 </body>
 </html>
