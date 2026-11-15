@@ -147,18 +147,31 @@
 
   function reportBarRect() {
     const bar = barEl();
+    const layer = layerEl();
     if (!bar) return;
     let rect = null;
+    const rects = [];
     if (bar.style.display !== 'none') {
       const r = bar.getBoundingClientRect();
       if (r.width > 0 && r.height > 0) {
         rect = [Math.floor(r.left), Math.floor(r.top), Math.ceil(r.width), Math.ceil(r.height)];
+        rects.push(rect);
+      }
+      if (layer && layer.style.display !== 'none') {
+        const els = layer.querySelectorAll('.dk-wall-icon');
+        for (let i = 0; i < els.length; i++) {
+          const ir = els[i].getBoundingClientRect();
+          if (ir.width > 0 && ir.height > 0) {
+            rects.push([Math.floor(ir.left), Math.floor(ir.top), Math.ceil(ir.width), Math.ceil(ir.height)]);
+          }
+        }
       }
     }
-    const sig = rect ? rect.join(',') : 'none';
+    const sig = JSON.stringify(rects);
     if (sig === lastUiRectSig) return;
     lastUiRectSig = sig;
     postToRealHost({ t: 'uiRect', r: rect });
+    postToRealHost({ t: 'uiRects', src: 'vicons', r: rects });
   }
 
   function syncBarUi() {
@@ -231,6 +244,7 @@
           e.stopPropagation();
           scheduleMergedDispatch();
           schedulePersistIcons();
+          requestAnimationFrame(reportBarRect);
         }
       };
       el.addEventListener('pointerup', finishDrag);

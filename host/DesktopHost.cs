@@ -217,6 +217,43 @@ static class Settings
     public static string Theme = "beach";
     public static string Lang = "auto";                // 界面语言："auto"（跟随系统）或 I18n.Supported 里的一种
     public static Dictionary<string, Dictionary<string, object>> Params = new Dictionary<string, Dictionary<string, object>>();
+    public static List<Dictionary<string, object>> VirtualIcons = new List<Dictionary<string, object>>();
+    public static object VirtualBarCollapsed = null;
+    public static string VirtualBarMode = "auto";
+
+    public static List<Dictionary<string, object>> SanitizeVirtualIcons(object raw)
+    {
+        var result = new List<Dictionary<string, object>>();
+        var arr = raw as object[];
+        if (arr == null)
+        {
+            var lst = raw as System.Collections.ArrayList;
+            if (lst != null) arr = lst.ToArray();
+        }
+        if (arr == null) return result;
+        int limit = Math.Min(arr.Length, 64);
+        for (int i = 0; i < limit; i++)
+        {
+            var item = arr[i] as Dictionary<string, object>;
+            if (item == null) continue;
+            try
+            {
+                int x = (int)Math.Round(Convert.ToDouble(item["x"]));
+                int y = (int)Math.Round(Convert.ToDouble(item["y"]));
+                int w = item.ContainsKey("w") ? Math.Max(24, Math.Min(256, (int)Math.Round(Convert.ToDouble(item["w"])))) : 76;
+                int h = item.ContainsKey("h") ? Math.Max(24, Math.Min(256, (int)Math.Round(Convert.ToDouble(item["h"])))) : 86;
+                string type = item.ContainsKey("type") ? item["type"] as string : "folder";
+                if (type != "folder" && type != "txt" && type != "pdf" && type != "xlsx" && type != "png" && type != "zip") type = "folder";
+                string name = item.ContainsKey("name") ? item["name"] as string : null;
+                if (string.IsNullOrWhiteSpace(name)) name = "Yeni Klasör";
+                name = name.Trim();
+                if (name.Length > 48) name = name.Substring(0, 48);
+                result.Add(Json.Obj("name", name, "type", type, "x", x, "y", y, "w", w, "h", h));
+            }
+            catch { }
+        }
+        return result;
+    }
 
     public static void Load()
     {
@@ -234,6 +271,13 @@ static class Settings
                     var d = kv.Value as Dictionary<string, object>;
                     if (d != null) Params[kv.Key] = d;
                 }
+            if (root.TryGetValue("virtualIcons", out v)) VirtualIcons = SanitizeVirtualIcons(v);
+            if (root.TryGetValue("virtualBarCollapsed", out v) && (v is bool || v == null)) VirtualBarCollapsed = v;
+            if (root.TryGetValue("virtualBarMode", out v) && v is string)
+            {
+                string mode = (string)v;
+                if (mode == "auto" || mode == "always" || mode == "off") VirtualBarMode = mode;
+            }
             Log.Write("已读取设置：主题 " + Theme);
         }
         catch (Exception ex) { Log.Write("读取设置失败（将使用默认值）：" + ex.Message); }
@@ -244,7 +288,14 @@ static class Settings
         try
         {
             Directory.CreateDirectory(Log.DataDir);
-            File.WriteAllText(FilePath, Json.Stringify(Json.Obj("version", 1, "theme", Theme, "lang", Lang, "params", Params)), new UTF8Encoding(false));
+            File.WriteAllText(FilePath, Json.Stringify(Json.Obj(
+                "version", 1,
+                "theme", Theme,
+                "lang", Lang,
+                "params", Params,
+                "virtualIcons", VirtualIcons,
+                "virtualBarCollapsed", VirtualBarCollapsed,
+                "virtualBarMode", VirtualBarMode)), new UTF8Encoding(false));
         }
         catch (Exception ex) { Log.Write("保存设置失败：" + ex.Message); }
     }
@@ -431,6 +482,15 @@ class HostContext : ApplicationContext
         return Json.Stringify(Json.Obj("t", "settings", "v", Settings.For(Settings.Theme)));
     }
 
+    string VirtualStateMessage()
+    {
+        return Json.Stringify(Json.Obj(
+            "t", "virtualState",
+            "icons", Settings.VirtualIcons,
+            "collapsed", Settings.VirtualBarCollapsed,
+            "mode", Settings.VirtualBarMode));
+    }
+
     string UpdateStateMessage()
     {
         return Json.Stringify(Json.Obj("t", "updateState", "version", updateVersion,
@@ -477,7 +537,8 @@ class HostContext : ApplicationContext
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "init", "theme", Settings.Theme, "params", Settings.Params,
                     "screen", Json.Obj("w", scr.Width, "h", scr.Height), "autostart", IsAutoStart(),
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
-                    "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys)));
+                    "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys,
+                    "virtualBarMode", Settings.VirtualBarMode)));
                 if (updateVersion != null) PostUpdateState();
                 if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
                 break;
@@ -539,6 +600,17 @@ class HostContext : ApplicationContext
                 I18n.Load(pageDir, Settings.Lang);
                 ApplyTrayTexts();
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "lang", "v", Settings.Lang, "eff", I18n.Code, "sys", I18n.Sys)));
+                break;
+            }
+            case "virtualBarMode":
+            {
+                object v;
+                if (!m.TryGetValue("v", out v) || !(v is string)) return;
+                string mode = (string)v;
+                if (mode != "auto" && mode != "always" && mode != "off") return;
+                Settings.VirtualBarMode = mode;
+                SaveSoon();
+                if (form != null) form.Post(VirtualStateMessage());
                 break;
             }
             case "share":
@@ -845,6 +917,29 @@ class HostContext : ApplicationContext
         }
         form = new WallpaperForm(pageDir, page, manualPause);
         form.SettingsJson = SettingsMessage;
+        form.VirtualStateJson = VirtualStateMessage;
+        form.AudioPlayChanged += delegate(bool play)
+        {
+            string theme = Settings.Theme;
+            int val = play ? 1 : 0;
+            Settings.For(theme)["audioPlay"] = val;
+            SaveSoon();
+            if (settingsWin != null)
+                settingsWin.Post(Json.Stringify(Json.Obj("t", "audioPlay", "theme", theme, "play", val)));
+        };
+        form.VirtualIconsSaved += delegate(object raw)
+        {
+            Settings.VirtualIcons = Settings.SanitizeVirtualIcons(raw);
+            SaveSoon();
+        };
+        form.VirtualBarCollapsedSaved += delegate(object val)
+        {
+            if (val is bool || val == null)
+            {
+                Settings.VirtualBarCollapsed = val;
+                SaveSoon();
+            }
+        };
         form.IconsChanged += delegate(string json) { if (settingsWin != null) settingsWin.Post(json); };
         form.RecordProgress += delegate(string p) { if (settingsWin != null) settingsWin.Post("{\"t\":\"recProgress\",\"p\":" + p + "}"); };
         form.HandleDestroyed += OnFormGone;
@@ -1071,6 +1166,10 @@ class WallpaperForm : Form
 
     string page;                                        // 当前主题的页面（themes.json 里的 page）
     public Func<string> SettingsJson;                   // 页面就绪时先发给它的设置消息
+    public Func<string> VirtualStateJson;
+    public event Action<bool> AudioPlayChanged;
+    public event Action<object> VirtualIconsSaved;
+    public event Action<object> VirtualBarCollapsedSaved;
     public event Action<string> IconsChanged;           // 图标变化时转给设置窗口的预览
     public string LastIcons { get { return lastIcons; } }
     protected override bool ShowWithoutActivation { get { return true; } }
@@ -1194,11 +1293,103 @@ class WallpaperForm : Form
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
     {
+        uiRectGroups.Clear();
+        uiMouseCaptured = false;
         page = newPage;
         if (web.CoreWebView2 == null) return;
         try { web.CoreWebView2.Navigate(PageUrl); }
         catch (InvalidOperationException ex) { WebDead(ex); }
         catch (COMException ex) { WebDead(ex); }
+    }
+
+    static bool TryParseRectItem(object raw, out Rectangle rect)
+    {
+        rect = Rectangle.Empty;
+        var arr = raw as object[];
+        if (arr == null)
+        {
+            var lst = raw as System.Collections.ArrayList;
+            if (lst != null) arr = lst.ToArray();
+        }
+        if (arr == null || arr.Length < 4) return false;
+        try
+        {
+            int x = (int)Math.Floor(Convert.ToDouble(arr[0]));
+            int y = (int)Math.Floor(Convert.ToDouble(arr[1]));
+            int w = (int)Math.Ceiling(Convert.ToDouble(arr[2]));
+            int h = (int)Math.Ceiling(Convert.ToDouble(arr[3]));
+            if (w <= 0 || h <= 0) return false;
+            rect = new Rectangle(x, y, w, h);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    void UpdateUiRectGroup(string kind, Dictionary<string, object> data)
+    {
+        object srcObj;
+        string src = data.TryGetValue("src", out srcObj) && srcObj is string ? (string)srcObj : "default";
+        object raw;
+        if (!data.TryGetValue("r", out raw) || raw == null) { uiRectGroups.Remove(src); return; }
+        var rects = new List<Rectangle>();
+        if (kind == "uiRects")
+        {
+            var arr = raw as object[];
+            if (arr == null)
+            {
+                var lst = raw as System.Collections.ArrayList;
+                if (lst != null) arr = lst.ToArray();
+            }
+            if (arr != null)
+            {
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    Rectangle r;
+                    if (TryParseRectItem(arr[i], out r)) rects.Add(r);
+                }
+            }
+        }
+        else
+        {
+            Rectangle r;
+            if (TryParseRectItem(raw, out r)) rects.Add(r);
+        }
+        if (rects.Count > 0) uiRectGroups[src] = rects;
+        else uiRectGroups.Remove(src);
+    }
+
+    void OnWallJsonMessage(string msg)
+    {
+        var m = Json.Parse(msg) as Dictionary<string, object>;
+        if (m == null) return;
+        object tObj;
+        if (!m.TryGetValue("t", out tObj) || !(tObj is string)) return;
+        string kind = (string)tObj;
+        if (kind == "uiRect" || kind == "uiRects")
+        {
+            UpdateUiRectGroup(kind, m);
+        }
+        else if (kind == "setAudioPlay")
+        {
+            object vObj;
+            bool play = false;
+            if (m.TryGetValue("v", out vObj) && vObj != null)
+            {
+                if (vObj is bool) play = (bool)vObj;
+                else try { play = Convert.ToInt32(vObj) != 0; } catch { }
+            }
+            if (AudioPlayChanged != null) AudioPlayChanged(play);
+        }
+        else if (kind == "saveVirtualIcons")
+        {
+            object vObj;
+            if (m.TryGetValue("v", out vObj) && VirtualIconsSaved != null) VirtualIconsSaved(vObj);
+        }
+        else if (kind == "saveVirtualBarCollapsed")
+        {
+            object vObj;
+            if (m.TryGetValue("v", out vObj) && VirtualBarCollapsedSaved != null) VirtualBarCollapsedSaved(vObj);
+        }
     }
 
     protected override async void OnShown(EventArgs e)
@@ -1232,11 +1423,21 @@ class WallpaperForm : Form
             {
                 string msg = null;
                 try { msg = a.TryGetWebMessageAsString(); } catch { }
-                if (msg != null && msg.StartsWith("snapshot|")) { OnSnapshot(msg); return; }
-                if (msg != null && msg.StartsWith("recprogress|")) { if (RecordProgress != null) RecordProgress(msg.Substring(12)); return; }
-                if (msg != null && msg.StartsWith("record|")) { OnRecord(msg); return; }
-                if (SettingsJson != null) core.PostWebMessageAsString(SettingsJson());
-                lastIcons = ""; lastPause = -1; PollIcons(); PollForeground();
+                if (msg == null) return;
+                if (msg.StartsWith("snapshot|")) { OnSnapshot(msg); return; }
+                if (msg.StartsWith("recprogress|")) { if (RecordProgress != null) RecordProgress(msg.Substring(12)); return; }
+                if (msg.StartsWith("record|")) { OnRecord(msg); return; }
+                if (msg == "ready")
+                {
+                    if (VirtualStateJson != null) core.PostWebMessageAsString(VirtualStateJson());
+                    if (SettingsJson != null) core.PostWebMessageAsString(SettingsJson());
+                    lastIcons = ""; lastPause = -1; PollIcons(); PollForeground();
+                    return;
+                }
+                if (msg.StartsWith("{"))
+                {
+                    try { OnWallJsonMessage(msg); } catch { }
+                }
             };
             core.Navigate(PageUrl);
             iconTimer.Start();
@@ -1271,6 +1472,141 @@ class WallpaperForm : Form
     IntPtr zAnchor;                                     // 我们要紧跟在它下面的窗口（图标列表 / 图标层）
     IntPtr winEventHook;
     Native.WinEventDelegate winEventProc;               // 保持引用，防止被 GC
+    readonly Dictionary<string, List<Rectangle>> uiRectGroups = new Dictionary<string, List<Rectangle>>();
+    IntPtr mouseHook;
+    Native.LowLevelMouseProc mouseHookProc;
+    double uiScale = 1.0;
+    bool uiMouseCaptured;
+    int lastDownTick = -1, lastClickCount = 1;
+    Native.POINT lastDownPt;
+
+    bool HasAnyUiRect()
+    {
+        foreach (var kv in uiRectGroups)
+            if (kv.Value.Count > 0) return true;
+        return false;
+    }
+
+    bool IsPointInUi(int cssX, int cssY)
+    {
+        foreach (var kv in uiRectGroups)
+        {
+            var list = kv.Value;
+            for (int i = 0; i < list.Count; i++)
+            {
+                Rectangle r = list[i];
+                if (cssX >= r.Left && cssX <= r.Right && cssY >= r.Top && cssY <= r.Bottom) return true;
+            }
+        }
+        return false;
+    }
+
+    bool IsDesktopHit(Native.POINT pt)
+    {
+        IntPtr h = Native.WindowFromPoint(pt);
+        for (int depth = 0; depth < 5 && h != IntPtr.Zero; depth++)
+        {
+            if (h == Handle || Native.IsChild(Handle, h)) return true;
+            var sb = new StringBuilder(64);
+            Native.GetClassName(h, sb, sb.Capacity);
+            string cls = sb.ToString();
+            if (cls == "SysListView32" || cls == "SHELLDLL_DefView" || cls == "Progman" || cls == "WorkerW") return true;
+            h = Native.GetParent(h);
+        }
+        return false;
+    }
+
+    void DispatchWebMouse(string type, int x, int y, string button, int clickCount, int buttons)
+    {
+        if (shuttingDown || IsDisposed || web.CoreWebView2 == null) return;
+        try
+        {
+            string payload = Json.Stringify(Json.Obj(
+                "type", type,
+                "x", x,
+                "y", y,
+                "button", button,
+                "clickCount", clickCount,
+                "buttons", buttons));
+            web.CoreWebView2.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", payload);
+        }
+        catch { }
+    }
+
+    IntPtr OnMouseHook(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode < 0 || shuttingDown || IsDisposed || web.CoreWebView2 == null)
+            return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
+        if (!uiMouseCaptured && !HasAnyUiRect())
+            return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
+
+        int msg = wParam.ToInt32();
+        if (msg != Native.WM_LBUTTONDOWN && msg != Native.WM_LBUTTONUP && msg != Native.WM_MOUSEMOVE)
+            return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
+
+        var hs = (Native.MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(Native.MSLLHOOKSTRUCT));
+        double scale = uiScale > 0 ? uiScale : 1.0;
+        int cssX = (int)Math.Round((hs.pt.X - screen.X) / scale);
+        int cssY = (int)Math.Round((hs.pt.Y - screen.Y) / scale);
+
+        if (msg == Native.WM_LBUTTONDOWN)
+        {
+            if (IsPointInUi(cssX, cssY) && IsDesktopHit(hs.pt))
+            {
+                int now = Environment.TickCount;
+                int dblMs = SystemInformation.DoubleClickTime;
+                bool isDbl = lastDownTick >= 0 && unchecked(now - lastDownTick) <= dblMs
+                    && Math.Abs(hs.pt.X - lastDownPt.X) <= 6 && Math.Abs(hs.pt.Y - lastDownPt.Y) <= 6;
+                lastClickCount = isDbl ? 2 : 1;
+                lastDownTick = now;
+                lastDownPt = hs.pt;
+                uiMouseCaptured = true;
+                int cc = lastClickCount;
+                BeginInvoke((Action)delegate { DispatchWebMouse("mousePressed", cssX, cssY, "left", cc, 1); });
+                return (IntPtr)1;
+            }
+        }
+        else if (msg == Native.WM_MOUSEMOVE)
+        {
+            if (uiMouseCaptured)
+            {
+                BeginInvoke((Action)delegate { DispatchWebMouse("mouseMoved", cssX, cssY, "left", 0, 1); });
+            }
+        }
+        else if (msg == Native.WM_LBUTTONUP)
+        {
+            if (uiMouseCaptured)
+            {
+                uiMouseCaptured = false;
+                int cc = lastClickCount;
+                BeginInvoke((Action)delegate { DispatchWebMouse("mouseReleased", cssX, cssY, "left", cc, 0); });
+                return (IntPtr)1;
+            }
+        }
+        return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
+    }
+
+    void StartMouseHook()
+    {
+        if (mouseHook != IntPtr.Zero) return;
+        try
+        {
+            using (Graphics g = Graphics.FromHwnd(Handle)) { uiScale = g.DpiX / 96.0; }
+        }
+        catch { uiScale = Native.GetDpiForSystem() / 96.0; }
+        mouseHookProc = OnMouseHook;
+        mouseHook = Native.SetWindowsHookEx(Native.WH_MOUSE_LL, mouseHookProc, Native.GetModuleHandle(null), 0);
+    }
+
+    void StopMouseHook()
+    {
+        uiMouseCaptured = false;
+        if (mouseHook != IntPtr.Zero)
+        {
+            Native.UnhookWindowsHookEx(mouseHook);
+            mouseHook = IntPtr.Zero;
+        }
+    }
 
     static IntPtr FindClassicWorker()
     {
@@ -1351,6 +1687,7 @@ class WallpaperForm : Form
         Native.SetWindowPos(Handle, insertAfter, pt.X, pt.Y, screen.Width, screen.Height,
             Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW | Native.SWP_FRAMECHANGED);
         EnsureZOrder();
+        StartMouseHook();
 
         if (raised)
         {
@@ -1461,6 +1798,7 @@ class WallpaperForm : Form
     {
         if (shuttingDown) return;
         shuttingDown = true;
+        StopMouseHook();
         iconTimer.Stop(); fgTimer.Stop();
         reader.Dispose();
         IntPtr parent = parentHwnd;
@@ -1474,6 +1812,7 @@ class WallpaperForm : Form
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+        StopMouseHook();
         if (winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(winEventHook); winEventHook = IntPtr.Zero; }
         iconTimer.Stop(); fgTimer.Stop();
         reader.Dispose();
@@ -1609,6 +1948,16 @@ static class Native
     public const int WS_CHILD = 0x40000000, WS_VISIBLE = 0x10000000, WS_POPUP = unchecked((int)0x80000000);
     public const int WS_CAPTION = 0x00C00000, WS_THICKFRAME = 0x00040000;
     public const uint SWP_NOACTIVATE = 0x0010, SWP_SHOWWINDOW = 0x0040, SWP_FRAMECHANGED = 0x0020;
+    public const int WH_MOUSE_LL = 14, WM_MOUSEMOVE = 0x0200, WM_LBUTTONDOWN = 0x0201, WM_LBUTTONUP = 0x0202;
+    public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+    [StructLayout(LayoutKind.Sequential)] public struct MSLLHOOKSTRUCT { public POINT pt; public uint mouseData, flags, time; public IntPtr dwExtraInfo; }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr GetModuleHandle(string lpModuleName);
+    [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+    [DllImport("user32.dll")] public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+    [DllImport("user32.dll")] public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT pt);
+    [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+    [DllImport("user32.dll")] public static extern bool IsChild(IntPtr parent, IntPtr child);
 
     [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }

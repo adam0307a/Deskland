@@ -880,7 +880,7 @@ function reportWallUiRect() {
   const sig = rect ? rect.join(',') : 'none';
   if (sig === lastReportedUiRect) return;
   lastReportedUiRect = sig;
-  host.postMessage(JSON.stringify({ t: 'uiRect', r: rect }));
+  host.postMessage(JSON.stringify({ t: 'uiRect', src: 'audio', r: rect }));
 }
 function updateWallAudioBtn(url) {
   if (!wallAudioBtn || !(WALL && !PREVIEW)) return;
