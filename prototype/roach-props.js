@@ -1627,10 +1627,10 @@ function stepRoachProps(dt, timeSec) {
         if (r.callTimer <= 0 && !jetStrikes.length) {
           const diva = roaches.find(x => x.kind === 5 && x.z <= 0);
           if (diva) {
-            diva.stopTimer = 2.0;
-            rPushBubble(diva.x, diva.y - diva.size * 0.56, 3, 4, 2.4, true);
+            diva.stopTimer = 3.0;
+            rPushBubble(diva.x, diva.y - diva.size * 0.56, 3, 4, 4.4, true);
             r.callPhase = 'diva_provoke';
-            r.callTimer = 1.65;
+            r.callTimer = 3.0;
           } else {
             r.callPhase = 'raising';
             r.callMood = 0;
