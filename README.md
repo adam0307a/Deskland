@@ -6,7 +6,7 @@ DiyarDesk turns the space around your desktop icons into a living interactive la
 
 > **Upstream attribution:** DiyarDesk is an independent community fork based on [Deskland](https://deskland.app) (`GPL-3.0`), using its own product name (**DiyarDesk**) and original icon, with no official affiliation or endorsement from upstream Deskland. See [NOTICE](NOTICE) and [TRADEMARKS.md](TRADEMARKS.md).
 
-**English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/Deskland/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build)
+**English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build)
 
 ![DiyarDesk Settings & Theme Browser](docs/images/settings.webp)
 
@@ -41,7 +41,7 @@ DiyarDesk includes **11 complete adaptive/animated themes** plus custom theme im
 
 ## Linux Setup
 
-Prebuilt packages (`.deb`, Arch `.pkg.tar.zst`, portable `.tar.gz`) are published on [GitHub Releases](https://github.com/adam0307a/Deskland/releases/latest).
+Prebuilt packages (`.deb`, Arch `.pkg.tar.zst`, portable `.tar.gz`) are published on [GitHub Releases](https://github.com/adam0307a/DiyarDesk/releases/latest).
 
 ### Requirements (from source)
 
@@ -69,7 +69,7 @@ Open **http://localhost:5178/settings.html** (`?lang=en`). Browser preview uses 
 
 ## Windows Build
 
-Prebuilt x64 NSIS installers are published on [GitHub Releases](https://github.com/adam0307a/Deskland/releases/latest). To build locally in PowerShell:
+Prebuilt x64 NSIS installers are published on [GitHub Releases](https://github.com/adam0307a/DiyarDesk/releases/latest). To build locally in PowerShell:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File host\build.ps1
@@ -102,7 +102,7 @@ Source code and included theme assets are licensed under [GPL-3.0](LICENSE). Thi
 
 ## Türkçe
 
-[English](#diyardesk) · **Türkçe** · [Sürümleri İndir](https://github.com/adam0307a/Deskland/releases/latest)
+[English](#diyardesk) · **Türkçe** · [Sürümleri İndir](https://github.com/adam0307a/DiyarDesk/releases/latest)
 
 **Masaüstü simgelerinizi manzaranın bir parçasına dönüştüren uyarlanabilir duvar kağıdı.**
 
@@ -117,7 +117,7 @@ Source code and included theme assets are licensed under [GPL-3.0](LICENSE). Thi
 
 ### Kurulum ve Çalıştırma (Linux / Kaynak Kod)
 
-Hazır paketleri (`.deb`, Arch `.pkg.tar.zst`, taşınabilir `.tar.gz` ve Windows `.exe` kurucusu) [Releases](https://github.com/adam0307a/Deskland/releases/latest) sayfasından indirebilirsiniz.
+Hazır paketleri (`.deb`, Arch `.pkg.tar.zst`, taşınabilir `.tar.gz` ve Windows `.exe` kurucusu) [Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) sayfasından indirebilirsiniz.
 
 ```bash
 # Kaynaktan Linux masaüstü uygulamasını başlat

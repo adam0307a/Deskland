@@ -4,7 +4,7 @@ pkgver=0.1.5
 pkgrel=1
 pkgdesc="DiyarDesk — adaptive animated wallpaper that follows desktop icons (based on Deskland)"
 arch=('any')
-url="https://github.com/adam0307a/Deskland"
+url="https://github.com/adam0307a/DiyarDesk"
 license=('GPL-3.0-only')
 provides=('deskland-preview')
 conflicts=('deskland-preview')
@@ -22,11 +22,11 @@ optdepends=(
   'gtk-layer-shell: Wayland layer-shell wallpaper backend'
   'xdotool: automatic pause on X11'
 )
-source=("$pkgname-$pkgver.tar.gz::https://github.com/adam0307a/Deskland/archive/refs/tags/v$pkgver.tar.gz")
+source=("$pkgname-$pkgver.tar.gz::https://github.com/adam0307a/DiyarDesk/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
 package() {
-  local src="$srcdir/Deskland-$pkgver"
+  local src="$srcdir/DiyarDesk-$pkgver"
 
   install -d "$pkgdir/usr/lib/deskland/linux/deskland_linux" \
              "$pkgdir/usr/lib/deskland/prototype" \
