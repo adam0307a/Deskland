@@ -17,6 +17,7 @@ import org.kde.plasma.plasmoid
 
 WallpaperItem {
     id: root
+    objectName: "desklandWallpaper"
 
     property string prototypeRoot: "file:///usr/lib/deskland/prototype/"
     property string theme: "meadow"
@@ -26,6 +27,13 @@ WallpaperItem {
         base = base.replace(/^file:\/\//, "");
         base = base.replace(/\/\.config\/?$/, "");
         return base.replace(/\/+$/, "");
+    }
+
+    function dispatchPointer(kind, x, y) {
+        view.runJavaScript(
+            "window.roachHostPointer&&window.roachHostPointer("
+            + JSON.stringify(kind) + "," + Number(x) + "," + Number(y) + ");"
+        );
     }
 
     WebEngineView {

@@ -2219,6 +2219,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.roachPointerDown = roachDragStart;
   window.roachPointerMove = roachDragMove;
   window.roachPointerUp = roachDragEnd;
+  window.roachHostPointer = (kind, px, py) => {
+    if (kind === 'down') return roachDragStart(px, py, 'host');
+    if (kind === 'move') return roachDragMove(px, py, 'host');
+    if (kind === 'up' || kind === 'cancel') return roachDragEnd('host');
+    return false;
+  };
   window.getRoachDragState = () => dragState;
 
   window.addEventListener('pointerdown', e => {

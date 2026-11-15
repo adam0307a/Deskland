@@ -28,6 +28,9 @@ PlasmoidItem {
     enabled: false
 
     property var cachedGridView: null
+    property var cachedWallpaper: null
+    property var pointerTargetGv: null
+    property var pointerBridgeObj: null
     property bool execBusy: false
     property double execStartedAt: 0
 
@@ -144,6 +147,127 @@ PlasmoidItem {
         return null;
     }
 
+    function findWallpaperByObjectName(item, depth) {
+        if (!item || depth > 25) return null;
+        if (item.objectName === "desklandWallpaper" && typeof item.dispatchPointer === "function") {
+            return item;
+        }
+        var kids = item.children;
+        if (!kids) return null;
+        for (var i = 0; i < kids.length; i++) {
+            var found = findWallpaperByObjectName(kids[i], depth + 1);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    function resolveWallpaper(top) {
+        if (root.cachedWallpaper) {
+            try {
+                if (typeof root.cachedWallpaper.dispatchPointer === "function") {
+                    return root.cachedWallpaper;
+                }
+            } catch (e) {}
+            root.cachedWallpaper = null;
+        }
+        if (top) {
+            try {
+                if (top.wallpaper && typeof top.wallpaper.dispatchPointer === "function") {
+                    root.cachedWallpaper = top.wallpaper;
+                    return root.cachedWallpaper;
+                }
+                if (top.wallpaperGraphicsObject && typeof top.wallpaperGraphicsObject.dispatchPointer === "function") {
+                    root.cachedWallpaper = top.wallpaperGraphicsObject;
+                    return root.cachedWallpaper;
+                }
+                if (top.wallpaper && top.wallpaper.wallpaperGraphicsObject && typeof top.wallpaper.wallpaperGraphicsObject.dispatchPointer === "function") {
+                    root.cachedWallpaper = top.wallpaper.wallpaperGraphicsObject;
+                    return root.cachedWallpaper;
+                }
+            } catch (e) {}
+        }
+        var win = root.Window ? root.Window.window : null;
+        if (win && win.contentItem) {
+            root.cachedWallpaper = findWallpaperByObjectName(win.contentItem, 0);
+            if (root.cachedWallpaper) return root.cachedWallpaper;
+        }
+        return null;
+    }
+
+    function attachPointerBridge(top, gv) {
+        if (!top || !gv) return;
+        if (root.pointerTargetGv === gv && root.pointerBridgeObj) return;
+        if (root.pointerBridgeObj) {
+            try { root.pointerBridgeObj.destroy(); } catch (e) {}
+            root.pointerBridgeObj = null;
+        }
+        root.pointerTargetGv = gv;
+        try {
+            root.pointerBridgeObj = Qt.createQmlObject(
+                'import QtQuick\n'
+                + 'Item {\n'
+                + '  anchors.fill: parent\n'
+                + '  z: 100\n'
+                + '  property var spy: null\n'
+                + '  property var topItem: null\n'
+                + '  property var gvItem: null\n'
+                + '  property bool dragging: false\n'
+                + '  property real lastX: -9999\n'
+                + '  property real lastY: -9999\n'
+                + '  function wallPos(px, py) {\n'
+                + '    var w = spy ? spy.resolveWallpaper(topItem) : null;\n'
+                + '    if (!w) return null;\n'
+                + '    try {\n'
+                + '      var p = gvItem.mapToItem(w, px, py);\n'
+                + '      return { w: w, x: p.x, y: p.y };\n'
+                + '    } catch (e) {\n'
+                + '      var g = gvItem.mapToGlobal(px, py);\n'
+                + '      var wg = w.mapToGlobal(0, 0);\n'
+                + '      return { w: w, x: g.x - wg.x, y: g.y - wg.y };\n'
+                + '    }\n'
+                + '  }\n'
+                + '  PointHandler {\n'
+                + '    id: ph\n'
+                + '    target: null\n'
+                + '    acceptedButtons: Qt.LeftButton\n'
+                + '    grabPermissions: PointerHandler.TakeOverForbidden\n'
+                + '    onActiveChanged: {\n'
+                + '      if (ph.active) {\n'
+                + '        if (gvItem && gvItem.hoveredItem) return;\n'
+                + '        var wp = wallPos(ph.point.position.x, ph.point.position.y);\n'
+                + '        if (!wp) return;\n'
+                + '        dragging = true;\n'
+                + '        lastX = wp.x; lastY = wp.y;\n'
+                + '        wp.w.dispatchPointer("down", wp.x, wp.y);\n'
+                + '      } else if (dragging) {\n'
+                + '        dragging = false;\n'
+                + '        var wp2 = wallPos(ph.point.position.x, ph.point.position.y);\n'
+                + '        if (wp2) wp2.w.dispatchPointer("up", wp2.x, wp2.y);\n'
+                + '      }\n'
+                + '    }\n'
+                + '    onPointChanged: {\n'
+                + '      if (!ph.active || !dragging) return;\n'
+                + '      var wp = wallPos(ph.point.position.x, ph.point.position.y);\n'
+                + '      if (!wp) return;\n'
+                + '      if (Math.abs(wp.x - lastX) + Math.abs(wp.y - lastY) < 0.5) return;\n'
+                + '      lastX = wp.x; lastY = wp.y;\n'
+                + '      wp.w.dispatchPointer("move", wp.x, wp.y);\n'
+                + '    }\n'
+                + '  }\n'
+                + '}\n',
+                gv,
+                "desklandPointerBridge"
+            );
+            root.pointerBridgeObj.spy = root;
+            root.pointerBridgeObj.topItem = top;
+            root.pointerBridgeObj.gvItem = gv;
+            console.info("Deskland iconspy pointer bridge attached; wallpaperFound=" + !!root.resolveWallpaper(top));
+        } catch (e) {
+            console.warn("Deskland iconspy pointer bridge error:", e);
+            root.pointerBridgeObj = null;
+        }
+    }
+
     function collectIcons(top, gv) {
         var rects = [];
         var names = [];
@@ -210,6 +334,7 @@ PlasmoidItem {
                     root.writeJson({ ts: Date.now(), vis: false, r: [], n: [] });
                     return;
                 }
+                root.attachPointerBridge(top, gv);
                 var data = root.collectIcons(top, gv);
                 root.writeJson({ ts: Date.now(), vis: true, r: data.rects, n: data.names });
             } catch (e) {
