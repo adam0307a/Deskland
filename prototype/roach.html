@@ -171,7 +171,6 @@
   </div>
 </aside>
 
-<audio id="bgAudio" loop preload="auto"></audio>
 <button id="wallAudioBtn" type="button" aria-label="Play or Stop audio"></button>
 <div id="nogl">需要 WebGL 2 才能渲染</div>
 
@@ -181,6 +180,7 @@
 const QS = new URLSearchParams(location.search);
 const WALL = QS.has('wallpaper');
 const PREVIEW = QS.has('preview');
+const MUTE = QS.has('mute');
 
 const P = {
   sigma: 78, warp: 24, glow: 0.78,
@@ -845,9 +845,19 @@ requestAnimationFrame(frame);
 /* ======================================================================
    托管模式：壁纸模式 (?wallpaper=1) & 预览模式 (?preview=1)
    ====================================================================== */
-const bgAudioEl = document.getElementById('bgAudio');
+let bgAudioEl = null;
 const wallAudioBtn = document.getElementById('wallAudioBtn');
-const bgAudioState = { file: '', src: '', name: '', play: 0, lastHostPlay: 0, allow: WALL ? 1 : (PREVIEW ? 0 : 1), blobUrl: '', lastUrl: '' };
+const bgAudioState = { file: '', src: '', name: '', play: 0, lastHostPlay: 0, allow: MUTE ? 0 : (WALL ? 1 : (PREVIEW ? 0 : 1)), blobUrl: '', lastUrl: '' };
+function ensureBgAudioEl() {
+  if (!bgAudioEl) {
+    bgAudioEl = document.createElement('audio');
+    bgAudioEl.id = 'bgAudio';
+    bgAudioEl.loop = true;
+    bgAudioEl.preload = 'auto';
+    document.body.appendChild(bgAudioEl);
+  }
+  return bgAudioEl;
+}
 function resolveRoachAudioUrl() {
   if (bgAudioState.src) return bgAudioState.src;
   if (bgAudioState.file) {
@@ -869,32 +879,36 @@ function updateWallAudioBtn(url) {
 function toggleRoachAudio(resetOnStop) {
   if (!resolveRoachAudioUrl()) return;
   bgAudioState.play = bgAudioState.play === 1 ? 0 : 1;
-  if (bgAudioState.play === 0 && resetOnStop) {
+  if (bgAudioState.play === 0 && resetOnStop && bgAudioEl) {
     try { bgAudioEl.currentTime = 0; } catch (_) {}
   }
   syncRoachAudio();
 }
 function syncRoachAudio() {
   const url = resolveRoachAudioUrl();
-  if (!url) {
-    if (!bgAudioEl.paused) bgAudioEl.pause();
-    if (bgAudioState.lastUrl) {
-      bgAudioEl.removeAttribute('src');
-      bgAudioEl.load();
-      bgAudioState.lastUrl = '';
+  const canLoad = !!(url && !MUTE && bgAudioState.allow === 1);
+  if (!url || !canLoad) {
+    if (bgAudioEl) {
+      if (!bgAudioEl.paused) bgAudioEl.pause();
+      if (!url && bgAudioState.lastUrl) {
+        bgAudioEl.removeAttribute('src');
+        bgAudioEl.load();
+        bgAudioState.lastUrl = '';
+      }
     }
   } else {
+    const el = ensureBgAudioEl();
     if (url !== bgAudioState.lastUrl) {
       bgAudioState.lastUrl = url;
-      bgAudioEl.src = url;
-      bgAudioEl.load();
+      el.src = url;
+      el.load();
     }
-    const shouldPlay = bgAudioState.play === 1 && bgAudioState.allow === 1 && !paused;
-    if (shouldPlay && bgAudioEl.paused) {
-      const p = bgAudioEl.play();
+    const shouldPlay = bgAudioState.play === 1 && !paused;
+    if (shouldPlay && el.paused) {
+      const p = el.play();
       if (p && p.catch) p.catch(() => {});
-    } else if (!shouldPlay && !bgAudioEl.paused) {
-      bgAudioEl.pause();
+    } else if (!shouldPlay && !el.paused) {
+      el.pause();
     }
   }
   updateWallAudioBtn(url);
@@ -962,7 +976,7 @@ function applySettings(v) {
   let field = false, crowdChanged = false, adaptiveChanged = false, audioChanged = false;
   const newFile = ('audioFile' in v && v.audioFile !== bgAudioState.file) || ('audioSrc' in v && v.audioSrc !== bgAudioState.src);
   for (const k in v) {
-    if (k === 'audioAllow') { bgAudioState.allow = v[k] ? 1 : 0; audioChanged = true; continue; }
+    if (k === 'audioAllow') { bgAudioState.allow = (!MUTE && v[k]) ? 1 : 0; audioChanged = true; continue; }
     if (k === 'audioSrc') { bgAudioState.src = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
     if (k === 'audioFile') { bgAudioState.file = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }
     if (k === 'audioName') { bgAudioState.name = typeof v[k] === 'string' ? v[k] : ''; audioChanged = true; continue; }

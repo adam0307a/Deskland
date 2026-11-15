@@ -333,7 +333,8 @@ class Wallpaper:
 
     def url_for(self, page: str | None = None) -> str:
         page = page or self._page
-        return self.server.url(f"{page}?wallpaper=1&v={self.host.version}")
+        mute = "&mute=1" if self.backend in ("plasma-plugin", "static") else ""
+        return self.server.url(f"{page}?wallpaper=1{mute}&v={self.host.version}")
 
     def load_page(self, page: str) -> None:
         self._page = page
