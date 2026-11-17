@@ -1313,6 +1313,207 @@
           ]
         }
       ]
+    },
+    {
+      "id": "solar-system",
+      "adaptive": true,
+      "name": "太阳系与黑洞",
+      "desc": "将桌面图标化作旋转的太阳系与行星，围绕中央相对论吸积盘黑洞公转，支持图标公转与引力交互。",
+      "page": "solar-system.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/solar-system.svg) center / cover no-repeat, linear-gradient(160deg, #0b1020 0%, #050811 55%, #020307 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "黑洞与核心",
+          "params": [
+            {
+              "key": "centerBodyType",
+              "label": "中央天体",
+              "options": [
+                "超大质量黑洞",
+                "中央恒星",
+                "深空背景"
+              ],
+              "values": [
+                "BlackHole",
+                "Sun",
+                "None"
+              ],
+              "default": "BlackHole"
+            },
+            {
+              "key": "blackHoleSize",
+              "label": "黑洞大小",
+              "min": 0.5,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "accretionIntensity",
+              "label": "吸积盘辉光",
+              "min": 0.2,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "iconOrbitMode",
+              "label": "图标公转模式",
+              "options": [
+                "绕中心公转",
+                "固定在原位"
+              ],
+              "values": [
+                "Orbit",
+                "Anchor"
+              ],
+              "default": "Orbit"
+            },
+            {
+              "key": "globalOrbitSpeed",
+              "label": "图标公转速度",
+              "min": 0.0,
+              "max": 2.5,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "行星系统",
+          "params": [
+            {
+              "key": "planetCount",
+              "label": "行星数量",
+              "min": 1,
+              "max": 6,
+              "step": 1,
+              "default": 3
+            },
+            {
+              "key": "orbitSize",
+              "label": "轨道半径",
+              "min": 0.5,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "orbitSpeed",
+              "label": "行星转速",
+              "min": 0.2,
+              "max": 2.5,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "planetSize",
+              "label": "行星大小",
+              "min": 0.5,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "深空环境",
+          "params": [
+            {
+              "key": "starDensity",
+              "label": "星辰密度",
+              "min": 0.2,
+              "max": 2.0,
+              "step": 0.1,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "nebulaIntensity",
+              "label": "星云浓度",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "asteroidDensity",
+              "label": "小行星密度",
+              "min": 0.0,
+              "max": 2.0,
+              "step": 0.1,
+              "default": 0.8,
+              "format": "times"
+            },
+            {
+              "key": "shootingStars",
+              "label": "流星",
+              "options": [
+                "关闭",
+                "开启"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": true
+            }
+          ]
+        },
+        {
+          "name": "引力物理",
+          "params": [
+            {
+              "key": "gravityStrength",
+              "label": "中心引力",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.6,
+              "format": "percent"
+            },
+            {
+              "key": "systemAttraction",
+              "label": "星系潮汐",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.55,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "性能",
+          "params": [
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

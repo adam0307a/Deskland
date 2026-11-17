@@ -402,23 +402,91 @@ static class CustomThemes
                 if (p.TryGetValue("options", out optsObj) && optsObj is IEnumerable && !(optsObj is string))
                 {
                     var opts = new List<string>();
+                    var vals = new List<object>();
+                    bool hasObjOpts = false;
                     foreach (object oo in (IEnumerable)optsObj)
                     {
                         if (opts.Count >= 8) break;
-                        opts.Add(Convert.ToString(oo, CultureInfo.InvariantCulture));
+                        var od = oo as Dictionary<string, object>;
+                        if (od != null)
+                        {
+                            hasObjOpts = true;
+                            object lv = od.ContainsKey("label") ? od["label"] : (od.ContainsKey("value") ? od["value"] : "");
+                            object vv = od.ContainsKey("value") ? od["value"] : lv;
+                            string lbl = Convert.ToString(lv, CultureInfo.InvariantCulture) ?? "";
+                            if (lbl.Length > 48) lbl = lbl.Substring(0, 48);
+                            if (string.IsNullOrEmpty(lbl)) lbl = Convert.ToString(vv, CultureInfo.InvariantCulture) ?? "";
+                            opts.Add(lbl);
+                            vals.Add(vv);
+                        }
+                        else
+                        {
+                            string s = Convert.ToString(oo, CultureInfo.InvariantCulture) ?? "";
+                            if (s.Length > 48) s = s.Substring(0, 48);
+                            opts.Add(s);
+                        }
+                    }
+                    object rawValsObj;
+                    if (!hasObjOpts && p.TryGetValue("values", out rawValsObj) && rawValsObj is IEnumerable && !(rawValsObj is string))
+                    {
+                        foreach (object vo in (IEnumerable)rawValsObj)
+                        {
+                            if (vals.Count >= opts.Count) break;
+                            vals.Add(vo);
+                        }
+                        if (vals.Count < opts.Count) vals.Clear();
                     }
                     if (opts.Count > 0)
                     {
-                        int defIdx = 0;
-                        object defObj;
-                        if (p.TryGetValue("default", out defObj) && defObj != null)
-                        {
-                            try { defIdx = Convert.ToInt32(defObj, CultureInfo.InvariantCulture); } catch { defIdx = 0; }
-                        }
-                        if (defIdx < 0) defIdx = 0;
-                        if (defIdx >= opts.Count) defIdx = opts.Count - 1;
                         item["options"] = opts;
-                        item["default"] = defIdx;
+                        object defObj = null;
+                        p.TryGetValue("default", out defObj);
+                        if (vals.Count > 0)
+                        {
+                            item["values"] = vals;
+                            object matched = vals[0];
+                            bool found = false;
+                            if (defObj != null)
+                            {
+                                for (int vi = 0; vi < vals.Count; vi++)
+                                {
+                                    if (object.Equals(vals[vi], defObj) ||
+                                        (vals[vi] is bool && defObj is bool && (bool)vals[vi] == (bool)defObj) ||
+                                        string.Equals(Convert.ToString(vals[vi], CultureInfo.InvariantCulture), Convert.ToString(defObj, CultureInfo.InvariantCulture), StringComparison.Ordinal))
+                                    {
+                                        matched = vals[vi];
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                                if (!found && defObj is string)
+                                {
+                                    int oi = opts.IndexOf((string)defObj);
+                                    if (oi >= 0 && oi < vals.Count) { matched = vals[oi]; found = true; }
+                                }
+                                if (!found && !(defObj is bool))
+                                {
+                                    try
+                                    {
+                                        int idx = Convert.ToInt32(defObj, CultureInfo.InvariantCulture);
+                                        if (idx >= 0 && idx < vals.Count) matched = vals[idx];
+                                    }
+                                    catch { }
+                                }
+                            }
+                            item["default"] = matched;
+                        }
+                        else
+                        {
+                            int defIdx = 0;
+                            if (defObj != null && !(defObj is bool))
+                            {
+                                try { defIdx = Convert.ToInt32(defObj, CultureInfo.InvariantCulture); } catch { defIdx = 0; }
+                            }
+                            if (defIdx < 0) defIdx = 0;
+                            if (defIdx >= opts.Count) defIdx = opts.Count - 1;
+                            item["default"] = defIdx;
+                        }
                         cleanParams.Add(item);
                         continue;
                     }
@@ -462,6 +530,96 @@ static class CustomThemes
         return cleanGroups;
     }
 
+    static List<Dictionary<string, object>> GroupsFromSettings(object rawSettings)
+    {
+        var items = new List<KeyValuePair<string, Dictionary<string, object>>>();
+        var dict = rawSettings as Dictionary<string, object>;
+        if (dict != null)
+        {
+            foreach (KeyValuePair<string, object> kv in dict)
+            {
+                var spec = kv.Value as Dictionary<string, object>;
+                if (spec == null) continue;
+                string k = spec.ContainsKey("key") && spec["key"] != null ? Convert.ToString(spec["key"], CultureInfo.InvariantCulture) : kv.Key;
+                items.Add(new KeyValuePair<string, Dictionary<string, object>>(k, spec));
+            }
+        }
+        else if (rawSettings is IEnumerable && !(rawSettings is string))
+        {
+            foreach (object o in (IEnumerable)rawSettings)
+            {
+                var spec = o as Dictionary<string, object>;
+                if (spec != null && spec.ContainsKey("key") && spec["key"] != null)
+                    items.Add(new KeyValuePair<string, Dictionary<string, object>>(Convert.ToString(spec["key"], CultureInfo.InvariantCulture), spec));
+            }
+        }
+        if (items.Count == 0) return new List<Dictionary<string, object>>();
+
+        var groupOrder = new List<string>();
+        var grouped = new Dictionary<string, List<object>>(StringComparer.Ordinal);
+        for (int i = 0; i < items.Count; i++)
+        {
+            string key = items[i].Key;
+            var spec = items[i].Value;
+            string groupName = "Settings";
+            if (spec.ContainsKey("group") && spec["group"] != null) groupName = Convert.ToString(spec["group"], CultureInfo.InvariantCulture).Trim();
+            else if (spec.ContainsKey("category") && spec["category"] != null) groupName = Convert.ToString(spec["category"], CultureInfo.InvariantCulture).Trim();
+            if (string.IsNullOrEmpty(groupName)) groupName = "Settings";
+
+            string ptype = spec.ContainsKey("type") && spec["type"] != null ? Convert.ToString(spec["type"], CultureInfo.InvariantCulture).Trim().ToLowerInvariant() : "";
+            object labelObj = spec.ContainsKey("label") && spec["label"] != null ? spec["label"] : (spec.ContainsKey("title") ? spec["title"] : key);
+            var param = Json.Obj("key", key, "label", labelObj);
+            if (spec.ContainsKey("hint") && spec["hint"] is string) param["hint"] = spec["hint"];
+            else if (spec.ContainsKey("description") && spec["description"] is string) param["hint"] = spec["description"];
+
+            bool hasDef = spec.ContainsKey("default") || spec.ContainsKey("value");
+            object rawDef = spec.ContainsKey("default") ? spec["default"] : (spec.ContainsKey("value") ? spec["value"] : null);
+
+            if (ptype == "checkbox" || ptype == "boolean" || ptype == "bool" || ptype == "toggle")
+            {
+                param["options"] = new object[] { "Off", "On" };
+                param["values"] = new object[] { false, true };
+                bool b = false;
+                if (rawDef is bool) b = (bool)rawDef;
+                else if (rawDef is int || rawDef is long || rawDef is double) b = Convert.ToDouble(rawDef, CultureInfo.InvariantCulture) != 0;
+                else if (rawDef is string)
+                {
+                    string rs = ((string)rawDef).Trim().ToLowerInvariant();
+                    b = rs == "1" || rs == "true" || rs == "yes" || rs == "on";
+                }
+                param["default"] = b;
+            }
+            else if (spec.ContainsKey("options") && spec["options"] is IEnumerable && !(spec["options"] is string))
+            {
+                param["options"] = spec["options"];
+                if (hasDef) param["default"] = rawDef;
+            }
+            else
+            {
+                param["min"] = spec.ContainsKey("min") ? spec["min"] : 0.0;
+                param["max"] = spec.ContainsKey("max") ? spec["max"] : 1.0;
+                param["step"] = spec.ContainsKey("step") ? spec["step"] : 0.01;
+                param["default"] = rawDef != null ? rawDef : param["min"];
+                if (spec.ContainsKey("format") && spec["format"] is string) param["format"] = spec["format"];
+                else if (spec.ContainsKey("unit") && spec["unit"] is string) param["unit"] = spec["unit"];
+            }
+
+            List<object> list;
+            if (!grouped.TryGetValue(groupName, out list))
+            {
+                list = new List<object>();
+                grouped[groupName] = list;
+                groupOrder.Add(groupName);
+            }
+            list.Add(param);
+        }
+
+        var rawGroups = new List<object>();
+        for (int i = 0; i < groupOrder.Count; i++)
+            rawGroups.Add(Json.Obj("name", groupOrder[i], "params", grouped[groupOrder[i]]));
+        return SanitizeGroups(rawGroups);
+    }
+
     static string FindArchiveThumb(string themeDir, string themeId, object manifestThumb)
     {
         if (manifestThumb is string)
@@ -479,7 +637,7 @@ static class CustomThemes
                     return "url(__custom/" + themeId + "/" + rel + ") center / cover no-repeat";
             }
         }
-        string[] names = new string[] { "thumb.webp", "thumb.png", "thumb.jpg", "preview.webp", "preview.png", "preview.jpg" };
+        string[] names = new string[] { "thumb.webp", "thumb.png", "thumb.jpg", "thumb.svg", "preview.webp", "preview.png", "preview.jpg", "preview.svg" };
         for (int i = 0; i < names.Length; i++)
             if (File.Exists(Path.Combine(themeDir, names[i])))
                 return "url(__custom/" + themeId + "/" + names[i] + ") center / cover no-repeat";
@@ -637,18 +795,27 @@ static class CustomThemes
                 }
 
                 object entryPref = null;
-                if (!manifest.TryGetValue("entry", out entryPref) || entryPref == null)
-                    manifest.TryGetValue("page", out entryPref);
+                string[] entryKeys = new string[] { "entry", "page", "main", "file" };
+                for (int i = 0; i < entryKeys.Length; i++)
+                {
+                    if (manifest.TryGetValue(entryKeys[i], out entryPref) && entryPref != null) break;
+                }
                 string entry = FindEntryHtml(themeDir, entryPref as string);
                 string entryHtml = ValidateHtmlFile(Path.Combine(themeDir, entry.Replace('/', Path.DirectorySeparatorChar)));
                 string htmlTitle = ExtractHtmlTitle(entryHtml, PrettyTitle(stem));
 
-                object nameObj, descObj, adapObj, thumbObj, groupsObj;
-                string tName = manifest.TryGetValue("name", out nameObj) && nameObj != null ? Convert.ToString(nameObj, CultureInfo.InvariantCulture) : htmlTitle;
+                object nameObj = null, descObj = null, adapObj = null, thumbObj = null, groupsObj = null, settingsObj = null;
+                if (!manifest.TryGetValue("name", out nameObj) || nameObj == null) manifest.TryGetValue("title", out nameObj);
+                string tName = nameObj != null ? Convert.ToString(nameObj, CultureInfo.InvariantCulture) : htmlTitle;
                 if (tName.Length > 60) tName = tName.Substring(0, 60);
-                string tDesc = manifest.TryGetValue("desc", out descObj) && descObj != null ? Convert.ToString(descObj, CultureInfo.InvariantCulture) : "Imported custom theme package.";
+                if (!manifest.TryGetValue("desc", out descObj) || descObj == null) manifest.TryGetValue("description", out descObj);
+                string tDesc = descObj != null ? Convert.ToString(descObj, CultureInfo.InvariantCulture) : "Imported custom theme package.";
                 bool adaptive = manifest.TryGetValue("adaptive", out adapObj) && adapObj is bool && (bool)adapObj;
-                manifest.TryGetValue("thumb", out thumbObj);
+                if (!manifest.TryGetValue("thumb", out thumbObj) || thumbObj == null)
+                {
+                    if (!manifest.TryGetValue("thumbnail", out thumbObj) || thumbObj == null)
+                        manifest.TryGetValue("preview", out thumbObj);
+                }
 
                 themeObj = Json.Obj(
                     "id", themeId,
@@ -661,11 +828,11 @@ static class CustomThemes
                     "imported", true,
                     "adaptive", adaptive,
                     "thumb", FindArchiveThumb(themeDir, themeId, thumbObj));
-                if (manifest.TryGetValue("groups", out groupsObj))
-                {
-                    var groups = SanitizeGroups(groupsObj);
-                    if (groups.Count > 0) themeObj["groups"] = groups;
-                }
+                List<Dictionary<string, object>> groups = null;
+                if (manifest.TryGetValue("groups", out groupsObj)) groups = SanitizeGroups(groupsObj);
+                if ((groups == null || groups.Count == 0) && manifest.TryGetValue("settings", out settingsObj))
+                    groups = GroupsFromSettings(settingsObj);
+                if (groups != null && groups.Count > 0) themeObj["groups"] = groups;
             }
             else if (HasExt(ext, HtmlExts))
             {

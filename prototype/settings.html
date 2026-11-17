@@ -230,8 +230,8 @@
   .modal .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 14px; }
   .modal .actions .primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .modal .actions .primary:hover { color: var(--accent-ink); opacity: .8; }
-  .help-box { position: relative; width: 520px; max-height: calc(100vh - 48px); overflow-y: auto; }
-  .help-article { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+  .help-box { position: relative; width: 580px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .help-article { margin-top: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
   .help-article h4 { margin: 0; font-size: 14px; line-height: 1.5; }
   .help-article p { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; user-select: text; }
   .help-article ol { margin: 12px 0 0; padding-left: 21px; color: var(--text); font-size: 12px; line-height: 1.7; user-select: text; }
@@ -404,7 +404,7 @@
       <ul>
         <li>
           <strong data-i18n="importHelpZipTitle">主题包（.zip / .deskland）</strong> —
-          <span data-i18n="importHelpZipDesc">多文件 HTML/JS/CSS/资源包。若包含 manifest.json 或 theme.json，将自动读取名称、入口文件与参数分组；否则默认使用 index.html 或首个 .html 作为入口，并拦截路径穿越（zip-slip）与异常软链接。</span>
+          <span data-i18n="importHelpZipDesc">多文件 HTML/JS/CSS/资源包。若包含 manifest.json 或 theme.json，将自动读取名称、说明、入口文件、封面图与参数分组；否则默认使用 index.html 或首个 .html 作为入口，自动识别 thumb/preview 封面图（含 .svg），并拦截路径穿越（zip-slip）与异常软链接。</span>
         </li>
         <li>
           <strong data-i18n="importHelpHtmlTitle">单个网页（.html / .htm）</strong> —
@@ -420,6 +420,32 @@
         </li>
       </ul>
       <p data-i18n="importHelpNote">导入前会校验压缩包完整性（单包上限 150 MB / 2000 个文件）；已导入的主题保存在用户目录中，随时可在右侧预览栏点击“移除”。</p>
+    </section>
+    <section class="help-article">
+      <h4 data-i18n="importHelpManifestTitle">Manifest 清单与参数格式（manifest.json / theme.json）</h4>
+      <ul>
+        <li>
+          <strong data-i18n="importHelpManifestMetaTitle">基础字段与封面</strong> —
+          <span data-i18n="importHelpManifestMetaDesc">支持 name/title、desc/description、entry/page/main/file（默认 index.html）、adaptive（true/false），以及 thumb/thumbnail/preview（图片路径含 .svg 或 CSS 渐变/颜色）。</span>
+        </li>
+        <li>
+          <strong data-i18n="importHelpManifestParamsTitle">参数定义（groups 或 settings）</strong> —
+          <span data-i18n="importHelpManifestParamsDesc">兼容 DiyarDesk 原生 groups 数组（[{ name, params }]）以及按 group/category 分组的 settings 对象；支持滑块（range: min/max/step/default）、单选（select: 字符串数组或 { label, value } 选项）和开关（checkbox: true/false）。</span>
+        </li>
+      </ul>
+    </section>
+    <section class="help-article">
+      <h4 data-i18n="importHelpProtoTitle">交互式 HTML 主题通信协议</h4>
+      <ul>
+        <li>
+          <strong data-i18n="importHelpProtoReadyTitle">初始化握手（ready）</strong> —
+          <span data-i18n="importHelpProtoReadyDesc">桌面模式下调用 window.chrome.webview.postMessage('ready')，预览模式下（?preview=1）调用 parent.postMessage(JSON.stringify({ t: 'ready' }), '*')，以立即接收初始设置和图标位置。</span>
+        </li>
+        <li>
+          <strong data-i18n="importHelpProtoMsgTitle">宿主消息与截图</strong> —
+          <span data-i18n="importHelpProtoMsgDesc">页面会收到 { t: 'icons', vis, r: [[l, t, r, b], ...] }（物理像素坐标，CSS 像素需除以 devicePixelRatio）、{ t: 'settings', v: {...} }、{ t: 'reset', v: {...} } 和 { t: 'pause', v: true|false }；可选导出 window.desklandSnapshot() / window.desklandRecord() 以支持一键分享。</span>
+        </li>
+      </ul>
     </section>
     <div class="actions"><button class="ghost-btn primary" id="importHelpDone" data-i18n="gotIt">知道了</button></div>
   </div>
@@ -544,9 +570,18 @@ function valuesOf(theme) { return Object.assign(defaultsOf(theme), state.params[
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+function optIndex(p, v) {
+  if (!Array.isArray(p.values)) return v;
+  const idx = p.values.indexOf(v);
+  if (idx >= 0) return idx;
+  return typeof v === 'number' ? v : 0;
+}
+function optValue(p, idx) {
+  return Array.isArray(p.values) && idx >= 0 && idx < p.values.length ? p.values[idx] : idx;
+}
 function fmt(p, v) {
   if (p.type === 'audio') return '';
-  if (p.options) return p.options[v] || '';
+  if (p.options) return p.options[optIndex(p, v)] || '';
   if (p.format === 'times') return '×' + v.toFixed(2);
   if (p.format === 'percent') return Math.round(v * 100) + '%';
   const s = Number.isInteger(p.step) ? String(Math.round(v)) : v.toFixed(2);
@@ -616,8 +651,10 @@ function renderControls() {
               <button class="undo" data-reset="${p.key}" title="${t('resetOne', { v: fmt(p, p.default) })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
               <span class="value" id="v-${p.key}">${fmt(p, vals[p.key])}</span>
             </span></div>
-          ${p.options ? `<div class="opts" data-key="${p.key}" role="radiogroup" aria-label="${p.label}">${p.options.map((o, i) =>
-            `<button data-opt="${i}" class="${vals[p.key] === i ? 'on' : ''}" role="radio" aria-checked="${vals[p.key] === i}">${o}</button>`).join('')}</div>` : `
+          ${p.options ? `<div class="opts" data-key="${p.key}" role="radiogroup" aria-label="${p.label}">${p.options.map((o, i) => {
+            const on = optIndex(p, vals[p.key]) === i;
+            return `<button data-opt="${i}" class="${on ? 'on' : ''}" role="radio" aria-checked="${on}">${o}</button>`;
+          }).join('')}</div>` : `
           <div class="track" title="${t('dblclickReset', { v: fmt(p, p.default) })}">
             <input type="range" data-key="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${vals[p.key]}" aria-label="${p.label}">
           </div>`}
@@ -655,7 +692,8 @@ function setParam(key, v) {
   } else {
     const p = paramOf(key);
     if (p.options) {
-      document.querySelectorAll(`.opts[data-key="${key}"] button`).forEach(b => { const on = +b.dataset.opt === v; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      const activeIdx = optIndex(p, v);
+      document.querySelectorAll(`.opts[data-key="${key}"] button`).forEach(b => { const on = +b.dataset.opt === activeIdx; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     } else {
       const inp = document.querySelector(`input[data-key="${key}"]`);
       if (+inp.value !== v) inp.value = v;
@@ -704,7 +742,10 @@ $('controls').addEventListener('click', e => {
     return;
   }
   const o = e.target.closest('[data-opt]');
-  if (o) setParam(o.closest('.opts').dataset.key, +o.dataset.opt);
+  if (o) {
+    const key = o.closest('.opts').dataset.key;
+    setParam(key, optValue(paramOf(key), +o.dataset.opt));
+  }
 });
 $('audioFileInput').addEventListener('change', e => {
   const f = e.target.files && e.target.files[0];
@@ -802,13 +843,27 @@ function layoutPreview() {
   frame.style.transform = `scale(${k})`;
 }
 addEventListener('resize', layoutPreview);
+let previewReady = false;
+let previewReadyTimer = 0;
+function sendPreviewBootstrap() {
+  if (previewReady) return;
+  previewReady = true;
+  clearTimeout(previewReadyTimer);
+  toPreview({ t: 'settings', v: Object.assign(valuesOf(themeById(state.theme)), { audioAllow: host ? 0 : 1 }) });
+  if (state.icons) toPreview(state.icons);
+}
 addEventListener('message', e => {
   if (e.source !== frame.contentWindow) return;
-  const m = JSON.parse(e.data);
-  if (m.t === 'ready') {                 // 预览页面加载好了：先给设置，再给图标
-    toPreview({ t: 'settings', v: Object.assign(valuesOf(themeById(state.theme)), { audioAllow: host ? 0 : 1 }) });
-    if (state.icons) toPreview(state.icons);
+  let m = e.data;
+  if (typeof m === 'string') {
+    try { m = JSON.parse(m); } catch (_) { return; }
   }
+  if (!m || typeof m !== 'object') return;
+  if (m.t === 'ready') sendPreviewBootstrap();
+});
+frame.addEventListener('load', () => {
+  clearTimeout(previewReadyTimer);
+  previewReadyTimer = setTimeout(sendPreviewBootstrap, 180);
 });
 function updateFoot() {
   $('previewFoot').textContent = t('livePreview');
@@ -839,6 +894,8 @@ function showTheme() {
   renderControls();
   updateFoot();
   layoutPreview();
+  previewReady = false;
+  clearTimeout(previewReadyTimer);
   frame.src = themeById(state.theme).page + '?preview=1';
 }
 

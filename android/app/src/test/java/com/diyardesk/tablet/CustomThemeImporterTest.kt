@@ -87,7 +87,71 @@ class CustomThemeImporterTest {
         val imgEntry = importer.importStream(ByteArrayInputStream(pngHeader), "Nebula View.png")
         val id = imgEntry.getString("id")
         assertEquals("Nebula View", imgEntry.getString("name"))
+        assertTrue(imgEntry.getBoolean("imported"))
         assertTrue(File(root, "$id/media.png").isFile)
         assertTrue(File(root, "$id/index.html").readText().contains("desklandSnapshot") || File(root, "$id/index.html").readText().contains("media.png"))
+    }
+
+    @Test
+    fun importsZipWithSettingsObjectSvgPreviewAndExtensionlessZipSniffing() {
+        val root = tmp.newFolder("custom_settings")
+        val importer = CustomThemeImporter(root)
+
+        val manifest = """
+            {
+              "name": "Interactive Solar System & Black Hole",
+              "description": "Adaptive space theme",
+              "entry": "index.html",
+              "preview": "preview.svg",
+              "adaptive": true,
+              "settings": {
+                "centerBodyType": {
+                  "key": "centerBodyType",
+                  "group": "Black Hole & Core",
+                  "label": "Central body type",
+                  "type": "select",
+                  "options": [
+                    {"label": "Black Hole", "value": "BlackHole"},
+                    {"label": "Sun", "value": "Sun"}
+                  ],
+                  "default": "BlackHole"
+                },
+                "shootingStars": {
+                  "key": "shootingStars",
+                  "group": "Space",
+                  "label": "Shooting stars",
+                  "type": "checkbox",
+                  "default": true
+                }
+              }
+            }
+        """.trimIndent()
+
+        val zipBytes = ByteArrayOutputStream().use { baos ->
+            ZipOutputStream(baos).use { zos ->
+                zos.putNextEntry(ZipEntry("manifest.json"))
+                zos.write(manifest.toByteArray())
+                zos.closeEntry()
+                zos.putNextEntry(ZipEntry("index.html"))
+                zos.write("<!doctype html><html><body></body></html>".toByteArray())
+                zos.closeEntry()
+                zos.putNextEntry(ZipEntry("preview.svg"))
+                zos.write("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>".toByteArray())
+                zos.closeEntry()
+            }
+            baos.toByteArray()
+        }
+
+        val entry = importer.importStream(ByteArrayInputStream(zipBytes), "document_without_ext")
+        val id = entry.getString("id")
+        assertTrue(entry.getBoolean("imported"))
+        assertEquals("Adaptive space theme", entry.getString("desc"))
+        assertTrue(entry.getString("thumb").contains("url(__custom/$id/preview.svg)"))
+        val groups = entry.getJSONArray("groups")
+        assertEquals(2, groups.length())
+        val cb = groups.getJSONObject(0).getJSONArray("params").getJSONObject(0)
+        assertEquals("BlackHole", cb.getString("default"))
+        val ss = groups.getJSONObject(1).getJSONArray("params").getJSONObject(0)
+        assertEquals(true, ss.getBoolean("default"))
     }
 }

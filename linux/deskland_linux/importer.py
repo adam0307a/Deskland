@@ -167,10 +167,39 @@ def _sanitize_groups(raw_groups: Any) -> list[dict[str, Any]]:
             if isinstance(p.get("hint"), str):
                 item["hint"] = p["hint"][:180]
             if isinstance(p.get("options"), list) and p["options"]:
-                opts = [str(o) for o in p["options"][:8]]
-                default_idx = int(p.get("default", 0)) if isinstance(p.get("default"), (int, float)) else 0
-                item["options"] = opts
-                item["default"] = max(0, min(len(opts) - 1, default_idx))
+                raw_opts = p["options"][:8]
+                opts: list[str] = []
+                vals: list[Any] = []
+                has_obj_opts = False
+                for o in raw_opts:
+                    if isinstance(o, dict):
+                        has_obj_opts = True
+                        lbl = str(o.get("label") if o.get("label") is not None else o.get("value", "")).strip()
+                        val = o.get("value") if "value" in o else lbl
+                        opts.append(lbl[:48] or str(val)[:48])
+                        vals.append(val)
+                    else:
+                        opts.append(str(o)[:48])
+                raw_vals = p.get("values")
+                if not has_obj_opts and isinstance(raw_vals, list) and len(raw_vals) >= len(opts):
+                    vals = list(raw_vals[: len(opts)])
+                raw_def = p.get("default")
+                if vals:
+                    item["options"] = opts
+                    item["values"] = vals
+                    if raw_def in vals:
+                        item["default"] = raw_def
+                    elif isinstance(raw_def, str) and raw_def in opts:
+                        item["default"] = vals[opts.index(raw_def)]
+                    elif isinstance(raw_def, (int, float)) and not isinstance(raw_def, bool):
+                        idx = max(0, min(len(vals) - 1, int(raw_def)))
+                        item["default"] = vals[idx]
+                    else:
+                        item["default"] = vals[0]
+                else:
+                    default_idx = int(raw_def) if isinstance(raw_def, (int, float)) and not isinstance(raw_def, bool) else 0
+                    item["options"] = opts
+                    item["default"] = max(0, min(len(opts) - 1, default_idx))
             else:
                 try:
                     p_min = float(p.get("min", 0))
@@ -193,6 +222,65 @@ def _sanitize_groups(raw_groups: Any) -> list[dict[str, Any]]:
         if clean_params:
             clean_groups.append({"name": str(g.get("name") or "Settings")[:48], "params": clean_params})
     return clean_groups
+
+
+def _groups_from_settings(raw_settings: Any) -> list[dict[str, Any]]:
+    """Convert flat/grouped `manifest.settings` dict (or list) into DiyarDesk `groups`."""
+    items: list[tuple[str, dict[str, Any]]] = []
+    if isinstance(raw_settings, dict):
+        for k, v in raw_settings.items():
+            if isinstance(v, dict):
+                items.append((str(v.get("key") or k), v))
+    elif isinstance(raw_settings, list):
+        for v in raw_settings:
+            if isinstance(v, dict) and v.get("key"):
+                items.append((str(v["key"]), v))
+    if not items:
+        return []
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for key, spec in items:
+        group_name = str(spec.get("group") or spec.get("category") or "Settings").strip() or "Settings"
+        ptype = str(spec.get("type") or "").strip().lower()
+        param: dict[str, Any] = {
+            "key": key,
+            "label": spec.get("label") or spec.get("title") or key,
+        }
+        if isinstance(spec.get("hint"), str):
+            param["hint"] = spec["hint"]
+        elif isinstance(spec.get("description"), str):
+            param["hint"] = spec["description"]
+
+        raw_default = spec["default"] if "default" in spec else spec.get("value")
+
+        if ptype in ("checkbox", "boolean", "bool", "toggle"):
+            param["options"] = ["Off", "On"]
+            param["values"] = [False, True]
+            if isinstance(raw_default, bool):
+                param["default"] = raw_default
+            elif isinstance(raw_default, (int, float)):
+                param["default"] = bool(raw_default)
+            elif isinstance(raw_default, str):
+                param["default"] = raw_default.strip().lower() in ("1", "true", "yes", "on")
+            else:
+                param["default"] = False
+        elif isinstance(spec.get("options"), list) and spec["options"]:
+            param["options"] = spec["options"]
+            if "default" in spec or "value" in spec:
+                param["default"] = raw_default
+        else:
+            param["min"] = spec.get("min", 0)
+            param["max"] = spec.get("max", 1)
+            param["step"] = spec.get("step", 0.01)
+            param["default"] = raw_default if raw_default is not None else param["min"]
+            if spec.get("format") in ("times", "percent"):
+                param["format"] = spec["format"]
+            elif isinstance(spec.get("unit"), str) and spec["unit"]:
+                param["unit"] = spec["unit"]
+
+        grouped.setdefault(group_name, []).append(param)
+
+    return _sanitize_groups([{"name": gname, "params": params} for gname, params in grouped.items()])
 
 
 def _validate_html_file(path: Path) -> str:
@@ -228,7 +316,16 @@ def _find_archive_thumb(theme_dir: Path, theme_id: str, manifest_thumb: Any) -> 
                 return f"url(__custom/{theme_id}/{rel}) center / cover no-repeat"
         except ValueError:
             pass
-    for name in ("thumb.webp", "thumb.png", "thumb.jpg", "preview.webp", "preview.png", "preview.jpg"):
+    for name in (
+        "thumb.webp",
+        "thumb.png",
+        "thumb.jpg",
+        "thumb.svg",
+        "preview.webp",
+        "preview.png",
+        "preview.jpg",
+        "preview.svg",
+    ):
         if (theme_dir / name).is_file():
             return f"url(__custom/{theme_id}/{name}) center / cover no-repeat"
     return (
@@ -527,22 +624,29 @@ def import_theme_file(
                         raise ValueError(f"Invalid {mname} structure (expected JSON object).")
                     manifest = parsed
                     break
-            entry = _find_entry_html(theme_dir, manifest.get("entry") or manifest.get("page"))
+            preferred_entry = (
+                manifest.get("entry")
+                or manifest.get("page")
+                or manifest.get("main")
+                or manifest.get("file")
+            )
+            entry = _find_entry_html(theme_dir, preferred_entry)
             entry_html = _validate_html_file(theme_dir / entry)
             html_title = _extract_html_title(entry_html, _pretty_title(src.stem))
+            thumb_spec = manifest.get("thumb") or manifest.get("thumbnail") or manifest.get("preview")
             theme_obj: dict[str, Any] = {
                 "id": theme_id,
-                "name": str(manifest.get("name") or html_title)[:60],
-                "desc": str(manifest.get("desc") or "Imported custom theme package."),
+                "name": str(manifest.get("name") or manifest.get("title") or html_title)[:60],
+                "desc": str(manifest.get("desc") or manifest.get("description") or "Imported custom theme package."),
                 "page": f"__custom/{theme_id}/{entry}",
                 "entry": entry,
                 "status": "ready",
                 "product": "free",
                 "imported": True,
                 "adaptive": bool(manifest.get("adaptive", False)),
-                "thumb": _find_archive_thumb(theme_dir, theme_id, manifest.get("thumb")),
+                "thumb": _find_archive_thumb(theme_dir, theme_id, thumb_spec),
             }
-            groups = _sanitize_groups(manifest.get("groups"))
+            groups = _sanitize_groups(manifest.get("groups")) or _groups_from_settings(manifest.get("settings"))
             if groups:
                 theme_obj["groups"] = groups
 

@@ -1,0 +1,2452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interactive Solar System &amp; Black Hole</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #020307;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: auto;
+    }
+  </style>
+  <!-- Optional DiyarDesk shared wall-icons helper if running inside prototype/ directory -->
+  <script src="wall-icons.js"></script>
+</head>
+<body>
+  <canvas id="space-canvas"></canvas>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. CONFIGURATION & SETTINGS STATE (v2: Black Hole + Icon Orbital Motion)
+      // =========================================================================
+      const DEFAULT_SETTINGS = {
+        // Black Hole & Core
+        centerBodyType: 'BlackHole', // 'BlackHole' | 'Sun' | 'None'
+        blackHoleSize: 1.0,          // 0.5 .. 2.0 scale
+        accretionIntensity: 1.0,     // 0.2 .. 1.8 glow & relativistic disk intensity
+        iconOrbitMode: 'Orbit',      // 'Orbit' (icons revolve around core) | 'Anchor' (fixed at desktop pos)
+        globalOrbitSpeed: 0.65,      // 0.0 .. 2.5 revolution speed of icons around Black Hole / Sun
+        // Solar System
+        planetCount: 3,              // 1 .. 6 base planets per icon system
+        orbitSize: 1.0,              // 0.5 .. 1.8 multiplier
+        orbitSpeed: 1.0,             // 0.2 .. 2.5 multiplier
+        planetSize: 1.0,             // 0.5 .. 1.8 multiplier
+        // Space
+        starDensity: 1.0,            // 0.2 .. 2.0 multiplier
+        nebulaIntensity: 0.65,       // 0.0 .. 1.5 multiplier
+        asteroidDensity: 0.8,        // 0.0 .. 2.0 multiplier
+        shootingStars: true,         // boolean
+        // Physics
+        gravityStrength: 0.6,        // 0.0 .. 1.5 tidal orbital distortion & spaghettification
+        systemAttraction: 0.55,      // 0.0 .. 1.5 inter-system pull & accretion stream
+        // Performance
+        quality: 'High',             // 'Low' | 'Medium' | 'High'
+        adaptive: 1,
+        seed: 0
+      };
+
+      const settings = Object.assign({}, DEFAULT_SETTINGS);
+
+      const QUALITY_PROFILES = {
+        Low: {
+          starMultiplier: 0.45,
+          asteroidMultiplier: 0.35,
+          enableMoons: false,
+          enableLocalDust: false,
+          enableResonanceBridges: false,
+          enableTidalStreams: false,
+          targetFps: 30
+        },
+        Medium: {
+          starMultiplier: 0.75,
+          asteroidMultiplier: 0.7,
+          enableMoons: true,
+          enableLocalDust: true,
+          enableResonanceBridges: true,
+          enableTidalStreams: true,
+          targetFps: 60
+        },
+        High: {
+          starMultiplier: 1.0,
+          asteroidMultiplier: 1.0,
+          enableMoons: true,
+          enableLocalDust: true,
+          enableResonanceBridges: true,
+          enableTidalStreams: true,
+          targetFps: 60
+        }
+      };
+
+      // Scientific, muted cinematic planetary & stellar palettes (zero neon cyberpunk)
+      const STELLAR_TYPES = [
+        { name: 'G-Type Warm', core: '#fff5e4', coronaRgb: '235, 205, 165', orbitRgb: '185, 200, 225' },
+        { name: 'F-Type Ivory', core: '#f4f7ff', coronaRgb: '190, 212, 245', orbitRgb: '168, 194, 232' },
+        { name: 'K-Type Amber', core: '#ffebd2', coronaRgb: '228, 180, 138', orbitRgb: '198, 182, 168' },
+        { name: 'A-Type Pale', core: '#eef4ff', coronaRgb: '165, 195, 240', orbitRgb: '155, 185, 228' }
+      ];
+
+      const PLANET_PALETTES = [
+        { fill: '#8ba4c4', highlight: '#b8cde6', shadow: '#263447', atmoRgb: '139, 164, 196' }, // Neptune Slate
+        { fill: '#c49d79', highlight: '#e3c4a6', shadow: '#3d2c1e', atmoRgb: '196, 157, 121' }, // Ochre Terrestrial
+        { fill: '#7f9995', highlight: '#adc4c0', shadow: '#23302e', atmoRgb: '127, 153, 149' }, // Titan Sage
+        { fill: '#b37b68', highlight: '#d6a696', shadow: '#3b221a', atmoRgb: '179, 123, 104' }, // Dusty Mars
+        { fill: '#9aa3b5', highlight: '#c5cde0', shadow: '#2c313d', atmoRgb: '154, 163, 181' }, // Callisto Silicate
+        { fill: '#bdae93', highlight: '#dfd3bc', shadow: '#383124', atmoRgb: '189, 174, 147' }, // Venusian Cream
+        { fill: '#6c84a3', highlight: '#9cb2cf', shadow: '#1c2636', atmoRgb: '108, 132, 163' }  // Deep Ice Giant
+      ];
+
+      // =========================================================================
+      // 2. DETERMINISTIC PRNG & HASH UTILITIES
+      // =========================================================================
+      function fnv1aHash(str) {
+        let h = 2166136261 >>> 0;
+        const s = String(str);
+        for (let i = 0; i < s.length; i++) {
+          h ^= s.charCodeAt(i);
+          h = Math.imul(h, 16777619) >>> 0;
+        }
+        return h >>> 0;
+      }
+
+      function mulberry32(seed) {
+        let a = seed >>> 0;
+        return function () {
+          a = (a + 0x6D2B79F5) >>> 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function clamp(val, min, max) {
+        return val < min ? min : (val > max ? max : val);
+      }
+
+      function lerp(a, b, t) {
+        return a + (b - a) * t;
+      }
+
+      function smoothstep(edge0, edge1, x) {
+        const t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+        return t * t * (3.0 - 2.0 * t);
+      }
+
+      // =========================================================================
+      // 3. CANVAS & OFFSCREEN CACHES
+      // =========================================================================
+      const canvas = document.getElementById('space-canvas');
+      const cv = canvas;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const WALL = new URLSearchParams(window.location.search || '').has('wallpaper');
+      let W = 0, H = 0, icons = [], frameN = 0, paused = false;
+
+      let viewWidth = window.innerWidth || 1920;
+      let viewHeight = window.innerHeight || 1080;
+      let dpr = clamp(window.devicePixelRatio || 1, 1, 3);
+
+      // Offscreen background canvas (deep space gradient + subtle nebula)
+      const bgCanvas = document.createElement('canvas');
+      const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+      let bgNeedsRedraw = true;
+
+      // Cached radial glow sprites per stellar type + Black Hole sprite cache
+      const stellarGlowSprites = [];
+      let planetShadowSprite = null;
+      let blackHoleHaloSprite = null;
+
+      // Scene collections
+      let stars = [];
+      let asteroids = [];
+      let meteors = [];
+      let centralBlackHole = null;
+
+      // Active icon solar systems
+      const systems = [];
+      let lastRawIconsList = [];
+      let lastRawIconsMeta = {};
+      let syntheticIdCounter = 1;
+
+      // Host / Preview state tracking
+      let hasReceivedHostIcons = false;
+      let isPreviewMode = false;
+      let previewFallbackTimer = null;
+      let isPaused = false;
+      let lastFrameTime = 0;
+      let elapsedTime = 0;
+      let meteorSpawnAccumulator = 0;
+      let hostSyncAccumulator = 0;
+
+      // Interactive pointer / gravity well state
+      const pointer = {
+        x: 0,
+        y: 0,
+        prevX: 0,
+        prevY: 0,
+        active: false,
+        down: false,
+        lastSparkTime: 0
+      };
+      let coreFlare = 0;
+      const shockwaves = [];
+      const cursorSparks = [];
+
+      // =========================================================================
+      // 4. PRE-RENDERED SPRITE CACHES (PERFORMANCE OPTIMIZATION)
+      // =========================================================================
+      function buildSprites() {
+        stellarGlowSprites.length = 0;
+        const size = 128;
+        const half = size / 2;
+
+        for (let i = 0; i < STELLAR_TYPES.length; i++) {
+          const st = STELLAR_TYPES[i];
+          const sc = document.createElement('canvas');
+          sc.width = size;
+          sc.height = size;
+          const sctx = sc.getContext('2d');
+
+          const grad = sctx.createRadialGradient(half, half, 0, half, half, half);
+          grad.addColorStop(0.0, 'rgba(255, 250, 240, 0.92)');
+          grad.addColorStop(0.08, 'rgba(' + st.coronaRgb + ', 0.55)');
+          grad.addColorStop(0.24, 'rgba(' + st.coronaRgb + ', 0.18)');
+          grad.addColorStop(0.55, 'rgba(' + st.coronaRgb + ', 0.045)');
+          grad.addColorStop(1.0, 'rgba(' + st.coronaRgb + ', 0.0)');
+
+          sctx.fillStyle = grad;
+          sctx.fillRect(0, 0, size, size);
+          stellarGlowSprites.push(sc);
+        }
+
+        // Subtle soft halo sprite for planets
+        const pSize = 64;
+        const pHalf = pSize / 2;
+        planetShadowSprite = document.createElement('canvas');
+        planetShadowSprite.width = pSize;
+        planetShadowSprite.height = pSize;
+        const pctx = planetShadowSprite.getContext('2d');
+        const pGrad = pctx.createRadialGradient(pHalf, pHalf, 0, pHalf, pHalf, pHalf);
+        pGrad.addColorStop(0.0, 'rgba(180, 205, 240, 0.22)');
+        pGrad.addColorStop(0.5, 'rgba(180, 205, 240, 0.06)');
+        pGrad.addColorStop(1.0, 'rgba(180, 205, 240, 0.0)');
+        pctx.fillStyle = pGrad;
+        pctx.fillRect(0, 0, pSize, pSize);
+
+        // Pre-rendered Gargantua Black Hole Gravitational Lensing Halo Sprite (256x256)
+        const bhSize = 256;
+        const bhHalf = bhSize / 2;
+        blackHoleHaloSprite = document.createElement('canvas');
+        blackHoleHaloSprite.width = bhSize;
+        blackHoleHaloSprite.height = bhSize;
+        const bctx = blackHoleHaloSprite.getContext('2d');
+
+        const bhGrad = bctx.createRadialGradient(bhHalf, bhHalf, bhHalf * 0.16, bhHalf, bhHalf, bhHalf);
+        bhGrad.addColorStop(0.0, 'rgba(0, 0, 0, 1.0)');
+        bhGrad.addColorStop(0.12, 'rgba(0, 0, 0, 0.98)');
+        bhGrad.addColorStop(0.155, 'rgba(255, 244, 222, 0.92)'); // Photon ring peak
+        bhGrad.addColorStop(0.22, 'rgba(235, 172, 105, 0.52)');  // Inner accretion corona
+        bhGrad.addColorStop(0.42, 'rgba(175, 95, 52, 0.18)');    // Warm relativistic scatter
+        bhGrad.addColorStop(0.72, 'rgba(90, 52, 42, 0.05)');
+        bhGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+
+        bctx.fillStyle = bhGrad;
+        bctx.fillRect(0, 0, bhSize, bhSize);
+      }
+
+      // =========================================================================
+      // 5. PROCEDURAL BACKGROUND, STAR FIELD, NEBULA & BLACK HOLE CORE
+      // =========================================================================
+      function buildStarField() {
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const areaScale = (viewWidth * viewHeight) / (1920 * 1080);
+        const count = clamp(
+          Math.round(210 * areaScale * settings.starDensity * profile.starMultiplier),
+          40,
+          520
+        );
+
+        const rng = mulberry32((0x44495941 ^ (settings.seed | 0)) >>> 0);
+        stars = new Array(count);
+
+        const starColors = [
+          '215, 228, 250',
+          '242, 236, 225',
+          '185, 208, 245',
+          '232, 215, 198'
+        ];
+
+        for (let i = 0; i < count; i++) {
+          const depthRoll = rng();
+          const isBright = depthRoll > 0.92;
+          stars[i] = {
+            nx: rng(),
+            ny: rng(),
+            size: isBright ? (1.25 + rng() * 0.9) : (0.55 + rng() * 0.85),
+            baseAlpha: isBright ? (0.45 + rng() * 0.35) : (0.14 + rng() * 0.32),
+            twinkleAmp: isBright ? (0.12 + rng() * 0.16) : (0.04 + rng() * 0.09),
+            twinkleSpeed: 0.4 + rng() * 1.6,
+            twinklePhase: rng() * Math.PI * 2,
+            rgb: starColors[Math.floor(rng() * starColors.length)]
+          };
+        }
+      }
+
+      function buildAsteroids() {
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const count = clamp(
+          Math.round(95 * settings.asteroidDensity * profile.asteroidMultiplier),
+          0,
+          220
+        );
+
+        const rng = mulberry32((0x5244534B ^ (settings.seed | 0)) >>> 0);
+        asteroids = new Array(count);
+
+        for (let i = 0; i < count; i++) {
+          const bandNorm = 0.34 + (rng() + rng()) * 0.16;
+          asteroids[i] = {
+            bandNorm: bandNorm,
+            angle: rng() * Math.PI * 2,
+            speed: (0.008 + rng() * 0.015) * (rng() > 0.1 ? 1 : -1),
+            radialJitter: (rng() - 0.5) * 38,
+            size: 0.7 + rng() * 1.45,
+            aspect: 0.55 + rng() * 0.45,
+            rotation: rng() * Math.PI * 2,
+            rotationSpeed: (rng() - 0.5) * 0.4,
+            alpha: 0.08 + rng() * 0.16
+          };
+        }
+      }
+
+      function buildCentralBlackHole() {
+        const rng = mulberry32(0x47415247); // 'GARG' (Gargantua seed)
+        const accretionParticles = [];
+        for (let i = 0; i < 64; i++) {
+          accretionParticles.push({
+            radiusNorm: 1.35 + Math.pow(rng(), 1.3) * 2.85, // Relative to event horizon radius
+            angle: rng() * Math.PI * 2,
+            speed: 0.55 + rng() * 0.85,
+            size: 0.8 + rng() * 1.5,
+            alpha: 0.18 + rng() * 0.38
+          });
+        }
+
+        const macroOrbits = [
+          { rxNorm: 0.22, ryNorm: 0.105, speed: 0.014, angle: rng() * Math.PI * 2, size: 2.2, alpha: 0.036 },
+          { rxNorm: 0.33, ryNorm: 0.155, speed: -0.009, angle: rng() * Math.PI * 2, size: 2.8, alpha: 0.028 },
+          { rxNorm: 0.45, ryNorm: 0.210, speed: 0.0055, angle: rng() * Math.PI * 2, size: 2.0, alpha: 0.022 }
+        ];
+
+        centralBlackHole = {
+          tiltAngle: -0.22,       // ~ -12.6 deg cinematic inclination
+          diskAspect: 0.24,       // Elliptical projection of accretion disk
+          eventHorizonR: 26,      // Base radius in px (scaled by blackHoleSize)
+          accretionParticles: accretionParticles,
+          orbits: macroOrbits
+        };
+      }
+
+      function buildMeteorsPool() {
+        meteors = [];
+        for (let i = 0; i < 4; i++) {
+          meteors.push({
+            active: false,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            length: 0,
+            life: 0,
+            maxLife: 1,
+            alpha: 0
+          });
+        }
+      }
+
+      function renderStaticBackground() {
+        bgCanvas.width = Math.max(1, Math.round(viewWidth * dpr));
+        bgCanvas.height = Math.max(1, Math.round(viewHeight * dpr));
+        bgCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const diag = Math.hypot(viewWidth, viewHeight);
+        const baseGrad = bgCtx.createRadialGradient(
+          viewWidth * 0.50, viewHeight * 0.50, diag * 0.04,
+          viewWidth * 0.50, viewHeight * 0.50, diag * 0.75
+        );
+        baseGrad.addColorStop(0.0, '#0a0f1d');
+        baseGrad.addColorStop(0.45, '#060913');
+        baseGrad.addColorStop(0.80, '#04060d');
+        baseGrad.addColorStop(1.0, '#020307');
+
+        bgCtx.fillStyle = baseGrad;
+        bgCtx.fillRect(0, 0, viewWidth, viewHeight);
+
+        drawNebula(bgCtx);
+
+        const rng = mulberry32(0x99117733);
+        bgCtx.fillStyle = 'rgba(175, 198, 235, 0.045)';
+        for (let i = 0; i < 140; i++) {
+          const sx = rng() * viewWidth;
+          const sy = rng() * viewHeight;
+          const sr = 0.4 + rng() * 0.6;
+          bgCtx.fillRect(sx, sy, sr, sr);
+        }
+
+        bgNeedsRedraw = false;
+      }
+
+      function drawNebula(targetCtx) {
+        const intensity = clamp(settings.nebulaIntensity, 0, 1.5);
+        if (intensity <= 0.01) return;
+
+        const clouds = [
+          { cx: 0.26, cy: 0.32, r: 0.42, rgb: '24, 42, 78', baseA: 0.14 },
+          { cx: 0.74, cy: 0.66, r: 0.40, rgb: '38, 26, 58', baseA: 0.12 },
+          { cx: 0.58, cy: 0.25, r: 0.33, rgb: '18, 46, 68', baseA: 0.09 },
+          { cx: 0.35, cy: 0.75, r: 0.36, rgb: '28, 34, 64', baseA: 0.10 }
+        ];
+
+        const maxDim = Math.max(viewWidth, viewHeight);
+        for (let i = 0; i < clouds.length; i++) {
+          const c = clouds[i];
+          const x = c.cx * viewWidth;
+          const y = c.cy * viewHeight;
+          const r = c.r * maxDim;
+          const alpha = clamp(c.baseA * intensity, 0, 0.28);
+
+          const g = targetCtx.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0.0, 'rgba(' + c.rgb + ', ' + alpha.toFixed(4) + ')');
+          g.addColorStop(0.5, 'rgba(' + c.rgb + ', ' + (alpha * 0.42).toFixed(4) + ')');
+          g.addColorStop(1.0, 'rgba(' + c.rgb + ', 0)');
+
+          targetCtx.fillStyle = g;
+          targetCtx.fillRect(0, 0, viewWidth, viewHeight);
+        }
+      }
+
+      // =========================================================================
+      // 6. SOLAR SYSTEM GENERATOR & GLOBAL KEPLERIAN ORBITAL PARAMETERS
+      // =========================================================================
+      function computeGlobalOrbitParams(anchorX, anchorY, seedVal) {
+        const coreX = viewWidth * 0.5;
+        const coreY = viewHeight * 0.5;
+        const dx = anchorX - coreX;
+        const dy = anchorY - coreY;
+
+        // De-project from tilted global orbital plane so the icon's initial desktop position
+        // lies exactly on its elliptical global orbit around the Black Hole / Sun!
+        const globalTilt = 0.56; // Minor/major axis ratio for desktop-wide icon orbits
+        const minOrbitR = 72 * settings.blackHoleSize;
+        const effectiveDy = dy / globalTilt;
+        const rawR = Math.hypot(dx, effectiveDy);
+        const globalRadius = Math.max(minOrbitR, rawR);
+        const initialAngle = Math.atan2(effectiveDy, dx);
+
+        // Kepler's 3rd Law angular velocity: closer desktop icons revolve faster around the Black Hole
+        const refRadius = Math.min(viewWidth, viewHeight) * 0.32;
+        const keplerSpeed = 0.11 * Math.pow(refRadius / Math.max(90, globalRadius), 0.65);
+
+        // Small deterministic eccentricity per icon
+        const rng = mulberry32(seedVal ^ 0xA5A5A5A5);
+        return {
+          globalRadius: globalRadius,
+          globalAngle: initialAngle,
+          globalAngularSpeed: keplerSpeed,
+          globalTilt: clamp(globalTilt + (rng() - 0.5) * 0.08, 0.42, 0.72),
+          globalPlaneRot: (rng() - 0.5) * 0.14
+        };
+      }
+
+      function createSolarSystem(idKey, centerX, centerY, seedVal, rawIndex) {
+        const rng = mulberry32(seedVal);
+        const stellarTypeIndex = Math.floor(rng() * STELLAR_TYPES.length);
+        const stellarType = STELLAR_TYPES[stellarTypeIndex];
+
+        // Check if this specific icon represents Recycle Bin / Trash or a miniature Black Hole anchor
+        const lowerKey = String(idKey).toLowerCase();
+        const isMiniBlackHole = (
+          lowerKey.indexOf('recycle') !== -1 ||
+          lowerKey.indexOf('çöp') !== -1 ||
+          lowerKey.indexOf('geri dönüşüm') !== -1 ||
+          lowerKey.indexOf('trash') !== -1
+        );
+
+        const variation = Math.floor(rng() * 3) - 1;
+        const numPlanets = clamp(Math.round(settings.planetCount + variation), 1, 6);
+
+        const planeRotation = (rng() - 0.5) * Math.PI * 0.85;
+        const planeTilt = 0.44 + rng() * 0.30;
+
+        const planets = [];
+        let currentRadius = 22 + rng() * 7;
+
+        for (let p = 0; p < numPlanets; p++) {
+          const palette = PLANET_PALETTES[Math.floor(rng() * PLANET_PALETTES.length)];
+          const radiusStep = 14 + rng() * 12 + p * 2.5;
+          if (p > 0) currentRadius += radiusStep;
+
+          const keplerFactor = 1 / Math.pow(currentRadius / 28, 0.62);
+          const dir = rng() > 0.12 ? 1 : -1;
+          const baseAngularSpeed = (0.42 + rng() * 0.26) * keplerFactor * dir;
+
+          const baseRadius = 1.8 + rng() * 2.1 + (p === Math.floor(numPlanets * 0.6) ? 0.9 : 0);
+          const hasRing = (p >= 1 && baseRadius > 2.9 && rng() > 0.68);
+
+          const moons = [];
+          const maxMoons = (p >= 1 && rng() > 0.45) ? (rng() > 0.72 ? 2 : 1) : 0;
+          for (let m = 0; m < maxMoons; m++) {
+            moons.push({
+              orbitRadius: baseRadius * 2.2 + 3.2 + m * 3.6,
+              angle: rng() * Math.PI * 2,
+              speed: (2.2 + rng() * 1.8) * (m % 2 === 0 ? 1 : -1),
+              size: 0.75 + rng() * 0.55
+            });
+          }
+
+          planets.push({
+            orbitIndex: p,
+            baseOrbitRadius: currentRadius,
+            eccentricity: 0.02 + rng() * 0.08,
+            orbitAngleOffset: (rng() - 0.5) * 0.22,
+            orbitTiltOffset: (rng() - 0.5) * 0.08,
+            orbitAlpha: clamp(0.115 - p * 0.015, 0.045, 0.12),
+            angle: rng() * Math.PI * 2,
+            angularSpeed: baseAngularSpeed,
+            baseSize: baseRadius,
+            palette: palette,
+            hasRing: hasRing,
+            ringTilt: 0.32 + rng() * 0.2,
+            moons: moons,
+            lagX: 0,
+            lagY: 0,
+            worldX: centerX,
+            worldY: centerY,
+            depthZ: 0
+          });
+        }
+
+        const hasLocalBelt = rng() > 0.48;
+        const beltRadius = currentRadius * (0.72 + rng() * 0.35);
+        const dustParticles = [];
+        const dustCount = hasLocalBelt ? (14 + Math.floor(rng() * 12)) : 6;
+        for (let d = 0; d < dustCount; d++) {
+          dustParticles.push({
+            radius: hasLocalBelt
+              ? (beltRadius + (rng() - 0.5) * 9)
+              : (20 + rng() * currentRadius),
+            angle: rng() * Math.PI * 2,
+            speed: (0.12 + rng() * 0.22) * (rng() > 0.15 ? 1 : -1),
+            size: 0.6 + rng() * 0.85,
+            alpha: 0.12 + rng() * 0.22
+          });
+        }
+
+        const globalOrb = computeGlobalOrbitParams(centerX, centerY, seedVal);
+
+        return {
+          id: idKey,
+          rawIndex: typeof rawIndex === 'number' ? rawIndex : -1,
+          seed: seedVal,
+          isMiniBlackHole: isMiniBlackHole,
+          // Desktop anchor coordinates reported by DiyarDesk
+          anchorX: centerX,
+          anchorY: centerY,
+          // Actual rendered & simulated coordinates (either anchored or revolving on global orbit)
+          currentX: centerX,
+          currentY: centerY,
+          targetX: centerX,
+          targetY: centerY,
+          vx: 0,
+          vy: 0,
+          // Global orbital parameters around Central Black Hole / Sun
+          globalRadius: globalOrb.globalRadius,
+          globalAngle: globalOrb.globalAngle,
+          globalAngularSpeed: globalOrb.globalAngularSpeed,
+          globalTilt: globalOrb.globalTilt,
+          globalPlaneRot: globalOrb.globalPlaneRot,
+          stellarTypeIndex: stellarTypeIndex,
+          stellarType: stellarType,
+          starRadius: 2.5 + rng() * 1.3,
+          glowRadius: 24 + rng() * 12,
+          pulsePhase: rng() * Math.PI * 2,
+          pulseSpeed: 1.1 + rng() * 0.9,
+          planeRotation: planeRotation,
+          planeTilt: planeTilt,
+          planets: planets,
+          dustParticles: dustParticles,
+          maxOrbitRadius: currentRadius,
+          state: 'spawning',
+          spawnProgress: 0.0,
+          removeProgress: 0.0,
+          opacity: 0.0,
+          tidalPullX: 0,
+          tidalPullY: 0
+        };
+      }
+
+      // =========================================================================
+      // 7. DIYARDESK MESSAGE PROTOCOL & ICON RECONCILIATION
+      // =========================================================================
+      function extractExplicitIconKey(rawIcon) {
+        if (!rawIcon || typeof rawIcon !== 'object' || Array.isArray(rawIcon)) return null;
+        const candidates = [
+          rawIcon.id,
+          rawIcon.key,
+          rawIcon.uid,
+          rawIcon.hwnd,
+          rawIcon.path,
+          rawIcon.name,
+          rawIcon.text,
+          rawIcon.label,
+          rawIcon.title
+        ];
+        for (let i = 0; i < candidates.length; i++) {
+          const c = candidates[i];
+          if (c !== undefined && c !== null && String(c).trim() !== '') {
+            return 'id:' + String(c).trim();
+          }
+        }
+        return null;
+      }
+
+      function normalizeIconRect(rawIcon, msg, index) {
+        if (Array.isArray(rawIcon) && rawIcon.length >= 4) {
+          rawIcon = { left: Number(rawIcon[0]), top: Number(rawIcon[1]), right: Number(rawIcon[2]), bottom: Number(rawIcon[3]), index: index };
+        }
+        if (!rawIcon || typeof rawIcon !== 'object') return null;
+
+        let scale = 1.0;
+        if (msg && (msg.coordSpace === 'css' || msg.isCss === true || msg.preview === true)) {
+          scale = 1.0;
+        } else if (msg && typeof msg.screenW === 'number' && msg.screenW > 0) {
+          scale = viewWidth / msg.screenW;
+        } else if (msg && typeof msg.dpr === 'number' && msg.dpr > 0) {
+          scale = 1.0 / msg.dpr;
+        } else if (msg && typeof msg.scale === 'number' && msg.scale > 0) {
+          scale = 1.0 / msg.scale;
+        } else {
+          scale = 1.0 / (window.devicePixelRatio || 1);
+        }
+
+        const monitorOffsetX = (msg && typeof msg.offsetX === 'number') ? msg.offsetX : 0;
+        const monitorOffsetY = (msg && typeof msg.offsetY === 'number') ? msg.offsetY : 0;
+
+        let left, top, right, bottom;
+        if (
+          typeof rawIcon.left === 'number' &&
+          typeof rawIcon.top === 'number' &&
+          typeof rawIcon.right === 'number' &&
+          typeof rawIcon.bottom === 'number'
+        ) {
+          left = (rawIcon.left - monitorOffsetX) * scale;
+          top = (rawIcon.top - monitorOffsetY) * scale;
+          right = (rawIcon.right - monitorOffsetX) * scale;
+          bottom = (rawIcon.bottom - monitorOffsetY) * scale;
+        } else if (
+          typeof rawIcon.x === 'number' &&
+          typeof rawIcon.y === 'number'
+        ) {
+          const w = typeof rawIcon.width === 'number' ? rawIcon.width : (typeof rawIcon.w === 'number' ? rawIcon.w : 76);
+          const h = typeof rawIcon.height === 'number' ? rawIcon.height : (typeof rawIcon.h === 'number' ? rawIcon.h : 76);
+          left = (rawIcon.x - monitorOffsetX) * scale;
+          top = (rawIcon.y - monitorOffsetY) * scale;
+          right = left + w * scale;
+          bottom = top + h * scale;
+        } else {
+          return null;
+        }
+
+        const centerX = (left + right) * 0.5;
+        const centerY = (top + bottom) * 0.5;
+        if (!Number.isFinite(centerX) || !Number.isFinite(centerY)) return null;
+
+        return {
+          rawIndex: typeof rawIcon.index === 'number' ? rawIcon.index : index,
+          left: left,
+          top: top,
+          right: right,
+          bottom: bottom,
+          centerX: centerX,
+          centerY: centerY,
+          explicitKey: extractExplicitIconKey(rawIcon)
+        };
+      }
+
+      function updateSystemAnchor(sys, newCenterX, newCenterY, rawIndex) {
+        if (typeof rawIndex === 'number') sys.rawIndex = rawIndex;
+        const movedDist = Math.hypot(newCenterX - sys.anchorX, newCenterY - sys.anchorY);
+        sys.anchorX = newCenterX;
+        sys.anchorY = newCenterY;
+
+        if (settings.iconOrbitMode === 'Orbit') {
+          // If the user manually dragged the icon on the desktop (> 18px change from its anchor),
+          // smoothly re-inject it into the new orbital radius & angle corresponding to where they dragged it!
+          if (movedDist > 18) {
+            const newOrb = computeGlobalOrbitParams(newCenterX, newCenterY, sys.seed);
+            sys.globalRadius = newOrb.globalRadius;
+            sys.globalAngle = newOrb.globalAngle;
+            sys.globalAngularSpeed = newOrb.globalAngularSpeed;
+          }
+        } else {
+          sys.targetX = newCenterX;
+          sys.targetY = newCenterY;
+        }
+      }
+
+      function handleIcons(rawIconsList, msgMeta) {
+        if (!Array.isArray(rawIconsList)) return;
+        lastRawIconsList = rawIconsList;
+        lastRawIconsMeta = msgMeta || {};
+
+        const iconScale = (msgMeta && (msgMeta.coordSpace === 'css' || msgMeta.isCss === true || msgMeta.preview === true))
+          ? 1.0
+          : (1.0 / (window.devicePixelRatio || 1));
+        icons = rawIconsList.map(function (raw) {
+          if (Array.isArray(raw) && raw.length >= 4) {
+            const l = Number(raw[0]) * iconScale, t = Number(raw[1]) * iconScale;
+            return { x: l, y: t, w: (Number(raw[2]) * iconScale) - l, h: (Number(raw[3]) * iconScale) - t };
+          }
+          if (raw && typeof raw === 'object' && typeof raw.left === 'number') {
+            return { x: raw.left * iconScale, y: raw.top * iconScale, w: (raw.right - raw.left) * iconScale, h: (raw.bottom - raw.top) * iconScale };
+          }
+          return null;
+        }).filter(Boolean);
+
+        if (settings.adaptive === 0) {
+          systems.length = 0;
+          return;
+        }
+
+        const parsedIcons = [];
+        for (let i = 0; i < rawIconsList.length; i++) {
+          const norm = normalizeIconRect(rawIconsList[i], msgMeta, i);
+          if (norm) parsedIcons.push(norm);
+        }
+
+        const activeSystems = [];
+        for (let i = 0; i < systems.length; i++) {
+          if (systems[i].state !== 'removing') {
+            activeSystems.push(systems[i]);
+          }
+        }
+
+        const matchedSystemSet = new Set();
+        const matchedIconIndices = new Set();
+
+        // PASS 1: Exact Explicit ID / Key Match
+        for (let i = 0; i < parsedIcons.length; i++) {
+          const icon = parsedIcons[i];
+          if (!icon.explicitKey) continue;
+          for (let s = 0; s < activeSystems.length; s++) {
+            const sys = activeSystems[s];
+            if (!matchedSystemSet.has(sys) && sys.id === icon.explicitKey) {
+              updateSystemAnchor(sys, icon.centerX, icon.centerY, icon.rawIndex);
+              matchedSystemSet.add(sys);
+              matchedIconIndices.add(i);
+              break;
+            }
+          }
+        }
+
+        // PASS 2A & 2B: Spatial Nearest-Neighbor Matching (compares against anchorX/Y and currentX/Y)
+        const candidatePairs = [];
+        for (let i = 0; i < parsedIcons.length; i++) {
+          if (matchedIconIndices.has(i)) continue;
+          const icon = parsedIcons[i];
+          for (let s = 0; s < activeSystems.length; s++) {
+            const sys = activeSystems[s];
+            if (matchedSystemSet.has(sys)) continue;
+            const dAnchor = Math.hypot(icon.centerX - sys.anchorX, icon.centerY - sys.anchorY);
+            const dTarget = Math.hypot(icon.centerX - sys.targetX, icon.centerY - sys.targetY);
+            const dCurrent = Math.hypot(icon.centerX - sys.currentX, icon.centerY - sys.currentY);
+            const dist = Math.min(dAnchor, dTarget, dCurrent);
+            candidatePairs.push({ sys: sys, iconIndex: i, dist: dist });
+          }
+        }
+
+        candidatePairs.sort(function (a, b) {
+          return a.dist - b.dist;
+        });
+
+        // Pass 2A: Lock stationary icons first (dist <= 16px)
+        for (let c = 0; c < candidatePairs.length; c++) {
+          const pair = candidatePairs[c];
+          if (pair.dist > 16) break;
+          if (matchedSystemSet.has(pair.sys) || matchedIconIndices.has(pair.iconIndex)) continue;
+          const icon = parsedIcons[pair.iconIndex];
+          updateSystemAnchor(pair.sys, icon.centerX, icon.centerY, icon.rawIndex);
+          if (icon.explicitKey) pair.sys.id = icon.explicitKey;
+          matchedSystemSet.add(pair.sys);
+          matchedIconIndices.add(pair.iconIndex);
+        }
+
+        // Pass 2B: Track dragged icons across the screen
+        const maxDragDist = Math.hypot(viewWidth, viewHeight) * 0.95;
+        for (let c = 0; c < candidatePairs.length; c++) {
+          const pair = candidatePairs[c];
+          if (pair.dist > maxDragDist) break;
+          if (matchedSystemSet.has(pair.sys) || matchedIconIndices.has(pair.iconIndex)) continue;
+          const icon = parsedIcons[pair.iconIndex];
+          updateSystemAnchor(pair.sys, icon.centerX, icon.centerY, icon.rawIndex);
+          if (icon.explicitKey) pair.sys.id = icon.explicitKey;
+          matchedSystemSet.add(pair.sys);
+          matchedIconIndices.add(pair.iconIndex);
+        }
+
+        // Unmatched existing systems enter smooth fade-out / dissolve ('removing')
+        for (let s = 0; s < activeSystems.length; s++) {
+          const sys = activeSystems[s];
+          if (!matchedSystemSet.has(sys)) {
+            sys.state = 'removing';
+            sys.removeProgress = 0.0;
+          }
+        }
+
+        // Unmatched incoming icons spawn new solar systems
+        for (let i = 0; i < parsedIcons.length; i++) {
+          if (matchedIconIndices.has(i)) continue;
+          const icon = parsedIcons[i];
+          const gridCellX = Math.round(icon.centerX / 36);
+          const gridCellY = Math.round(icon.centerY / 36);
+          const seedSource = icon.explicitKey
+            ? icon.explicitKey
+            : ('cell:' + gridCellX + ':' + gridCellY);
+          const seedVal = fnv1aHash(seedSource);
+          const sysId = icon.explicitKey || ('sys_' + (syntheticIdCounter++) + '_' + seedVal);
+
+          const newSys = createSolarSystem(sysId, icon.centerX, icon.centerY, seedVal, icon.rawIndex);
+          systems.push(newSys);
+        }
+      }
+
+      // =========================================================================
+      // 8. SETTINGS INTEGRATION & MESSAGE ROUTING
+      // =========================================================================
+      function unwrapValue(v) {
+        if (v !== null && typeof v === 'object' && 'value' in v) {
+          return v.value;
+        }
+        return v;
+      }
+
+      function applySettingsPatch(rawPatch) {
+        if (!rawPatch || typeof rawPatch !== 'object') return;
+
+        const flat = Object.assign({}, rawPatch);
+        const groupKeys = [
+          'blackHoleCore', 'Black Hole & Core',
+          'solarSystem', 'Solar System',
+          'space', 'Space',
+          'physics', 'Physics',
+          'performance', 'Performance'
+        ];
+        for (let i = 0; i < groupKeys.length; i++) {
+          const gk = groupKeys[i];
+          if (rawPatch[gk] && typeof rawPatch[gk] === 'object') {
+            Object.assign(flat, rawPatch[gk]);
+          }
+        }
+
+        let rebuildStarsNeeded = false;
+        let rebuildAsteroidsNeeded = false;
+        let rebuildBgNeeded = false;
+        let rebuildPlanetsNeeded = false;
+
+        const mapNum = function (keys, min, max) {
+          for (let i = 0; i < keys.length; i++) {
+            if (flat[keys[i]] !== undefined) {
+              const n = Number(unwrapValue(flat[keys[i]]));
+              if (Number.isFinite(n)) return clamp(n, min, max);
+            }
+          }
+          return null;
+        };
+
+        // Black Hole & Core settings
+        const cbRaw = flat.centerBodyType !== undefined ? unwrapValue(flat.centerBodyType) : flat.center_body_type;
+        if (cbRaw !== undefined) {
+          const s = String(cbRaw).trim().toLowerCase();
+          if (s === '1' || s.indexOf('sun') !== -1 || s === 'star') settings.centerBodyType = 'Sun';
+          else if (s === '2' || s.indexOf('none') !== -1 || s === 'off') settings.centerBodyType = 'None';
+          else settings.centerBodyType = 'BlackHole';
+        }
+
+        const newBhSize = mapNum(['blackHoleSize', 'black_hole_size'], 0.4, 2.5);
+        if (newBhSize !== null) settings.blackHoleSize = newBhSize;
+
+        const newAccretion = mapNum(['accretionIntensity', 'accretion_intensity'], 0.1, 2.0);
+        if (newAccretion !== null) settings.accretionIntensity = newAccretion;
+
+        const modeRaw = flat.iconOrbitMode !== undefined ? unwrapValue(flat.iconOrbitMode) : flat.icon_orbit_mode;
+        if (modeRaw !== undefined) {
+          const ms = String(modeRaw).trim().toLowerCase();
+          const newMode = (ms.indexOf('anchor') !== -1 || ms.indexOf('fixed') !== -1 || ms === '1' || ms === 'false')
+            ? 'Anchor'
+            : 'Orbit';
+          if (newMode !== settings.iconOrbitMode) {
+            settings.iconOrbitMode = newMode;
+            if (newMode === 'Anchor') {
+              for (let i = 0; i < systems.length; i++) {
+                systems[i].targetX = systems[i].anchorX;
+                systems[i].targetY = systems[i].anchorY;
+              }
+            } else {
+              for (let i = 0; i < systems.length; i++) {
+                const orb = computeGlobalOrbitParams(systems[i].currentX, systems[i].currentY, systems[i].seed);
+                systems[i].globalRadius = orb.globalRadius;
+                systems[i].globalAngle = orb.globalAngle;
+                systems[i].globalAngularSpeed = orb.globalAngularSpeed;
+              }
+            }
+          }
+        }
+
+        const newGlobalSpeed = mapNum(['globalOrbitSpeed', 'global_orbit_speed'], 0.0, 3.0);
+        if (newGlobalSpeed !== null) settings.globalOrbitSpeed = newGlobalSpeed;
+
+        // Solar System settings
+        const newPlanetCount = mapNum(['planetCount', 'planet_count'], 1, 6);
+        if (newPlanetCount !== null && newPlanetCount !== settings.planetCount) {
+          settings.planetCount = Math.round(newPlanetCount);
+          rebuildPlanetsNeeded = true;
+        }
+
+        const newOrbitSize = mapNum(['orbitSize', 'orbit_size'], 0.4, 2.2);
+        if (newOrbitSize !== null) settings.orbitSize = newOrbitSize;
+
+        const newOrbitSpeed = mapNum(['orbitSpeed', 'orbit_speed'], 0.1, 3.0);
+        if (newOrbitSpeed !== null) settings.orbitSpeed = newOrbitSpeed;
+
+        const newPlanetSize = mapNum(['planetSize', 'planet_size'], 0.4, 2.2);
+        if (newPlanetSize !== null) settings.planetSize = newPlanetSize;
+
+        const newStarDensity = mapNum(['starDensity', 'star_density'], 0.1, 2.5);
+        if (newStarDensity !== null && newStarDensity !== settings.starDensity) {
+          settings.starDensity = newStarDensity;
+          rebuildStarsNeeded = true;
+        }
+
+        const newNebula = mapNum(['nebulaIntensity', 'nebula_intensity'], 0.0, 1.5);
+        if (newNebula !== null && newNebula !== settings.nebulaIntensity) {
+          settings.nebulaIntensity = newNebula;
+          rebuildBgNeeded = true;
+        }
+
+        const newAsteroid = mapNum(['asteroidDensity', 'asteroid_density'], 0.0, 2.5);
+        if (newAsteroid !== null && newAsteroid !== settings.asteroidDensity) {
+          settings.asteroidDensity = newAsteroid;
+          rebuildAsteroidsNeeded = true;
+        }
+
+        const ssRaw = flat.shootingStars !== undefined ? flat.shootingStars : flat.shooting_stars;
+        if (ssRaw !== undefined) {
+          const val = unwrapValue(ssRaw);
+          settings.shootingStars = (val === true || val === 'true' || val === 1 || val === '1');
+        }
+
+        const newGravity = mapNum(['gravityStrength', 'gravity_strength'], 0.0, 2.0);
+        if (newGravity !== null) settings.gravityStrength = newGravity;
+
+        const newAttraction = mapNum(['systemAttraction', 'system_attraction'], 0.0, 2.0);
+        if (newAttraction !== null) settings.systemAttraction = newAttraction;
+
+        const qRaw = flat.quality !== undefined ? unwrapValue(flat.quality) : flat.Quality;
+        if (qRaw !== undefined) {
+          const qStr = String(qRaw).trim().toLowerCase();
+          let normalizedQ = 'High';
+          if (qStr === 'low' || qStr === '0') normalizedQ = 'Low';
+          else if (qStr === 'medium' || qStr === 'med' || qStr === '1') normalizedQ = 'Medium';
+          if (normalizedQ !== settings.quality) {
+            settings.quality = normalizedQ;
+            rebuildStarsNeeded = true;
+            rebuildAsteroidsNeeded = true;
+          }
+        }
+
+        if (flat.adaptive !== undefined) {
+          const nextAd = Number(unwrapValue(flat.adaptive)) === 0 ? 0 : 1;
+          if (nextAd !== settings.adaptive) {
+            settings.adaptive = nextAd;
+            if (nextAd === 0) {
+              systems.length = 0;
+            } else if (lastRawIconsList.length > 0) {
+              handleIcons(lastRawIconsList, lastRawIconsMeta);
+            }
+          }
+        }
+        if (flat.seed !== undefined) {
+          const nextSeed = Number(unwrapValue(flat.seed)) || 0;
+          if (nextSeed !== settings.seed) {
+            settings.seed = nextSeed;
+            rebuildStarsNeeded = true;
+            rebuildAsteroidsNeeded = true;
+            rebuildBgNeeded = true;
+          }
+        }
+
+        if (rebuildStarsNeeded) buildStarField();
+        if (rebuildAsteroidsNeeded) buildAsteroids();
+        if (rebuildBgNeeded) bgNeedsRedraw = true;
+
+        if (rebuildPlanetsNeeded) {
+          for (let i = 0; i < systems.length; i++) {
+            const oldSys = systems[i];
+            if (oldSys.state === 'removing') continue;
+            const regenerated = createSolarSystem(oldSys.id, oldSys.anchorX, oldSys.anchorY, oldSys.seed, oldSys.rawIndex);
+            regenerated.currentX = oldSys.currentX;
+            regenerated.currentY = oldSys.currentY;
+            regenerated.targetX = oldSys.targetX;
+            regenerated.targetY = oldSys.targetY;
+            regenerated.globalAngle = oldSys.globalAngle;
+            regenerated.globalRadius = oldSys.globalRadius;
+            regenerated.state = 'active';
+            regenerated.spawnProgress = 1.0;
+            regenerated.opacity = oldSys.opacity;
+            systems[i] = regenerated;
+          }
+        }
+      }
+
+      function handleMessage(event) {
+        let msg = event && event.data !== undefined ? event.data : event;
+        if (typeof msg === 'string') {
+          try {
+            msg = JSON.parse(msg);
+          } catch (e) {
+            return;
+          }
+        }
+        if (!msg || typeof msg !== 'object') return;
+
+        const msgType = msg.t || msg.type || msg.cmd || msg.action;
+
+        if (msgType === 'icons') {
+          const list = msg.vis === false
+            ? []
+            : (Array.isArray(msg.r)
+              ? msg.r
+              : (Array.isArray(msg.icons)
+                ? msg.icons
+                : (Array.isArray(msg.data)
+                  ? msg.data
+                  : (Array.isArray(msg.items)
+                    ? msg.items
+                    : (Array.isArray(msg.rects) ? msg.rects : [])))));
+
+          if (!hasReceivedHostIcons && !msg.preview) {
+            hasReceivedHostIcons = true;
+            if (previewFallbackTimer) {
+              clearTimeout(previewFallbackTimer);
+              previewFallbackTimer = null;
+            }
+            if (isPreviewMode) {
+              isPreviewMode = false;
+              systems.length = 0;
+            }
+          }
+
+          handleIcons(list, msg);
+          return;
+        }
+
+        if (msgType === 'reset') {
+          applySettingsPatch(Object.assign({}, DEFAULT_SETTINGS, msg.v || {}));
+          return;
+        }
+
+        if (
+          msgType === 'settings' ||
+          msgType === 'config' ||
+          msgType === 'params' ||
+          msgType === 'applySettings'
+        ) {
+          const payload = msg.v || msg.params || msg.settings || msg.data || msg.config || msg.values || msg;
+          applySettingsPatch(payload);
+          return;
+        }
+
+        if (msgType === 'setting' || msgType === 'property' || msgType === 'set') {
+          if (msg.key || msg.name) {
+            const patch = {};
+            patch[msg.key || msg.name] = msg.value;
+            applySettingsPatch(patch);
+          }
+          return;
+        }
+
+        if (msgType === 'preview') {
+          if (!hasReceivedHostIcons) {
+            activatePreviewDummyAnchors();
+          }
+          return;
+        }
+
+        if (msgType === 'pause') {
+          isPaused = isPreviewMode ? false : (msg.v !== undefined ? !!msg.v : true);
+          paused = isPaused;
+          if (!isPaused) lastFrameTime = performance.now();
+          return;
+        }
+        if (msgType === 'resume') {
+          isPaused = false;
+          paused = false;
+          lastFrameTime = performance.now();
+          return;
+        }
+      }
+
+      // =========================================================================
+      // 9. PREVIEW MODE DUMMY ANCHORS
+      // =========================================================================
+      function buildPreviewDummyIcons() {
+        const w = viewWidth;
+        const h = viewHeight;
+        const halfBox = 38;
+        const anchors = [
+          { id: 'preview-chrome', cx: w * 0.22, cy: h * 0.26 },
+          { id: 'preview-vscode', cx: w * 0.78, cy: h * 0.25 },
+          { id: 'preview-documents', cx: w * 0.24, cy: h * 0.74 },
+          { id: 'preview-projects', cx: w * 0.74, cy: h * 0.72 },
+          { id: 'preview-recycle-bin', cx: w * 0.36, cy: h * 0.44 }
+        ];
+
+        return anchors.map(function (a, idx) {
+          return {
+            index: idx,
+            id: a.id,
+            left: a.cx - halfBox,
+            top: a.cy - halfBox,
+            right: a.cx + halfBox,
+            bottom: a.cy + halfBox
+          };
+        });
+      }
+
+      function activatePreviewDummyAnchors() {
+        if (hasReceivedHostIcons) return;
+        isPreviewMode = true;
+        const dummyIcons = buildPreviewDummyIcons();
+        handleIcons(dummyIcons, { coordSpace: 'css', preview: true });
+      }
+
+      // =========================================================================
+      // 10. SIMULATION UPDATES & ORBITAL HOST BRIDGE
+      // =========================================================================
+      let sentOrbitalPositions = false;
+      function emitHostOrbitalIconPositions(dt) {
+        const shouldOrbit = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && systems.length > 0);
+        if (!shouldOrbit) {
+          if (sentOrbitalPositions) {
+            sentOrbitalPositions = false;
+            if (!isPreviewMode && window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+              window.chrome.webview.postMessage(JSON.stringify({ t: 'moveIcons', reset: true, icons: [] }));
+            }
+          }
+          return;
+        }
+        sentOrbitalPositions = true;
+
+        // Throttle host bridge messages to ~20 Hz so Win32 ListView isn't flooded
+        hostSyncAccumulator += dt;
+        if (hostSyncAccumulator < 0.05) return;
+        hostSyncAccumulator = 0;
+
+        const dprScale = window.devicePixelRatio || 1;
+        const payloadIcons = [];
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          if (sys.state === 'removing') continue;
+          payloadIcons.push({
+            id: sys.id,
+            index: sys.rawIndex >= 0 ? sys.rawIndex : i,
+            x: Math.round(sys.currentX * dprScale),
+            y: Math.round(sys.currentY * dprScale),
+            cssX: Math.round(sys.currentX),
+            cssY: Math.round(sys.currentY)
+          });
+        }
+
+        const msgObj = {
+          t: 'moveIcons',
+          type: 'moveIcons',
+          icons: payloadIcons
+        };
+
+        try {
+          if (!isPreviewMode && window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
+            window.chrome.webview.postMessage(JSON.stringify(msgObj));
+          }
+          if (window.WallIcons && typeof window.WallIcons.moveIcons === 'function') {
+            window.WallIcons.moveIcons(payloadIcons);
+          }
+        } catch (e) {
+          // Ignore cross-origin frame errors if any
+        }
+      }
+
+      function updateSystems(dt) {
+        const lerpAlpha = 1.0 - Math.exp(-8.5 * dt);
+        const coreX = viewWidth * 0.5;
+        const coreY = viewHeight * 0.5;
+        const isOrbitMode = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001);
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+
+          // If Icon Orbit Mode is active, revolve each icon's target position around the Central Black Hole / Sun
+          if (isOrbitMode && sys.state !== 'removing') {
+            sys.globalAngle = (sys.globalAngle + sys.globalAngularSpeed * settings.globalOrbitSpeed * dt) % (Math.PI * 2);
+
+            const rx = sys.globalRadius;
+            const ry = rx * sys.globalTilt;
+            const lx = Math.cos(sys.globalAngle) * rx;
+            const ly = Math.sin(sys.globalAngle) * ry;
+            const cosR = Math.cos(sys.globalPlaneRot);
+            const sinR = Math.sin(sys.globalPlaneRot);
+
+            // Clamp within safe screen margins so orbiting icons stay visible on desktop
+            const margin = 54;
+            sys.targetX = clamp(coreX + lx * cosR - ly * sinR, margin, viewWidth - margin);
+            sys.targetY = clamp(coreY + lx * sinR + ly * cosR, margin, viewHeight - margin);
+          }
+
+          const prevX = sys.currentX;
+          const prevY = sys.currentY;
+          sys.currentX = lerp(sys.currentX, sys.targetX, lerpAlpha);
+          sys.currentY = lerp(sys.currentY, sys.targetY, lerpAlpha);
+
+          if (Math.hypot(sys.targetX - sys.currentX, sys.targetY - sys.currentY) < 0.08) {
+            sys.currentX = sys.targetX;
+            sys.currentY = sys.targetY;
+          }
+
+          sys.vx = (sys.currentX - prevX) / Math.max(dt, 0.001);
+          sys.vy = (sys.currentY - prevY) / Math.max(dt, 0.001);
+
+          // Spawn / Active / Removal state machine
+          if (sys.state === 'spawning') {
+            sys.spawnProgress = clamp(sys.spawnProgress + dt / 0.72, 0.0, 1.0);
+            sys.opacity = smoothstep(0.0, 0.35, sys.spawnProgress);
+            if (sys.spawnProgress >= 1.0) {
+              sys.state = 'active';
+              sys.opacity = 1.0;
+            }
+          } else if (sys.state === 'active') {
+            sys.opacity = 1.0;
+          } else if (sys.state === 'removing') {
+            sys.removeProgress = clamp(sys.removeProgress + dt / 0.85, 0.0, 1.0);
+            sys.opacity = Math.pow(1.0 - sys.removeProgress, 1.45);
+          }
+
+          sys.tidalPullX = 0;
+          sys.tidalPullY = 0;
+
+          // Central Black Hole / Grand Sun gravitational pull on nearby icon systems
+          if (settings.centerBodyType !== 'None' && settings.gravityStrength > 0.01) {
+            const dxCore = coreX - sys.currentX;
+            const dyCore = coreY - sys.currentY;
+            const distCore = Math.hypot(dxCore, dyCore);
+            const influenceRadius = Math.min(viewWidth, viewHeight) * 0.48;
+            if (distCore > 24 && distCore < influenceRadius) {
+              const normDist = 1.0 - distCore / influenceRadius;
+              const bhPull = normDist * normDist * 16.0 * settings.gravityStrength * settings.blackHoleSize;
+              sys.tidalPullX += (dxCore / distCore) * bhPull;
+              sys.tidalPullY += (dyCore / distCore) * bhPull;
+            }
+          }
+        }
+
+        // Inter-system gentle gravitational perturbation
+        const attractionStrength = settings.gravityStrength * settings.systemAttraction;
+        if (attractionStrength > 0.001 && systems.length > 1) {
+          const maxRange = 360 * settings.orbitSize;
+          const maxRangeSq = maxRange * maxRange;
+
+          for (let i = 0; i < systems.length; i++) {
+            const a = systems[i];
+            if (a.opacity < 0.05) continue;
+            for (let j = i + 1; j < systems.length; j++) {
+              const b = systems[j];
+              if (b.opacity < 0.05) continue;
+
+              const dx = b.currentX - a.currentX;
+              const dy = b.currentY - a.currentY;
+              const distSq = dx * dx + dy * dy;
+
+              if (distSq > 100 && distSq < maxRangeSq) {
+                const dist = Math.sqrt(distSq);
+                const falloff = Math.pow(1.0 - dist / maxRange, 2);
+                const pullMag = clamp(falloff * 11.5 * attractionStrength, 0, 14);
+                const nx = dx / dist;
+                const ny = dy / dist;
+
+                a.tidalPullX += nx * pullMag * b.opacity;
+                a.tidalPullY += ny * pullMag * b.opacity;
+                b.tidalPullX -= nx * pullMag * a.opacity;
+                b.tidalPullY -= ny * pullMag * a.opacity;
+              }
+            }
+          }
+        }
+
+        emitHostOrbitalIconPositions(dt);
+      }
+
+      function updatePlanets(dt) {
+        const speedMult = settings.orbitSpeed;
+        const sizeMult = settings.orbitSize;
+        const lagDecay = 1.0 - Math.exp(-6.5 * dt);
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          const cosRot = Math.cos(sys.planeRotation);
+          const sinRot = Math.sin(sys.planeRotation);
+
+          const dissolveExpansion = sys.state === 'removing'
+            ? (1.0 + sys.removeProgress * 0.42)
+            : 1.0;
+
+          for (let p = 0; p < sys.planets.length; p++) {
+            const planet = sys.planets[p];
+            planet.angle = (planet.angle + planet.angularSpeed * speedMult * (1 + (sys.hoverGlow || 0) * 1.1 + (sys.boost || 0) * 2.4) * dt) % (Math.PI * 2);
+
+            const orbitNorm = (p + 1) / Math.max(1, sys.planets.length);
+            const targetLagX = clamp(-sys.vx * 0.028 * (0.45 + orbitNorm * 0.75), -26, 26);
+            const targetLagY = clamp(-sys.vy * 0.028 * (0.45 + orbitNorm * 0.75), -26, 26);
+            planet.lagX = lerp(planet.lagX, targetLagX, lagDecay);
+            planet.lagY = lerp(planet.lagY, targetLagY, lagDecay);
+
+            const rx = planet.baseOrbitRadius * sizeMult * dissolveExpansion;
+            const ry = rx * clamp(sys.planeTilt + planet.orbitTiltOffset, 0.35, 0.85);
+
+            const focalOffset = rx * planet.eccentricity;
+            const localX = Math.cos(planet.angle) * rx - focalOffset;
+            const localY = Math.sin(planet.angle) * ry;
+
+            const rotX = localX * cosRot - localY * sinRot;
+            const rotY = localX * sinRot + localY * cosRot;
+
+            const tidalWeight = 0.35 + 0.65 * orbitNorm;
+            planet.worldX = sys.currentX + rotX + planet.lagX + sys.tidalPullX * tidalWeight;
+            planet.worldY = sys.currentY + rotY + planet.lagY + sys.tidalPullY * tidalWeight;
+            planet.depthZ = Math.sin(planet.angle);
+
+            for (let m = 0; m < planet.moons.length; m++) {
+              const moon = planet.moons[m];
+              moon.angle = (moon.angle + moon.speed * speedMult * dt) % (Math.PI * 2);
+            }
+          }
+        }
+      }
+
+      function updateParticles(dt) {
+        const speedMult = settings.orbitSpeed;
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          for (let d = 0; d < sys.dustParticles.length; d++) {
+            const pt = sys.dustParticles[d];
+            pt.angle = (pt.angle + pt.speed * speedMult * dt) % (Math.PI * 2);
+          }
+        }
+
+        const halfDiagAst = Math.hypot(viewWidth, viewHeight) * 0.5;
+        for (let i = 0; i < asteroids.length; i++) {
+          const ast = asteroids[i];
+          let astBoost = 1.0;
+          if (pointer.active) {
+            const rx = ast.bandNorm * halfDiagAst + ast.radialJitter;
+            const ry = rx * 0.54;
+            const ax = viewWidth * 0.5 + Math.cos(ast.angle) * rx;
+            const ay = viewHeight * 0.5 + Math.sin(ast.angle) * ry;
+            const pd = Math.hypot(ax - pointer.x, ay - pointer.y);
+            if (pd < 220) {
+              astBoost += (1.0 - pd / 220) * (pointer.down ? 4.5 : 1.8);
+            }
+          }
+          ast.angle = (ast.angle + ast.speed * speedMult * astBoost * dt) % (Math.PI * 2);
+          ast.rotation = (ast.rotation + ast.rotationSpeed * astBoost * dt) % (Math.PI * 2);
+        }
+
+        if (coreFlare > 0) {
+          coreFlare = Math.max(0, coreFlare - dt * 1.15);
+        }
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          if (sys.boost > 0) sys.boost = Math.max(0, sys.boost - dt * 1.2);
+          if (pointer.active) {
+            const d = Math.hypot(sys.currentX - pointer.x, sys.currentY - pointer.y);
+            const targetHover = d < 120 ? (1.0 - d / 120) : 0;
+            sys.hoverGlow = lerp(sys.hoverGlow || 0, targetHover, 1.0 - Math.exp(-10 * dt));
+          } else {
+            sys.hoverGlow = lerp(sys.hoverGlow || 0, 0, 1.0 - Math.exp(-6 * dt));
+          }
+        }
+
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const sw = shockwaves[i];
+          sw.life += dt;
+          if (sw.life >= sw.maxLife) {
+            shockwaves.splice(i, 1);
+            continue;
+          }
+          const p = sw.life / sw.maxLife;
+          sw.r = sw.startR + (sw.maxR - sw.startR) * (1 - Math.pow(1 - p, 2.2));
+          sw.alpha = (1 - p) * sw.baseAlpha;
+        }
+
+        for (let i = cursorSparks.length - 1; i >= 0; i--) {
+          const sp = cursorSparks[i];
+          sp.life += dt;
+          if (sp.life >= sp.maxLife) {
+            cursorSparks.splice(i, 1);
+            continue;
+          }
+          if (settings.centerBodyType !== 'None') {
+            const cx = viewWidth * 0.5;
+            const cy = viewHeight * 0.5;
+            const dx = cx - sp.x;
+            const dy = cy - sp.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist < 380) {
+              const pull = (1 - dist / 380) * 180;
+              sp.vx += (dx / dist) * pull * dt;
+              sp.vy += (dy / dist) * pull * dt;
+            }
+          }
+          sp.vx *= Math.exp(-1.4 * dt);
+          sp.vy *= Math.exp(-1.4 * dt);
+          sp.x += sp.vx * dt;
+          sp.y += sp.vy * dt;
+        }
+
+        if (centralBlackHole) {
+          for (let i = 0; i < centralBlackHole.orbits.length; i++) {
+            const orb = centralBlackHole.orbits[i];
+            orb.angle = (orb.angle + orb.speed * speedMult * dt) % (Math.PI * 2);
+          }
+          for (let i = 0; i < centralBlackHole.accretionParticles.length; i++) {
+            const ap = centralBlackHole.accretionParticles[i];
+            ap.angle = (ap.angle + (ap.speed / ap.radiusNorm) * speedMult * dt) % (Math.PI * 2);
+          }
+        }
+
+        if (settings.shootingStars) {
+          meteorSpawnAccumulator += dt;
+          if (meteorSpawnAccumulator >= 1.2) {
+            meteorSpawnAccumulator = 0;
+            const detRoll = Math.abs(Math.sin(elapsedTime * 12.9898) * 43758.5453) % 1;
+            if (detRoll < 0.18) {
+              spawnMeteor(detRoll);
+            }
+          }
+        }
+
+        for (let i = 0; i < meteors.length; i++) {
+          const m = meteors[i];
+          if (!m.active) continue;
+          m.life += dt;
+          if (m.life >= m.maxLife) {
+            m.active = false;
+            continue;
+          }
+          m.x += m.vx * dt;
+          m.y += m.vy * dt;
+          const p = m.life / m.maxLife;
+          m.alpha = Math.sin(p * Math.PI) * 0.55;
+        }
+      }
+
+      function spawnMeteor(seedFrac) {
+        let slot = null;
+        for (let i = 0; i < meteors.length; i++) {
+          if (!meteors[i].active) {
+            slot = meteors[i];
+            break;
+          }
+        }
+        if (!slot) return;
+
+        const rng = mulberry32(Math.floor((elapsedTime * 1000 + seedFrac * 9999) >>> 0));
+        const startX = (0.12 + rng() * 0.76) * viewWidth;
+        const startY = (0.06 + rng() * 0.42) * viewHeight;
+        const angle = (0.35 + rng() * 0.45) + (rng() > 0.5 ? 0 : Math.PI * 0.45);
+        const speed = 420 + rng() * 260;
+
+        slot.active = true;
+        slot.x = startX;
+        slot.y = startY;
+        slot.vx = Math.cos(angle) * speed;
+        slot.vy = Math.sin(Math.abs(angle)) * speed * 0.65;
+        slot.length = 48 + rng() * 42;
+        slot.life = 0;
+        slot.maxLife = 0.55 + rng() * 0.35;
+        slot.alpha = 0;
+      }
+
+      function cleanupRemovedSystems() {
+        for (let i = systems.length - 1; i >= 0; i--) {
+          const sys = systems[i];
+          if (sys.state === 'removing' && sys.removeProgress >= 1.0) {
+            systems.splice(i, 1);
+          }
+        }
+      }
+
+      // =========================================================================
+      // 11. RENDERING PIPELINE (WITH GARGANTUA BLACK HOLE & ORBITAL TRAILS)
+      // =========================================================================
+      function drawBackground() {
+        if (bgNeedsRedraw) {
+          renderStaticBackground();
+        }
+        ctx.drawImage(bgCanvas, 0, 0, viewWidth, viewHeight);
+      }
+
+      function drawStars() {
+        for (let i = 0; i < stars.length; i++) {
+          const s = stars[i];
+          const twinkle = Math.sin(elapsedTime * s.twinkleSpeed + s.twinklePhase) * s.twinkleAmp;
+          const alpha = clamp(s.baseAlpha + twinkle, 0.04, 0.92);
+          const x = s.nx * viewWidth;
+          const y = s.ny * viewHeight;
+
+          ctx.fillStyle = 'rgba(' + s.rgb + ', ' + alpha.toFixed(3) + ')';
+          if (s.size <= 1.15) {
+            ctx.fillRect(x, y, s.size, s.size);
+          } else {
+            ctx.beginPath();
+            ctx.arc(x, y, s.size * 0.55, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Draw global orbital paths of desktop icons revolving around the Central Black Hole / Sun
+      function drawGlobalIconOrbits() {
+        if (settings.iconOrbitMode !== 'Orbit' || settings.centerBodyType === 'None') return;
+        const cx = viewWidth * 0.5;
+        const cy = viewHeight * 0.5;
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          if (sys.opacity <= 0.05) continue;
+
+          const rx = sys.globalRadius;
+          const ry = rx * sys.globalTilt;
+          const alpha = 0.042 * sys.opacity;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(sys.globalPlaneRot);
+          ctx.strokeStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(4) + ')';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+
+      function drawCentralCore() {
+        if (!centralBlackHole || settings.centerBodyType === 'None') return;
+
+        const cx = viewWidth * 0.5;
+        const cy = viewHeight * 0.5;
+        const minDim = Math.min(viewWidth, viewHeight);
+        const scale = settings.blackHoleSize;
+        const intensity = clamp(settings.accretionIntensity * (1 + coreFlare * 0.85), 0.1, 2.8);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(centralBlackHole.tiltAngle);
+
+        // 1. Distant macro orbital rings
+        for (let i = 0; i < centralBlackHole.orbits.length; i++) {
+          const orb = centralBlackHole.orbits[i];
+          const rx = orb.rxNorm * viewWidth;
+          const ry = orb.ryNorm * minDim;
+
+          ctx.strokeStyle = 'rgba(165, 188, 224, ' + orb.alpha.toFixed(4) + ')';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          const px = Math.cos(orb.angle) * rx;
+          const py = Math.sin(orb.angle) * ry;
+          ctx.fillStyle = 'rgba(185, 205, 235, ' + (orb.alpha * 3.6).toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.arc(px, py, orb.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (settings.centerBodyType === 'Sun') {
+          // Grand Central Star option
+          const sunGlow = stellarGlowSprites[0];
+          const gSize = 140 * scale;
+          if (sunGlow) {
+            ctx.globalAlpha = clamp(0.65 * intensity, 0, 1);
+            ctx.drawImage(sunGlow, -gSize, -gSize, gSize * 2, gSize * 2);
+            ctx.globalAlpha = 1.0;
+          }
+          ctx.fillStyle = '#fff5e4';
+          ctx.beginPath();
+          ctx.arc(0, 0, 11 * scale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          return;
+        }
+
+        // =====================================================================
+        // SUPERMASSIVE BLACK HOLE (Gargantua / Relativistic Accretion & Lensing)
+        // =====================================================================
+        const ehR = centralBlackHole.eventHorizonR * scale; // Event Horizon radius (~26px * scale)
+        const diskRx = ehR * 4.2;
+        const diskRy = diskRx * centralBlackHole.diskAspect;
+
+        // 2. Pre-rendered outer gravitational halo & photon glow
+        if (blackHoleHaloSprite) {
+          const spriteRadius = ehR * 5.8;
+          ctx.globalAlpha = clamp(0.82 * intensity, 0, 1);
+          ctx.drawImage(
+            blackHoleHaloSprite,
+            -spriteRadius,
+            -spriteRadius,
+            spriteRadius * 2,
+            spriteRadius * 2
+          );
+          ctx.globalAlpha = 1.0;
+        }
+
+        // 3. Gravitational Lensing Bent Upper & Lower Disk Arcs (Light bent from behind the black hole)
+        const lensAlphaUpper = clamp(0.32 * intensity, 0, 0.65);
+        const lensAlphaLower = clamp(0.19 * intensity, 0, 0.45);
+
+        ctx.strokeStyle = 'rgba(245, 204, 152, ' + lensAlphaUpper.toFixed(3) + ')';
+        ctx.lineWidth = 3.2 * scale;
+        ctx.beginPath();
+        ctx.ellipse(0, -ehR * 0.18, ehR * 1.68, ehR * 1.38, 0, Math.PI * 1.06, Math.PI * 1.94);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(218, 142, 82, ' + lensAlphaLower.toFixed(3) + ')';
+        ctx.lineWidth = 2.2 * scale;
+        ctx.beginPath();
+        ctx.ellipse(0, ehR * 0.18, ehR * 1.56, ehR * 1.25, 0, Math.PI * 0.08, Math.PI * 0.92);
+        ctx.stroke();
+
+        // 4. Back half of the Relativistic Accretion Disk (behind the Event Horizon)
+        drawAccretionDiskHalf(ehR, diskRx, diskRy, intensity, scale, true);
+
+        // 5. Event Horizon (Pure light-absorbing singularity shadow) + Photon Ring
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(0, 0, ehR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Razor-thin relativistic Photon Ring on the edge of the shadow
+        const pulse = 1.0 + Math.sin(elapsedTime * 1.7) * 0.06;
+        ctx.strokeStyle = 'rgba(255, 242, 216, ' + clamp(0.82 * intensity * pulse, 0, 0.98).toFixed(3) + ')';
+        ctx.lineWidth = 1.35 * scale;
+        ctx.beginPath();
+        ctx.arc(0, 0, ehR * 1.03, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 6. Front half of the Relativistic Accretion Disk (passes in front of the Event Horizon)
+        drawAccretionDiskHalf(ehR, diskRx, diskRy, intensity, scale, false);
+
+        ctx.restore();
+      }
+
+      function drawAccretionDiskHalf(ehR, diskRx, diskRy, intensity, scale, isBackHalf) {
+        const startAngle = isBackHalf ? Math.PI : 0;
+        const endAngle = isBackHalf ? Math.PI * 2 : Math.PI;
+
+        // Relativistic Doppler beaming gradient: left side (approaching observer) is hotter/brighter ivory-amber,
+        // right side (receding) is dimmer redshifted ochre-rust.
+        const diskGrad = ctx.createLinearGradient(-diskRx, 0, diskRx, 0);
+        const aMult = clamp(intensity * (isBackHalf ? 0.72 : 1.0), 0, 1.4);
+        diskGrad.addColorStop(0.0, 'rgba(255, 225, 175, 0.0)');
+        diskGrad.addColorStop(0.18, 'rgba(255, 245, 224, ' + clamp(0.68 * aMult, 0, 0.95).toFixed(3) + ')');
+        diskGrad.addColorStop(0.46, 'rgba(238, 168, 96, ' + clamp(0.44 * aMult, 0, 0.85).toFixed(3) + ')');
+        diskGrad.addColorStop(0.78, 'rgba(172, 84, 42, ' + clamp(0.25 * aMult, 0, 0.65).toFixed(3) + ')');
+        diskGrad.addColorStop(1.0, 'rgba(120, 48, 24, 0.0)');
+
+        // Multi-band concentric accretion rings
+        const bands = [
+          { rFactor: 0.52, width: 3.2, alpha: 0.95 },
+          { rFactor: 0.72, width: 6.5, alpha: 0.65 },
+          { rFactor: 0.94, width: 9.0, alpha: 0.35 }
+        ];
+
+        for (let b = 0; b < bands.length; b++) {
+          const band = bands[b];
+          ctx.strokeStyle = diskGrad;
+          ctx.lineWidth = band.width * scale;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, diskRx * band.rFactor, diskRy * band.rFactor, 0, startAngle, endAngle);
+          ctx.stroke();
+        }
+
+        // Orbiting hot plasma knots inside the accretion disk
+        for (let i = 0; i < centralBlackHole.accretionParticles.length; i++) {
+          const ap = centralBlackHole.accretionParticles[i];
+          const sinA = Math.sin(ap.angle);
+          if (isBackHalf && sinA >= 0) continue;
+          if (!isBackHalf && sinA < 0) continue;
+
+          const r = ehR * ap.radiusNorm;
+          const px = Math.cos(ap.angle) * r;
+          const py = sinA * (r * centralBlackHole.diskAspect);
+
+          // Doppler brightening when cos(angle) < 0 (left side)
+          const doppler = 0.65 - 0.35 * Math.cos(ap.angle);
+          const pAlpha = clamp(ap.alpha * doppler * intensity, 0.03, 0.88);
+          ctx.fillStyle = 'rgba(255, 228, 188, ' + pAlpha.toFixed(3) + ')';
+          ctx.fillRect(px, py, ap.size * scale, ap.size * scale);
+        }
+      }
+
+      // Draw subtle relativistic tidal stream (spaghettification) when an icon approaches the Black Hole
+      function drawBlackHoleTidalStreams() {
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        if (!profile.enableTidalStreams || settings.centerBodyType !== 'BlackHole') return;
+
+        const attraction = settings.gravityStrength * settings.systemAttraction;
+        if (attraction <= 0.02) return;
+
+        const coreX = viewWidth * 0.5;
+        const coreY = viewHeight * 0.5;
+        const maxStreamDist = Math.min(viewWidth, viewHeight) * 0.44;
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          if (sys.opacity < 0.1) continue;
+
+          const dx = coreX - sys.currentX;
+          const dy = coreY - sys.currentY;
+          const dist = Math.hypot(dx, dy);
+
+          if (dist > 36 && dist < maxStreamDist) {
+            const closeness = 1.0 - dist / maxStreamDist;
+            const streamAlpha = clamp(closeness * closeness * 0.16 * attraction * sys.opacity, 0, 0.14);
+            if (streamAlpha <= 0.004) continue;
+
+            // Curved infalling spiral control point toward the Black Hole accretion disk
+            const perpX = -dy / dist;
+            const perpY = dx / dist;
+            const curveMag = dist * 0.24;
+            const ctrlX = (sys.currentX + coreX) * 0.5 + perpX * curveMag;
+            const ctrlY = (sys.currentY + coreY) * 0.5 + perpY * curveMag;
+
+            const streamGrad = ctx.createLinearGradient(sys.currentX, sys.currentY, coreX, coreY);
+            streamGrad.addColorStop(0.0, 'rgba(' + sys.stellarType.coronaRgb + ', ' + streamAlpha.toFixed(4) + ')');
+            streamGrad.addColorStop(0.7, 'rgba(235, 175, 112, ' + (streamAlpha * 0.85).toFixed(4) + ')');
+            streamGrad.addColorStop(1.0, 'rgba(235, 175, 112, 0)');
+
+            ctx.strokeStyle = streamGrad;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(sys.currentX, sys.currentY);
+            ctx.quadraticCurveTo(ctrlX, ctrlY, coreX, coreY);
+            ctx.stroke();
+          }
+        }
+      }
+
+      function drawAsteroids() {
+        if (asteroids.length === 0) return;
+        const cx = viewWidth * 0.5;
+        const cy = viewHeight * 0.5;
+        const halfDiag = Math.hypot(viewWidth, viewHeight) * 0.5;
+
+        for (let i = 0; i < asteroids.length; i++) {
+          const ast = asteroids[i];
+          const rx = ast.bandNorm * halfDiag + ast.radialJitter;
+          const ry = rx * 0.54;
+          const x = cx + Math.cos(ast.angle) * rx;
+          const y = cy + Math.sin(ast.angle) * ry;
+
+          if (x < -10 || x > viewWidth + 10 || y < -10 || y > viewHeight + 10) continue;
+
+          ctx.fillStyle = 'rgba(168, 180, 198, ' + ast.alpha.toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.ellipse(x, y, ast.size, ast.size * ast.aspect, ast.rotation, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawResonanceBridges() {
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        if (!profile.enableResonanceBridges) return;
+
+        const attraction = settings.gravityStrength * settings.systemAttraction;
+        if (attraction <= 0.02 || systems.length < 2) return;
+
+        const maxDist = 340 * settings.orbitSize;
+        for (let i = 0; i < systems.length; i++) {
+          const a = systems[i];
+          if (a.opacity < 0.1) continue;
+          for (let j = i + 1; j < systems.length; j++) {
+            const b = systems[j];
+            if (b.opacity < 0.1) continue;
+
+            const dx = b.currentX - a.currentX;
+            const dy = b.currentY - a.currentY;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 40 && dist < maxDist) {
+              const strength = (1.0 - dist / maxDist) * attraction * Math.min(a.opacity, b.opacity);
+              const alpha = clamp(strength * 0.075, 0.0, 0.055);
+              if (alpha <= 0.003) continue;
+
+              ctx.strokeStyle = 'rgba(165, 192, 232, ' + alpha.toFixed(4) + ')';
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              const midX = (a.currentX + b.currentX) * 0.5 + (a.tidalPullX - b.tidalPullX) * 0.4;
+              const midY = (a.currentY + b.currentY) * 0.5 + (a.tidalPullY - b.tidalPullY) * 0.4;
+              ctx.moveTo(a.currentX, a.currentY);
+              ctx.quadraticCurveTo(midX, midY, b.currentX, b.currentY);
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      function drawOrbits(sys, orbitPhaseAlpha) {
+        if (orbitPhaseAlpha <= 0.005) return;
+
+        const sizeMult = settings.orbitSize;
+        const cosRot = Math.cos(sys.planeRotation);
+        const sinRot = Math.sin(sys.planeRotation);
+        const dissolveExpansion = sys.state === 'removing'
+          ? (1.0 + sys.removeProgress * 0.42)
+          : 1.0;
+
+        for (let p = 0; p < sys.planets.length; p++) {
+          const planet = sys.planets[p];
+          const staggeredStart = 0.28 + (p / Math.max(1, sys.planets.length)) * 0.24;
+          const orbitReveal = sys.state === 'spawning'
+            ? smoothstep(staggeredStart, staggeredStart + 0.25, sys.spawnProgress)
+            : 1.0;
+          if (orbitReveal <= 0.01) continue;
+
+          const rx = planet.baseOrbitRadius * sizeMult * dissolveExpansion;
+          const ry = rx * clamp(sys.planeTilt + planet.orbitTiltOffset, 0.35, 0.85);
+          const focalOffset = rx * planet.eccentricity;
+
+          const orbitNorm = (p + 1) / Math.max(1, sys.planets.length);
+          const tidalWeight = 0.35 + 0.65 * orbitNorm;
+          const centerOffsetX = -focalOffset * cosRot + planet.lagX + sys.tidalPullX * tidalWeight;
+          const centerOffsetY = -focalOffset * sinRot + planet.lagY + sys.tidalPullY * tidalWeight;
+
+          const alpha = planet.orbitAlpha * orbitPhaseAlpha * orbitReveal;
+          ctx.strokeStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(4) + ')';
+          ctx.lineWidth = 1;
+
+          ctx.beginPath();
+          ctx.ellipse(
+            sys.currentX + centerOffsetX,
+            sys.currentY + centerOffsetY,
+            rx,
+            ry,
+            sys.planeRotation,
+            0,
+            Math.PI * 2 * orbitReveal
+          );
+          ctx.stroke();
+        }
+      }
+
+      function drawLocalDust(sys, dustAlpha) {
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        if (!profile.enableLocalDust || dustAlpha <= 0.01) return;
+
+        const sizeMult = settings.orbitSize;
+        const cosRot = Math.cos(sys.planeRotation);
+        const sinRot = Math.sin(sys.planeRotation);
+        const disperse = sys.state === 'removing'
+          ? (1.0 + sys.removeProgress * 0.65)
+          : 1.0;
+
+        for (let d = 0; d < sys.dustParticles.length; d++) {
+          const pt = sys.dustParticles[d];
+          const rx = pt.radius * sizeMult * disperse;
+          const ry = rx * sys.planeTilt;
+          const lx = Math.cos(pt.angle) * rx;
+          const ly = Math.sin(pt.angle) * ry;
+
+          const wx = sys.currentX + lx * cosRot - ly * sinRot + sys.tidalPullX * 0.5;
+          const wy = sys.currentY + lx * sinRot + ly * cosRot + sys.tidalPullY * 0.5;
+
+          const alpha = pt.alpha * dustAlpha;
+          ctx.fillStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(3) + ')';
+          ctx.fillRect(wx, wy, pt.size, pt.size);
+        }
+      }
+
+      function drawPlanet(sys, planet, planetPhaseAlpha) {
+        if (planetPhaseAlpha <= 0.01) return;
+
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const depthScale = 1.0 + planet.depthZ * 0.13;
+        const depthBrightness = 0.86 + planet.depthZ * 0.14;
+        const r = Math.max(1.2, planet.baseSize * settings.planetSize * depthScale);
+        const alpha = clamp(planetPhaseAlpha * depthBrightness, 0.0, 1.0);
+
+        const px = planet.worldX;
+        const py = planet.worldY;
+
+        if (planetShadowSprite && r >= 2.2) {
+          const haloSize = r * 5.2;
+          ctx.globalAlpha = alpha * 0.45;
+          ctx.drawImage(planetShadowSprite, px - haloSize * 0.5, py - haloSize * 0.5, haloSize, haloSize);
+          ctx.globalAlpha = 1.0;
+        }
+
+        if (planet.hasRing) {
+          ctx.strokeStyle = 'rgba(' + planet.palette.atmoRgb + ', ' + (alpha * 0.34).toFixed(3) + ')';
+          ctx.lineWidth = 1.1;
+          ctx.beginPath();
+          ctx.ellipse(px, py, r * 2.35, r * 2.35 * planet.ringTilt, sys.planeRotation + 0.3, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        ctx.fillStyle = planet.palette.fill;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        const toStarAngle = Math.atan2(sys.currentY - py, sys.currentX - px);
+        const highlightX = px + Math.cos(toStarAngle) * (r * 0.32);
+        const highlightY = py + Math.sin(toStarAngle) * (r * 0.32);
+
+        ctx.fillStyle = planet.palette.highlight;
+        ctx.beginPath();
+        ctx.arc(highlightX, highlightY, r * 0.62, 0, Math.PI * 2);
+        ctx.fill();
+
+        const shadowX = px - Math.cos(toStarAngle) * (r * 0.36);
+        const shadowY = py - Math.sin(toStarAngle) * (r * 0.36);
+        ctx.fillStyle = planet.palette.shadow;
+        ctx.globalAlpha = alpha * 0.58;
+        ctx.beginPath();
+        ctx.arc(shadowX, shadowY, r * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+
+        if (profile.enableMoons && planet.moons.length > 0) {
+          const moonScale = settings.planetSize;
+          for (let m = 0; m < planet.moons.length; m++) {
+            const moon = planet.moons[m];
+            const mOrbR = moon.orbitRadius * moonScale;
+            const mx = px + Math.cos(moon.angle) * mOrbR;
+            const my = py + Math.sin(moon.angle) * (mOrbR * 0.62);
+            const mr = Math.max(0.65, moon.size * moonScale);
+
+            ctx.fillStyle = 'rgba(205, 216, 232, ' + (alpha * 0.72).toFixed(3) + ')';
+            ctx.beginPath();
+            ctx.arc(mx, my, mr, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      function drawSystem(sys) {
+        if (sys.opacity <= 0.002) return;
+
+        const isSpawning = sys.state === 'spawning';
+        const lightReveal = isSpawning ? smoothstep(0.0, 0.18, sys.spawnProgress) : 1.0;
+        const glowReveal = isSpawning ? smoothstep(0.10, 0.42, sys.spawnProgress) : 1.0;
+        const orbitReveal = isSpawning ? smoothstep(0.25, 0.65, sys.spawnProgress) : 1.0;
+        const planetReveal = isSpawning ? smoothstep(0.48, 0.96, sys.spawnProgress) : 1.0;
+
+        drawOrbits(sys, sys.opacity * orbitReveal);
+        drawLocalDust(sys, sys.opacity * planetReveal);
+
+        for (let p = 0; p < sys.planets.length; p++) {
+          const planet = sys.planets[p];
+          if (planet.depthZ < 0) {
+            const pStagger = isSpawning
+              ? smoothstep(0.48 + p * 0.07, 0.78 + p * 0.07, sys.spawnProgress)
+              : 1.0;
+            drawPlanet(sys, planet, sys.opacity * pStagger);
+          }
+        }
+
+        const pulse = 1.0 + Math.sin(elapsedTime * sys.pulseSpeed + sys.pulsePhase) * 0.07;
+
+        if (sys.isMiniBlackHole && blackHoleHaloSprite) {
+          // Special mini black hole core for Recycle Bin / Trash icon
+          const gRadius = sys.glowRadius * 1.15 * (0.65 + 0.35 * glowReveal);
+          ctx.globalAlpha = sys.opacity * glowReveal * 0.85;
+          ctx.drawImage(blackHoleHaloSprite, sys.currentX - gRadius, sys.currentY - gRadius, gRadius * 2, gRadius * 2);
+          ctx.globalAlpha = 1.0;
+
+          if (lightReveal > 0.01) {
+            const ehR = sys.starRadius * 1.65 * lightReveal;
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(sys.currentX, sys.currentY, ehR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 236, 205, ' + (sys.opacity * lightReveal * 0.85).toFixed(3) + ')';
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
+          }
+        } else {
+          const glowSprite = stellarGlowSprites[sys.stellarTypeIndex];
+          if (glowSprite && glowReveal > 0.01) {
+            const gRadius = sys.glowRadius * pulse * (0.65 + 0.35 * glowReveal);
+            ctx.globalAlpha = sys.opacity * glowReveal * 0.72;
+            ctx.drawImage(
+              glowSprite,
+              sys.currentX - gRadius,
+              sys.currentY - gRadius,
+              gRadius * 2,
+              gRadius * 2
+            );
+            ctx.globalAlpha = 1.0;
+          }
+
+          if (lightReveal > 0.01) {
+            const coreR = sys.starRadius * (0.55 + 0.45 * lightReveal);
+            ctx.save();
+            ctx.globalAlpha = sys.opacity * lightReveal * 0.9;
+            ctx.fillStyle = sys.stellarType.core;
+            ctx.beginPath();
+            ctx.arc(sys.currentX, sys.currentY, coreR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        for (let p = 0; p < sys.planets.length; p++) {
+          const planet = sys.planets[p];
+          if (planet.depthZ >= 0) {
+            const pStagger = isSpawning
+              ? smoothstep(0.48 + p * 0.07, 0.78 + p * 0.07, sys.spawnProgress)
+              : 1.0;
+            drawPlanet(sys, planet, sys.opacity * pStagger);
+          }
+        }
+      }
+
+      function drawMeteors() {
+        for (let i = 0; i < meteors.length; i++) {
+          const m = meteors[i];
+          if (!m.active || m.alpha <= 0.01) continue;
+
+          const speed = Math.hypot(m.vx, m.vy) || 1;
+          const dirX = m.vx / speed;
+          const dirY = m.vy / speed;
+          const tailX = m.x - dirX * m.length;
+          const tailY = m.y - dirY * m.length;
+
+          const grad = ctx.createLinearGradient(m.x, m.y, tailX, tailY);
+          grad.addColorStop(0.0, 'rgba(235, 244, 255, ' + m.alpha.toFixed(3) + ')');
+          grad.addColorStop(0.4, 'rgba(170, 198, 240, ' + (m.alpha * 0.45).toFixed(3) + ')');
+          grad.addColorStop(1.0, 'rgba(170, 198, 240, 0)');
+
+          ctx.strokeStyle = grad;
+          ctx.lineWidth = 1.25;
+          ctx.beginPath();
+          ctx.moveTo(m.x, m.y);
+          ctx.lineTo(tailX, tailY);
+          ctx.stroke();
+        }
+      }
+
+      // =========================================================================
+      // 12. RESIZE, LIFECYCLE & MAIN LOOP
+      // =========================================================================
+      function resize() {
+        const newW = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1920);
+        const newH = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1080);
+        const newDpr = clamp(window.devicePixelRatio || 1, 1, 1.5);
+
+        const prevW = viewWidth;
+        const prevH = viewHeight;
+
+        viewWidth = newW;
+        viewHeight = newH;
+        W = newW;
+        H = newH;
+        dpr = newDpr;
+
+        canvas.width = Math.round(viewWidth * dpr);
+        canvas.height = Math.round(viewHeight * dpr);
+        cv._scale = dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        bgNeedsRedraw = true;
+        buildStarField();
+
+        if (isPreviewMode && !hasReceivedHostIcons) {
+          const dummyIcons = buildPreviewDummyIcons();
+          handleIcons(dummyIcons, { coordSpace: 'css', preview: true });
+        } else if (prevW > 0 && prevH > 0 && (prevW !== newW || prevH !== newH)) {
+          const sx = newW / prevW;
+          const sy = newH / prevH;
+          for (let i = 0; i < systems.length; i++) {
+            systems[i].anchorX *= sx;
+            systems[i].anchorY *= sy;
+            systems[i].targetX *= sx;
+            systems[i].targetY *= sy;
+            const newOrb = computeGlobalOrbitParams(systems[i].anchorX, systems[i].anchorY, systems[i].seed);
+            systems[i].globalRadius = newOrb.globalRadius;
+          }
+        }
+      }
+
+      function draw(now) {
+        const drawScale = cv._scale || dpr;
+        ctx.setTransform(drawScale, 0, 0, drawScale, 0, 0);
+        drawBackground();
+        drawStars();
+        drawGlobalIconOrbits();
+        drawCentralCore();
+        drawAsteroids();
+        drawBlackHoleTidalStreams();
+        drawResonanceBridges();
+
+        for (let i = 0; i < systems.length; i++) {
+          drawSystem(systems[i]);
+        }
+
+        drawMeteors();
+        drawPointerEffects();
+      }
+
+      function tick(now) {
+        requestAnimationFrame(tick);
+
+        isPaused = paused;
+        if (isPaused || document.hidden) {
+          lastFrameTime = now;
+          return;
+        }
+
+        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const minFrameInterval = 1000 / (profile.targetFps + 2);
+        const rawDeltaMs = now - lastFrameTime;
+        if (rawDeltaMs < minFrameInterval) return;
+
+        const dt = clamp(rawDeltaMs * 0.001, 0.001, 0.05);
+        lastFrameTime = now;
+        elapsedTime += dt;
+
+        // Update phase
+        updateSystems(dt);
+        updatePlanets(dt);
+        updateParticles(dt);
+        cleanupRemovedSystems();
+
+        draw(now);
+        frameN++;
+      }
+
+      function spawnCursorSpark(x, y, vx, vy, rgb, size, maxLife) {
+        if (cursorSparks.length >= 96) cursorSparks.shift();
+        cursorSparks.push({
+          x: x,
+          y: y,
+          vx: vx,
+          vy: vy,
+          life: 0,
+          maxLife: maxLife || 0.75,
+          size: size || 2.1,
+          rgb: rgb || '255, 210, 145'
+        });
+      }
+
+      function spawnShockwave(x, y, maxR, rgb, baseAlpha) {
+        if (shockwaves.length >= 10) shockwaves.shift();
+        shockwaves.push({
+          x: x,
+          y: y,
+          startR: 8,
+          r: 8,
+          maxR: maxR || 180,
+          life: 0,
+          maxLife: 0.78,
+          alpha: baseAlpha || 0.65,
+          baseAlpha: baseAlpha || 0.65,
+          rgb: rgb || '255, 200, 125'
+        });
+      }
+
+      function triggerPointerPulse(x, y) {
+        const cx = viewWidth * 0.5;
+        const cy = viewHeight * 0.5;
+        const distCore = Math.hypot(x - cx, y - cy);
+
+        let hitSys = null;
+        let minSysD = 90;
+        for (let i = 0; i < systems.length; i++) {
+          const d = Math.hypot(systems[i].currentX - x, systems[i].currentY - y);
+          if (d < minSysD) {
+            minSysD = d;
+            hitSys = systems[i];
+          }
+        }
+
+        if (distCore < 95 && settings.centerBodyType !== 'None') {
+          coreFlare = 1.0;
+          spawnShockwave(cx, cy, Math.min(viewWidth, viewHeight) * 0.36, '255, 195, 115', 0.8);
+          for (let i = 0; i < 18; i++) {
+            const ang = (i / 18) * Math.PI * 2 + Math.random() * 0.25;
+            const spd = 95 + Math.random() * 145;
+            spawnCursorSpark(cx + Math.cos(ang) * 18, cy + Math.sin(ang) * 18, Math.cos(ang) * spd, Math.sin(ang) * spd, '255, 215, 145', 2.4, 0.95);
+          }
+        } else if (hitSys) {
+          hitSys.boost = 1.0;
+          spawnShockwave(hitSys.currentX, hitSys.currentY, 150, hitSys.stellarType.orbitRgb || '150, 210, 255', 0.75);
+          for (let i = 0; i < 14; i++) {
+            const ang = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+            const spd = 65 + Math.random() * 110;
+            spawnCursorSpark(hitSys.currentX, hitSys.currentY, Math.cos(ang) * spd, Math.sin(ang) * spd, hitSys.stellarType.coronaRgb || '180, 220, 255', 2.2, 0.85);
+          }
+        } else {
+          spawnShockwave(x, y, 165, '160, 205, 255', 0.6);
+          for (let i = 0; i < 12; i++) {
+            const ang = (i / 12) * Math.PI * 2 + Math.random() * 0.35;
+            const spd = 55 + Math.random() * 95;
+            spawnCursorSpark(x, y, Math.cos(ang) * spd, Math.sin(ang) * spd, '190, 220, 255', 2.0, 0.75);
+          }
+          for (let i = 0; i < meteors.length; i++) {
+            if (!meteors[i].active) {
+              const ang = Math.atan2(cy - y, cx - x) + (Math.random() - 0.5) * 0.5;
+              const spd = 460 + Math.random() * 180;
+              meteors[i].active = true;
+              meteors[i].x = x;
+              meteors[i].y = y;
+              meteors[i].vx = Math.cos(ang) * spd;
+              meteors[i].vy = Math.sin(ang) * spd;
+              meteors[i].length = 64;
+              meteors[i].life = 0;
+              meteors[i].maxLife = 0.65;
+              meteors[i].alpha = 0.75;
+              break;
+            }
+          }
+        }
+      }
+
+      function drawPointerEffects() {
+        for (let i = 0; i < shockwaves.length; i++) {
+          const sw = shockwaves[i];
+          if (sw.alpha <= 0.01) continue;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(' + sw.rgb + ', ' + sw.alpha.toFixed(3) + ')';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        for (let i = 0; i < cursorSparks.length; i++) {
+          const sp = cursorSparks[i];
+          const a = clamp(1 - sp.life / sp.maxLife, 0, 1);
+          ctx.fillStyle = 'rgba(' + sp.rgb + ', ' + (a * 0.85).toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, sp.size * (0.4 + 0.6 * a), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (pointer.active) {
+          const rad = pointer.down ? 44 : 28;
+          const grad = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, rad);
+          grad.addColorStop(0, pointer.down ? 'rgba(255, 220, 155, 0.24)' : 'rgba(170, 215, 255, 0.14)');
+          grad.addColorStop(0.55, pointer.down ? 'rgba(255, 185, 110, 0.09)' : 'rgba(130, 185, 255, 0.05)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(pointer.x, pointer.y, rad, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = pointer.down ? 'rgba(255, 210, 140, 0.38)' : 'rgba(170, 215, 255, 0.22)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(pointer.x, pointer.y, pointer.down ? 16 : 11, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        for (let i = 0; i < systems.length; i++) {
+          const sys = systems[i];
+          const hg = Math.max(sys.hoverGlow || 0, sys.boost || 0);
+          if (hg > 0.04) {
+            ctx.strokeStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + (hg * 0.35).toFixed(3) + ')';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.arc(sys.currentX, sys.currentY, 26 + hg * 14, 0, Math.PI * 2);
+            ctx.stroke();
+          }
+        }
+      }
+
+      function parseUrlParams() {
+        try {
+          const params = new URLSearchParams(window.location.search || '');
+          if (params.has('preview') || params.get('mode') === 'preview') {
+            isPreviewMode = true;
+          }
+          const urlSettings = {};
+          params.forEach(function (val, key) {
+            urlSettings[key] = val;
+          });
+          applySettingsPatch(urlSettings);
+        } catch (e) {
+          // Ignore malformed query string
+        }
+      }
+
+      function init() {
+        buildSprites();
+        buildCentralBlackHole();
+        buildMeteorsPool();
+        parseUrlParams();
+        resize();
+        buildAsteroids();
+
+        window.addEventListener('message', handleMessage, false);
+
+        if (window.chrome && window.chrome.webview) {
+          window.chrome.webview.addEventListener('message', handleMessage);
+          if (!isPreviewMode && typeof window.chrome.webview.postMessage === 'function') {
+            window.chrome.webview.postMessage('ready');
+          }
+        }
+        if (isPreviewMode && window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+
+        window.addEventListener('pointermove', function (ev) {
+          const rect = canvas.getBoundingClientRect();
+          const nx = ev.clientX - rect.left;
+          const ny = ev.clientY - rect.top;
+          const vx = nx - pointer.x;
+          const vy = ny - pointer.y;
+          pointer.prevX = pointer.x;
+          pointer.prevY = pointer.y;
+          pointer.x = nx;
+          pointer.y = ny;
+          pointer.active = true;
+          const now = performance.now();
+          if ((pointer.down || Math.hypot(vx, vy) > 4) && now - pointer.lastSparkTime > 28) {
+            pointer.lastSparkTime = now;
+            spawnCursorSpark(
+              nx,
+              ny,
+              vx * 4 + (Math.random() - 0.5) * 35,
+              vy * 4 + (Math.random() - 0.5) * 35,
+              pointer.down ? '255, 205, 130' : '175, 220, 255',
+              pointer.down ? 2.3 : 1.6,
+              pointer.down ? 0.85 : 0.55
+            );
+          }
+        }, { passive: true });
+
+        window.addEventListener('pointerdown', function (ev) {
+          const rect = canvas.getBoundingClientRect();
+          pointer.x = ev.clientX - rect.left;
+          pointer.y = ev.clientY - rect.top;
+          pointer.active = true;
+          pointer.down = true;
+          triggerPointerPulse(pointer.x, pointer.y);
+        }, { passive: true });
+
+        window.addEventListener('pointerup', function () {
+          pointer.down = false;
+        }, { passive: true });
+
+        window.addEventListener('pointercancel', function () {
+          pointer.down = false;
+        }, { passive: true });
+
+        window.addEventListener('pointerleave', function () {
+          pointer.down = false;
+          pointer.active = false;
+        }, { passive: true });
+
+        window.onDiyarDeskMessage = handleMessage;
+        window.applySettings = applySettingsPatch;
+        window.updateSettings = applySettingsPatch;
+        window.livelyPropertyListener = function (name, val) {
+          const patch = {};
+          patch[name] = val;
+          applySettingsPatch(patch);
+        };
+
+        if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+          window.WallIcons.subscribe(function (icons, meta) {
+            handleMessage({ t: 'icons', icons: icons, dpr: meta && meta.dpr });
+          });
+        }
+
+        window.addEventListener('resize', resize, { passive: true });
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) {
+            lastFrameTime = performance.now();
+          }
+        });
+
+        if (isPreviewMode) {
+          activatePreviewDummyAnchors();
+        } else {
+          previewFallbackTimer = setTimeout(function () {
+            if (!hasReceivedHostIcons) {
+              activatePreviewDummyAnchors();
+            }
+          }, 180);
+        }
+
+        lastFrameTime = performance.now();
+        requestAnimationFrame(tick);
+      }
+
+
+
+      Object.defineProperties(window, {
+        cv: { get: function () { return cv; } },
+        draw: { get: function () { return draw; } },
+        icons: { get: function () { return icons; } },
+        W: { get: function () { return W; } },
+        H: { get: function () { return H; } },
+        WALL: { get: function () { return WALL; } },
+        frameN: { get: function () { return frameN; } },
+        paused: {
+          get: function () { return paused; },
+          set: function (v) { paused = !!v; isPaused = paused; }
+        }
+      });
+
+      init();
+    })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

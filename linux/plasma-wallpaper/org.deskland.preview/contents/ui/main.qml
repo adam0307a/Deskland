@@ -32,6 +32,9 @@ WallpaperItem {
     }
     property bool pageReady: false
     property bool windowPaused: false
+    property var iconMover: null
+    property bool iconMoveActive: false
+    property double lastIconMoveAt: 0
     readonly property bool showingDesktop: KWindowSystem.showingDesktop
     readonly property bool effectivePaused: pageReady && windowPaused && !showingDesktop
 
@@ -127,6 +130,32 @@ WallpaperItem {
         }
     }
 
+    Timer {
+        id: iconMoveTimer
+        interval: root.iconMoveActive ? 40 : 320
+        repeat: true
+        running: root.pageReady && !root.effectivePaused && root.iconMover !== null
+        onTriggered: {
+            view.runJavaScript("window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : ''", function (raw) {
+                var mover = root.iconMover;
+                if (!mover || typeof mover.applyMoveIcons !== "function") return;
+                if (raw && raw.length > 0) {
+                    root.iconMoveActive = true;
+                    root.lastIconMoveAt = Date.now();
+                    mover.applyMoveIcons(raw);
+                } else if (root.iconMoveActive && (Date.now() - root.lastIconMoveAt) > 1500) {
+                    root.iconMoveActive = false;
+                }
+            });
+        }
+    }
+
+    Component.onDestruction: {
+        if (root.iconMover && typeof root.iconMover.resetMoveIcons === "function") {
+            root.iconMover.resetMoveIcons(true);
+        }
+    }
+
     WebEngineView {
         id: view
         anchors.fill: parent
@@ -154,6 +183,10 @@ WallpaperItem {
             if (loadingInfo.status === WebEngineView.LoadStartedStatus) {
                 readyGraceTimer.stop();
                 root.pageReady = false;
+                root.iconMoveActive = false;
+                if (root.iconMover && typeof root.iconMover.resetMoveIcons === "function") {
+                    root.iconMover.resetMoveIcons(true);
+                }
             } else if (loadingInfo.status === WebEngineView.LoadSucceededStatus) {
                 readyGraceTimer.restart();
             } else if (loadingInfo.status === WebEngineView.LoadFailedStatus) {

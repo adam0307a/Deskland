@@ -164,3 +164,78 @@ def test_import_rejects_corrupt_and_invalid_inputs(tmp_path: Path) -> None:
     dirs = [p for p in custom_dir.iterdir() if p.is_dir()] if custom_dir.exists() else []
     assert dirs == []
 
+
+def test_import_zip_with_settings_object_svg_preview_and_description(tmp_path: Path) -> None:
+    proto = tmp_path / "proto"
+    proto.mkdir()
+    (proto / "themes.json").write_text(json.dumps({"themes": []}), encoding="utf-8")
+    custom_dir = tmp_path / "custom"
+
+    pkg = tmp_path / "solar-system.zip"
+    manifest = {
+        "id": "interactive-solar-system",
+        "name": "Interactive Solar System & Black Hole",
+        "description": "Adaptive space theme with black hole core.",
+        "entry": "index.html",
+        "preview": "preview.svg",
+        "thumbnail": "preview.svg",
+        "adaptive": True,
+        "settings": {
+            "centerBodyType": {
+                "key": "centerBodyType",
+                "group": "Black Hole & Core",
+                "label": "Central body type",
+                "type": "select",
+                "options": [
+                    {"label": "Supermassive Black Hole", "value": "BlackHole"},
+                    {"label": "Central Grand Sun", "value": "Sun"},
+                    {"label": "None", "value": "None"},
+                ],
+                "default": "BlackHole",
+            },
+            "planetCount": {
+                "key": "planetCount",
+                "group": "Solar System",
+                "label": "Planet count",
+                "type": "range",
+                "min": 1,
+                "max": 6,
+                "step": 1,
+                "default": 3,
+            },
+            "shootingStars": {
+                "key": "shootingStars",
+                "group": "Space",
+                "label": "Shooting stars",
+                "type": "checkbox",
+                "default": True,
+            },
+        },
+    }
+    with zipfile.ZipFile(pkg, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        zf.writestr("index.html", "<!doctype html><html><body><canvas></canvas></body></html>")
+        zf.writestr("preview.svg", '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>')
+
+    theme = import_theme_file(pkg, custom_dir=custom_dir, reserved_ids=set())
+    assert theme["name"] == "Interactive Solar System & Black Hole"
+    assert theme["desc"] == "Adaptive space theme with black hole core."
+    assert theme["adaptive"] is True
+    assert f"url(__custom/{theme['id']}/preview.svg)" in theme["thumb"]
+    assert len(theme["groups"]) == 3
+    assert theme["groups"][0]["name"] == "Black Hole & Core"
+    cb = theme["groups"][0]["params"][0]
+    assert cb["options"] == ["Supermassive Black Hole", "Central Grand Sun", "None"]
+    assert cb["values"] == ["BlackHole", "Sun", "None"]
+    assert cb["default"] == "BlackHole"
+    ss = theme["groups"][2]["params"][0]
+    assert ss["options"] == ["Off", "On"]
+    assert ss["values"] == [False, True]
+    assert ss["default"] is True
+
+    reg = ThemeRegistry(proto, Log(tmp_path / "test.log"), custom_dir=custom_dir)
+    defs = reg.defaults(theme["id"])
+    assert defs["centerBodyType"] == "BlackHole"
+    assert defs["planetCount"] == 3.0
+    assert defs["shootingStars"] is True
+

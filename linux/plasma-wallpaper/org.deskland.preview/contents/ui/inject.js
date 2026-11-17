@@ -43,13 +43,26 @@
       try { fn({ data: JSON.stringify({ t: 'pause', v: true }) }); } catch (e) {}
     }
   }
+  var pendingMoveIcons = '';
+  window.__desklandTakeMoveIcons = function () {
+    var out = pendingMoveIcons;
+    pendingMoveIcons = '';
+    return out;
+  };
   window.chrome.webview = {
     /* Replay latest icons/settings when the page signals ready so heavy pages never miss initial polls. */
     postMessage: function (m) {
       if (m === 'ready') {
         if (lastSettings) window.__desklandDeliver(lastSettings);
         if (lastIcons) window.__desklandDeliver(lastIcons);
+        return;
       }
+      try {
+        var obj = typeof m === 'string' ? JSON.parse(m) : m;
+        if (obj && (obj.t === 'moveIcons' || obj.type === 'moveIcons')) {
+          pendingMoveIcons = typeof m === 'string' ? m : JSON.stringify(obj);
+        }
+      } catch (e) {}
     },
     addEventListener: function (type, fn) {
       if (type === 'message' && typeof fn === 'function') {
@@ -116,6 +129,7 @@
     desert: 'desert.html',
     'zen-archipelago': 'zen-archipelago.html',
     istanbul: 'istanbul.html',
+    'solar-system': 'solar-system.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';

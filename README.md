@@ -8,6 +8,8 @@ DiyarDesk turns the space around your desktop icons into a living interactive la
 
 **English** · [Türkçe](#türkçe) · [Download Releases](https://github.com/adam0307a/DiyarDesk/releases/latest) · [Features](#features) · [Linux Setup](#linux-setup) · [Windows Build](#windows-build) · [Android Tablets](#android-tablets-sw600dp)
 
+<a href="https://www.buymeacoffee.com/adam0307a" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45"></a>
+
 
 
 https://github.com/user-attachments/assets/0be337c1-53e9-4989-a391-da87cc2528e3
@@ -117,6 +119,12 @@ DiyarDesk includes a native **Android Tablet** live wallpaper companion (`androi
 
 Source code and included theme assets are licensed under [GPL-3.0](LICENSE). Third-party dependencies retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [NOTICE](NOTICE), and [TRADEMARKS.md](TRADEMARKS.md).
 
+## Support
+
+If you enjoy DiyarDesk, you can support its development:
+
+<a href="https://www.buymeacoffee.com/adam0307a" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45"></a>
+
 ---
 
 ## Türkçe
@@ -174,3 +182,9 @@ powershell -ExecutionPolicy Bypass -File tools\build-installer.ps1
 ### Lisans
 
 Kaynak kodu ve dahil edilen tema varlıkları [GPL-3.0](LICENSE) lisansı altındadır. Üçüncü taraf bileşenler için [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), marka kullanımı için [TRADEMARKS.md](TRADEMARKS.md) dosyalarına bakın.
+
+### Destek
+
+DiyarDesk'i beğendiyseniz geliştirilmesine destek olabilirsiniz:
+
+<a href="https://www.buymeacoffee.com/adam0307a" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="45"></a>
