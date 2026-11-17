@@ -175,6 +175,8 @@ class ThemeStore(private val storageDir: File) {
         private set
     var virtualBarMode: String = "auto"
         private set
+    var lowMode: Boolean = false
+        private set
     private var paramsByTheme: MutableMap<String, JSONObject> = mutableMapOf()
     private var iconBoxes: MutableList<NormalizedBox> = IconLayoutMath.presetTablet5x6().toMutableList()
 
@@ -199,6 +201,7 @@ class ThemeStore(private val storageDir: File) {
                 activeTheme = root.optString("theme", DEFAULT_THEME).ifBlank { DEFAULT_THEME }
                 lang = root.optString("lang", "auto").ifBlank { "auto" }
                 virtualBarMode = root.optString("virtualBarMode", "auto").ifBlank { "auto" }
+                lowMode = root.optBoolean("lowMode", false)
 
                 paramsByTheme = mutableMapOf()
                 val paramsObj = root.optJSONObject("params")
@@ -230,6 +233,7 @@ class ThemeStore(private val storageDir: File) {
             put("theme", activeTheme)
             put("lang", lang)
             put("virtualBarMode", virtualBarMode)
+            put("lowMode", lowMode)
             put("params", JSONObject().apply {
                 for ((k, v) in paramsByTheme) put(k, v)
             })
@@ -297,6 +301,14 @@ class ThemeStore(private val storageDir: File) {
         listeners.forEach { it.onSettingsChanged(this) }
     }
 
+    fun setLowModeEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            lowMode = enabled
+            saveLocked()
+        }
+        listeners.forEach { it.onSettingsChanged(this) }
+    }
+
     fun notifyThemesRegistryChanged() {
         listeners.forEach { it.onThemesRegistryChanged(this) }
     }
@@ -314,6 +326,7 @@ class ThemeStore(private val storageDir: File) {
     fun buildWallpaperSettingsMessage(): JSONObject = synchronized(lock) {
         val merged = getParamsCopy(activeTheme)
         merged.put("virtualBarMode", virtualBarMode)
+        merged.put("lowMode", lowMode)
         JSONObject().apply {
             put("t", "settings")
             put("theme", activeTheme)
@@ -338,6 +351,7 @@ class ThemeStore(private val storageDir: File) {
             put("autostart", false)
             put("autostartWarn", false)
             put("virtualBarMode", virtualBarMode)
+            put("lowMode", lowMode)
             put("lang", lang)
             put("langEff", effLang)
             put("langSys", systemLang)

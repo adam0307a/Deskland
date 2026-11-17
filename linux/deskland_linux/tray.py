@@ -38,10 +38,12 @@ class Tray:
         on_reload: Callable[[], None],
         on_autostart: Callable[[bool], None],
         on_exit: Callable[[], None],
+        on_low_mode: Callable[[bool], None] | None = None,
     ) -> None:
         self.i18n = i18n
         self.on_pause = on_pause
         self.on_autostart = on_autostart
+        self.on_low_mode = on_low_mode
         self._indicator = None
         self._status_icon = None
         self._menu = Gtk.Menu()
@@ -50,6 +52,8 @@ class Tray:
         self.settings_item.connect("activate", lambda *_: on_settings())
         self.pause_item = Gtk.CheckMenuItem(label=i18n.t("trayPause"))
         self.pause_item.connect("toggled", self._pause_toggled)
+        self.low_mode_item = Gtk.CheckMenuItem(label=i18n.t("trayLowMode"))
+        self.low_mode_item.connect("toggled", self._low_mode_toggled)
         self.reload_item = Gtk.MenuItem(label=i18n.t("trayReload"))
         self.reload_item.connect("activate", lambda *_: on_reload())
         self.autostart_item = Gtk.CheckMenuItem(label=i18n.t("trayAutostart"))
@@ -59,6 +63,7 @@ class Tray:
 
         self._menu.append(self.settings_item)
         self._menu.append(self.pause_item)
+        self._menu.append(self.low_mode_item)
         self._menu.append(self.reload_item)
         self._menu.append(self.autostart_item)
         self._menu.append(Gtk.SeparatorMenuItem())
@@ -94,6 +99,10 @@ class Tray:
     def _pause_toggled(self, item: Gtk.CheckMenuItem) -> None:
         self.on_pause(bool(item.get_active()))
 
+    def _low_mode_toggled(self, item: Gtk.CheckMenuItem) -> None:
+        if self.on_low_mode is not None:
+            self.on_low_mode(bool(item.get_active()))
+
     def _autostart_toggled(self, item: Gtk.CheckMenuItem) -> None:
         self.on_autostart(bool(item.get_active()))
 
@@ -102,6 +111,12 @@ class Tray:
             self.pause_item.handler_block_by_func(self._pause_toggled)
             self.pause_item.set_active(paused)
             self.pause_item.handler_unblock_by_func(self._pause_toggled)
+
+    def set_low_mode(self, enabled: bool) -> None:
+        if bool(self.low_mode_item.get_active()) != enabled:
+            self.low_mode_item.handler_block_by_func(self._low_mode_toggled)
+            self.low_mode_item.set_active(enabled)
+            self.low_mode_item.handler_unblock_by_func(self._low_mode_toggled)
 
     def set_autostart(self, enabled: bool) -> None:
         if bool(self.autostart_item.get_active()) != enabled:
@@ -112,6 +127,7 @@ class Tray:
     def retranslate(self) -> None:
         self.settings_item.set_label(self.i18n.t("traySettings"))
         self.pause_item.set_label(self.i18n.t("trayPause"))
+        self.low_mode_item.set_label(self.i18n.t("trayLowMode"))
         self.reload_item.set_label(self.i18n.t("trayReload"))
         self.autostart_item.set_label(self.i18n.t("trayAutostart"))
         self.exit_item.set_label(self.i18n.t("trayExit"))

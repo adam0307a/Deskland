@@ -170,4 +170,19 @@ def test_wallpaper_url_for_disables_virtual_icons_on_static_backends():
 
     win.backend = "plasma-plugin"
     assert "vicons=0" in win.url_for()
+    assert "low=1" not in win.url_for()
+
+    win._low_mode = True
+    assert "low=1" in win.url_for()
+
+
+def test_pause_monitor_low_mode_aggressive_coverage():
+    log = MagicMock()
+    mon = PauseMonitor(0, 0, 1920, 1080, 1, log)
+    # 70% window coverage should NOT pause in normal mode, but MUST pause in Low Mode.
+    assert mon._rect_covers(100, 80, 1600, 920) is False
+    mon.low_mode = True
+    assert mon._rect_covers(100, 80, 1600, 920) is True
+    # Small floating dialog (< 65%) should still NOT pause even in Low Mode.
+    assert mon._rect_covers(300, 200, 600, 400) is False
 

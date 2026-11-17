@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
+<script src="low-mode.js"></script>
 <script src="wall-icons.js"></script>
 <title>Zen Archipelago — Deskland Theme</title>
 <meta name="deskland-theme" content='{"id":"zen-archipelago","name":{"en":"Zen Archipelago","zh":"禅意群岛"},"desc":{"en":"Bioluminescent koi lagoon, wooden bridges, sakura islands and floating lanterns adapting around your icons.","zh":"围绕桌面图标生成的荧光锦鲤泻湖、木桥、樱花岛屿与漂浮河灯。"},"page":"zen-archipelago.html"}'>
@@ -1096,7 +1097,7 @@ function handleResize() {
   const rect = document.documentElement.getBoundingClientRect();
   width = rect.width || window.innerWidth || 1920;
   height = rect.height || window.innerHeight || 1080;
-  dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  dpr = window.__desklandScale ? window.__desklandScale(1.5) : Math.min(window.devicePixelRatio || 1, 1.5);
 
   mainCanvas.width = Math.round(width * dpr);
   mainCanvas.height = Math.round(height * dpr);

@@ -220,6 +220,7 @@ static class Settings
     public static List<Dictionary<string, object>> VirtualIcons = new List<Dictionary<string, object>>();
     public static object VirtualBarCollapsed = null;
     public static string VirtualBarMode = "auto";
+    public static bool LowMode = false;
 
     public static List<Dictionary<string, object>> SanitizeVirtualIcons(object raw)
     {
@@ -278,6 +279,7 @@ static class Settings
                 string mode = (string)v;
                 if (mode == "auto" || mode == "always" || mode == "off") VirtualBarMode = mode;
             }
+            if (root.TryGetValue("lowMode", out v) && v is bool) LowMode = (bool)v;
             Log.Write("已读取设置：主题 " + Theme);
         }
         catch (Exception ex) { Log.Write("读取设置失败（将使用默认值）：" + ex.Message); }
@@ -295,7 +297,8 @@ static class Settings
                 "params", Params,
                 "virtualIcons", VirtualIcons,
                 "virtualBarCollapsed", VirtualBarCollapsed,
-                "virtualBarMode", VirtualBarMode)), new UTF8Encoding(false));
+                "virtualBarMode", VirtualBarMode,
+                "lowMode", LowMode)), new UTF8Encoding(false));
         }
         catch (Exception ex) { Log.Write("保存设置失败：" + ex.Message); }
     }
@@ -369,7 +372,7 @@ class HostContext : ApplicationContext
 
     readonly string pageDir;
     readonly NotifyIcon tray;
-    readonly MenuItem pauseItem, autoStartItem, settingsItem, reloadItem, exitItem;
+    readonly MenuItem pauseItem, lowModeItem, autoStartItem, settingsItem, reloadItem, exitItem;
     readonly System.Windows.Forms.Timer watch;
     readonly EventWaitHandle exitEvent, menuEvent, settingsEvent;
     readonly HotkeyWindow hotkey = new HotkeyWindow();
@@ -388,6 +391,7 @@ class HostContext : ApplicationContext
         Log.Write("启动，页面目录：" + pageDir + (showSettings ? "" : "（开机自动启动）"));
         if (showSettings) autoStartSw = AutoStartCheck.Detect(IsAutoStart());
         Settings.Load();
+        ApplyProcessPriority(Settings.LowMode);
         I18n.Load(pageDir, Settings.Lang);
         exitEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.ExitEventName);
         menuEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.MenuEventName);
@@ -404,6 +408,8 @@ class HostContext : ApplicationContext
             pauseItem.Checked = manualPause;
             if (form != null) form.SetManualPause(manualPause);
         });
+        lowModeItem = new MenuItem(I18n.T("trayLowMode"), delegate { SetLowMode(!Settings.LowMode); });
+        lowModeItem.Checked = Settings.LowMode;
         autoStartItem = new MenuItem(I18n.T("trayAutostart"), delegate { SetAutoStart(!autoStartItem.Checked); });
         autoStartItem.Checked = IsAutoStart();
         if (autoStartItem.Checked && AutoStartValue() != "")
@@ -430,6 +436,7 @@ class HostContext : ApplicationContext
         tray.ContextMenu = new ContextMenu(new[] {
             settingsItem,
             pauseItem,
+            lowModeItem,
             reloadItem = new MenuItem(I18n.T("trayReload"), delegate { if (form != null) form.Reload(); }),
             autoStartItem,
             new MenuItem("-"),
@@ -453,9 +460,27 @@ class HostContext : ApplicationContext
     {
         settingsItem.Text = I18n.T("traySettings");
         pauseItem.Text = I18n.T("trayPause");
+        lowModeItem.Text = I18n.T("trayLowMode");
         reloadItem.Text = I18n.T("trayReload");
         autoStartItem.Text = I18n.T("trayAutostart");
         exitItem.Text = I18n.T("trayExit");
+    }
+
+    static void ApplyProcessPriority(bool low)
+    {
+        try { Process.GetCurrentProcess().PriorityClass = low ? ProcessPriorityClass.BelowNormal : ProcessPriorityClass.Normal; }
+        catch { }
+    }
+
+    void SetLowMode(bool enabled)
+    {
+        Settings.LowMode = enabled;
+        lowModeItem.Checked = enabled;
+        ApplyProcessPriority(enabled);
+        SaveSoon();
+        if (form != null) form.SetLowMode(enabled);
+        if (settingsWin != null) settingsWin.Post(Json.Stringify(Json.Obj("t", "lowMode", "v", enabled)));
+        Log.Write(enabled ? "已开启低功耗模式（Low Mode）" : "已关闭低功耗模式");
     }
 
     // ---------------------------------------------------------------- 设置窗口
@@ -538,7 +563,7 @@ class HostContext : ApplicationContext
                     "screen", Json.Obj("w", scr.Width, "h", scr.Height), "autostart", IsAutoStart(),
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
                     "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys,
-                    "virtualBarMode", Settings.VirtualBarMode)));
+                    "virtualBarMode", Settings.VirtualBarMode, "lowMode", Settings.LowMode)));
                 if (updateVersion != null) PostUpdateState();
                 if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
                 break;
@@ -642,6 +667,9 @@ class HostContext : ApplicationContext
             case "autostart":
                 SetAutoStart(m["v"] is bool && (bool)m["v"]);
                 settingsWin.Post(Json.Stringify(Json.Obj("t", "autostart", "v", IsAutoStart())));
+                break;
+            case "lowMode":
+                SetLowMode(m.ContainsKey("v") && m["v"] is bool && (bool)m["v"]);
                 break;
         }
     }
@@ -971,7 +999,7 @@ class HostContext : ApplicationContext
             nextStart = DateTime.Now.AddSeconds(5);
             return;
         }
-        form = new WallpaperForm(pageDir, page, manualPause);
+        form = new WallpaperForm(pageDir, page, manualPause, Settings.LowMode);
         form.SettingsJson = SettingsMessage;
         form.VirtualStateJson = VirtualStateMessage;
         form.AudioPlayChanged += delegate(bool play)
@@ -1337,7 +1365,8 @@ class WallpaperForm : Form
     IntPtr parentHwnd, insertAfter;
     string lastIcons = "";
     int lastPause = -1;
-    bool manualPause, shuttingDown;
+    bool manualPause, lowMode, shuttingDown;
+    long lastMoveIconsMs;
 
     public bool Fatal { get; private set; }
 
@@ -1351,11 +1380,12 @@ class WallpaperForm : Form
     public string LastIcons { get { return lastIcons; } }
     protected override bool ShowWithoutActivation { get { return true; } }
 
-    public WallpaperForm(string pageDir, string page, bool manualPause)
+    public WallpaperForm(string pageDir, string page, bool manualPause, bool lowMode)
     {
         this.pageDir = pageDir;
         this.page = page;
         this.manualPause = manualPause;
+        this.lowMode = lowMode;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -1371,14 +1401,37 @@ class WallpaperForm : Form
         Controls.Add(web);
 
         iconTimer = new System.Windows.Forms.Timer();
-        iconTimer.Interval = 400;
+        iconTimer.Interval = lowMode ? 1500 : 400;
         iconTimer.Tick += delegate { PollIcons(); };
         fgTimer = new System.Windows.Forms.Timer();
-        fgTimer.Interval = 500;
+        fgTimer.Interval = lowMode ? 1000 : 500;
         fgTimer.Tick += delegate { PollForeground(); };
     }
 
     public void SetManualPause(bool v) { manualPause = v; PollForeground(); }
+
+    void ApplyWebViewLowMode(bool enabled)
+    {
+        if (web == null || web.CoreWebView2 == null) return;
+        try
+        {
+            web.CoreWebView2.MemoryUsageTargetLevel = enabled
+                ? CoreWebView2MemoryUsageTargetLevel.Low
+                : CoreWebView2MemoryUsageTargetLevel.Normal;
+        }
+        catch { }
+    }
+
+    public void SetLowMode(bool v)
+    {
+        lowMode = v;
+        iconTimer.Interval = v ? 1500 : 400;
+        fgTimer.Interval = v ? 1000 : 500;
+        ApplyWebViewLowMode(v);
+        Post(Json.Stringify(Json.Obj("t", "lowMode", "v", v)));
+        lastPause = -1;
+        PollForeground();
+    }
 
     // ---- 一键分享：请页面画一张打好马赛克的桌面图（页面不截屏，只用图标的位置） ----
     Action<string, string, string> snapshotDone;           // (缩略图, 整张 PNG, 出错信息)
@@ -1466,7 +1519,7 @@ class WallpaperForm : Form
         Log.Write("WebView2 失效（运行时更新或进程退出），重新挂载壁纸窗口：" + ex.Message);
         Shutdown();
     }
-    string PageUrl { get { return "https://app.local/" + page + "?wallpaper=1"; } }
+    string PageUrl { get { return "https://app.local/" + page + "?wallpaper=1" + (lowMode ? "&low=1" : ""); } }
 
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
@@ -1624,6 +1677,12 @@ class WallpaperForm : Form
             reader.ResetOrbitalPositions();
             return;
         }
+        if (lowMode)
+        {
+            long nowMs = DateTime.UtcNow.Ticks / 10000L;
+            if (nowMs - lastMoveIconsMs < 150) return;
+            lastMoveIconsMs = nowMs;
+        }
         reader.ApplyMoveIcons(targets, screen);
     }
 
@@ -1653,6 +1712,14 @@ class WallpaperForm : Form
             core.Settings.AreDefaultContextMenusEnabled = false;
             core.Settings.AreDevToolsEnabled = true;
             core.Settings.IsStatusBarEnabled = false;
+            ApplyWebViewLowMode(lowMode);
+            string lowJsPath = Path.Combine(pageDir, "low-mode.js");
+            if (File.Exists(lowJsPath))
+            {
+                try { await core.AddScriptToExecuteOnDocumentCreatedAsync(File.ReadAllText(lowJsPath, Encoding.UTF8)); }
+                catch { }
+            }
+            if (shuttingDown || IsDisposed) return;
             // 页面就绪（发来 "ready"）：先发设置，再发图标和暂停状态（岸线要按设置里的离岸距离来算）
             // 一键分享：页面画好分享图后发来 "snapshot|缩略图|整张 PNG"（都是 data URL；整张图很大，不走 JSON）
             core.WebMessageReceived += delegate(object s, CoreWebView2WebMessageReceivedEventArgs a)
@@ -1678,6 +1745,7 @@ class WallpaperForm : Form
                         "workInsets", new object[] { wLeft, wTop, wRight, wBottom }
                     )));
                     if (VirtualStateJson != null) core.PostWebMessageAsString(VirtualStateJson());
+                    core.PostWebMessageAsString(Json.Stringify(Json.Obj("t", "lowMode", "v", lowMode)));
                     if (SettingsJson != null) core.PostWebMessageAsString(SettingsJson());
                     lastIcons = ""; lastPause = -1; PollIcons(); PollForeground();
                     return;
@@ -2031,7 +2099,15 @@ class WallpaperForm : Form
                 Native.GetWindowRect(fg, out wr);
                 bool covers = wr.Left <= screen.Left && wr.Top <= screen.Top && wr.Right >= screen.Right && wr.Bottom >= screen.Bottom;
                 int cx = (wr.Left + wr.Right) / 2, cy = (wr.Top + wr.Bottom) / 2;
-                if (screen.Contains(cx, cy) && (covers || Native.IsZoomed(fg))) { pause = true; pauseBy = c; }
+                bool lowCovers = false;
+                if (lowMode)
+                {
+                    int iw = Math.Max(0, Math.Min(screen.Right, wr.Right) - Math.Max(screen.Left, wr.Left));
+                    int ih = Math.Max(0, Math.Min(screen.Bottom, wr.Bottom) - Math.Max(screen.Top, wr.Top));
+                    long scrArea = Math.Max(1L, (long)screen.Width * screen.Height);
+                    if ((long)iw * ih * 100L >= scrArea * 65L) lowCovers = true;
+                }
+                if (screen.Contains(cx, cy) && (covers || Native.IsZoomed(fg) || lowCovers)) { pause = true; pauseBy = c; }
             }
         }
         int p = pause ? 1 : 0;

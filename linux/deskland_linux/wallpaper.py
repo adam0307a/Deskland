@@ -330,6 +330,9 @@ class Wallpaper:
         self._static_timeout = 0
         self._static_file: Path | None = None
         self._static_snapshot_pending = False
+        self._icon_timeout = 0
+        self._pause_timeout = 0
+        self._low_mode = bool(getattr(getattr(self.host, "settings", None), "low_mode", False))
         self._closed = False
 
         geo, scale = primary_geometry()
@@ -358,6 +361,7 @@ class Wallpaper:
             scale,
             log,
         )
+        self.pause_monitor.low_mode = self._low_mode
         self.backend = self._select_backend(backend)
         self._safe_insets = detect_layer_shell_safe_insets(self.backend)
         self.static_wallpaper = StaticWallpaper(log)
@@ -380,14 +384,44 @@ class Wallpaper:
             f"ekran={self.screen_w}x{self.screen_h}@{scale}, "
             f"simge adaptörü={self.icon_adapter.name}"
         )
-        icon_interval = 2000 if self.backend == "plasma-plugin" else 400
-        GLib.timeout_add(icon_interval, self._poll_icons)
-        GLib.timeout_add(500, self._poll_pause)
+        self._reschedule_poll_timers()
+
+    def _is_low_mode(self) -> bool:
+        settings = getattr(self.host, "settings", None)
+        if settings is not None and hasattr(settings, "low_mode"):
+            self._low_mode = bool(settings.low_mode)
+        return bool(getattr(self, "_low_mode", False))
+
+    def _reschedule_poll_timers(self) -> None:
+        if getattr(self, "_icon_timeout", 0):
+            GLib.source_remove(self._icon_timeout)
+            self._icon_timeout = 0
+        if getattr(self, "_pause_timeout", 0):
+            GLib.source_remove(self._pause_timeout)
+            self._pause_timeout = 0
+        if self._closed:
+            return
+        low = self._is_low_mode()
+        if self.backend == "plasma-plugin":
+            icon_interval = 3500 if low else 2000
+        else:
+            icon_interval = 1500 if low else 400
+        pause_interval = 1000 if low else 500
+        self._icon_timeout = GLib.timeout_add(icon_interval, self._poll_icons)
+        self._pause_timeout = GLib.timeout_add(pause_interval, self._poll_pause)
 
     def _init_bridge(self) -> None:
         if self.bridge is not None:
             return
         self.bridge = BridgeWebView(self._on_message)
+        low_js_path = getattr(getattr(self, "server", None), "prototype", None)
+        if low_js_path is not None:
+            candidate = Path(low_js_path) / "low-mode.js"
+            if candidate.is_file():
+                try:
+                    self.bridge.add_user_script(candidate.read_text(encoding="utf-8"), at_end=False)
+                except OSError:
+                    pass
         if any(self._safe_insets):
             self.bridge.add_user_script(_build_safe_inset_script(self._safe_insets), at_end=True)
             self.log.write(f"Katman güvenli kenar boşluğu: {self._safe_insets}")
@@ -758,7 +792,8 @@ class Wallpaper:
         top, right, bottom, left = self._safe_insets
         if top or right or bottom or left:
             safe = f"&safeTop={top}&safeRight={right}&safeBottom={bottom}&safeLeft={left}"
-        return self.server.url(f"{page}?wallpaper=1{mute}{vicons}{safe}&v={self.host.version}")
+        low = "&low=1" if self._is_low_mode() else ""
+        return self.server.url(f"{page}?wallpaper=1{mute}{vicons}{safe}{low}&v={self.host.version}")
 
     def load_page(self, page: str) -> None:
         self._native_audio.stop()
@@ -837,6 +872,7 @@ class Wallpaper:
         self._ready = True
         self.send_virtual_state()
         if self.bridge is not None:
+            self.bridge.post({"t": "lowMode", "v": self._is_low_mode()})
             self.bridge.post(self.host.wallpaper_settings_message())
             if self._last_icons is not None:
                 self.bridge.post(self._last_icons)
@@ -902,6 +938,17 @@ class Wallpaper:
             self._write_plasma_pause(self._manual_pause)
         self._last_pause = -1
         self._poll_pause_once()
+
+    def set_low_mode(self, enabled: bool) -> None:
+        self._low_mode = bool(enabled)
+        self.pause_monitor.low_mode = self._low_mode
+        self._reschedule_poll_timers()
+        if self.bridge is not None:
+            self.bridge.post({"t": "lowMode", "v": self._low_mode})
+        self._last_pause = -1
+        self._poll_pause_once()
+        if self.backend == "static":
+            self._schedule_static_render(1600 if self._low_mode else 400)
 
     # ---------------------------------------------------------------- icons
     def _poll_icons(self) -> bool:
@@ -1199,6 +1246,12 @@ class Wallpaper:
             GLib.source_remove(self._record_timeout)
         if self._static_timeout:
             GLib.source_remove(self._static_timeout)
+        if getattr(self, "_icon_timeout", 0):
+            GLib.source_remove(self._icon_timeout)
+            self._icon_timeout = 0
+        if getattr(self, "_pause_timeout", 0):
+            GLib.source_remove(self._pause_timeout)
+            self._pause_timeout = 0
         self.static_wallpaper.restore()
         if self._static_file is not None:
             try:

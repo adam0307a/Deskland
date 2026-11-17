@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deskland · 战线包围（原型）</title>
+<script src="low-mode.js"></script>
 <script src="wall-icons.js"></script>
 <!--
   Deskland · 战线包围主题（大战略态势图；纯 WebGL2，2D）
@@ -614,7 +615,7 @@ function applyLayout(kind) {
    ====================================================================== */
 function resize() {
   W = innerWidth; H = innerHeight;
-  const scale = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality);
+  const scale = window.__desklandScale ? window.__desklandScale(P.quality, 0.45) : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality));
   const box = cv.getBoundingClientRect();
   cv.width = Math.round((box.width || W) * scale);
   cv.height = Math.round((box.height || H) * scale);

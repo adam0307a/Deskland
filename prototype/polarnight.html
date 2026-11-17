@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deskland · 极光（原型）</title>
+<script src="low-mode.js"></script>
 <script src="wall-icons.js"></script>
 <!--
   Deskland · 极地夜湖主题原型 v1.0（Canvas2D；静态图层进缓存，动态小物体逐帧直画，目标核显 30fps）
@@ -778,7 +779,7 @@ function draw(now) {
 function resize() {
   const box = cv.getBoundingClientRect();
   W = box.width || innerWidth; H = box.height || innerHeight;    // 显示尺寸带小数
-  S = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 1.5);
+  S = window.__desklandScale ? window.__desklandScale(1.5, 0.45) : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, 1.5));
   cv.width = Math.round(W * S); cv.height = Math.round(H * S); cv._scale = S;
   layout();
   buildStatic();

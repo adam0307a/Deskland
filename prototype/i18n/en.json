@@ -130,11 +130,14 @@
     "virtualBarTitle": "Virtual icons bar on desktop",
     "virtualBarAuto": "Icons: Auto",
     "virtualBarAlways": "Icons: Always show",
-    "virtualBarOff": "Icons: Hidden"
+    "virtualBarOff": "Icons: Hidden",
+    "lowMode": "Low mode",
+    "lowModeTitle": "Strict eco optimization: 15 FPS limit, 0.75x scale, disables heavy blurs/shadows and pauses faster behind windows"
   },
   "host": {
     "traySettings": "Settings…",
     "trayPause": "Pause animation",
+    "trayLowMode": "Low mode (Eco)",
     "trayReload": "Reload",
     "trayAutostart": "Start with Windows",
     "trayExit": "Exit (restore wallpaper)",

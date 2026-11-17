@@ -62,6 +62,7 @@ class PauseMonitor:
         self.screen = (screen_x, screen_y, screen_w, screen_h)
         self.scale = max(1, scale)
         self.log = log
+        self.low_mode = False
         self._warned_wayland = False
         self._helper = os.environ.get("DESKLAND_PAUSE_HELPER")
 
@@ -176,6 +177,8 @@ class PauseMonitor:
         w = geometry.get("WIDTH", 0)
         h = geometry.get("HEIGHT", 0)
         sx, sy, sw, sh = self.screen
+        if self.low_mode:
+            return self._rect_covers(x, y, w, h)
         cx, cy = x + w // 2, y + h // 2
         inside = sx <= cx <= sx + sw and sy <= cy <= sy + sh
         covers = (
@@ -279,6 +282,11 @@ class PauseMonitor:
         sx, sy, sw, sh = self.screen
         cx, cy = x + w // 2, y + h // 2
         inside = sx <= cx <= sx + sw and sy <= cy <= sy + sh
+        if self.low_mode and inside and sw > 0 and sh > 0:
+            iw = max(0, min(sx + sw, x + w) - max(sx, x))
+            ih = max(0, min(sy + sh, y + h) - max(sy, y))
+            if (iw * ih) >= (sw * sh * 0.65):
+                return True
         covers = (
             x <= sx + 2
             and y <= sy + 2

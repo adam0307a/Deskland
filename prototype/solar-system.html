@@ -62,6 +62,7 @@
     }
   </style>
   <!-- Optional DiyarDesk shared wall-icons helper if running inside prototype/ directory -->
+  <script src="low-mode.js"></script>
   <script src="wall-icons.js"></script>
 </head>
 <body>
@@ -319,7 +320,7 @@
       // 5. PROCEDURAL BACKGROUND, STAR FIELD, NEBULA & BLACK HOLE CORE
       // =========================================================================
       function buildStarField() {
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         const areaScale = (viewWidth * viewHeight) / (1920 * 1080);
         const count = clamp(
           Math.round(210 * areaScale * settings.starDensity * profile.starMultiplier),
@@ -354,7 +355,7 @@
       }
 
       function buildAsteroids() {
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         const count = clamp(
           Math.round(95 * settings.asteroidDensity * profile.asteroidMultiplier),
           0,
@@ -1274,9 +1275,10 @@
         }
         sentOrbitalPositions = true;
 
-        // Throttle host bridge messages to ~20 Hz so Win32 ListView isn't flooded
+        // Throttle host bridge messages (~20 Hz normal, ~6 Hz in Low Mode) so ListView/QML isn't flooded
         hostSyncAccumulator += dt;
-        if (hostSyncAccumulator < 0.05) return;
+        const syncInterval = window.__desklandLowMode ? 0.16 : 0.05;
+        if (hostSyncAccumulator < syncInterval) return;
         hostSyncAccumulator = 0;
 
         const dprScale = window.devicePixelRatio || 1;
@@ -1846,7 +1848,7 @@
 
       // Draw subtle relativistic tidal stream (spaghettification) when an icon approaches the Black Hole
       function drawBlackHoleTidalStreams() {
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         if (!profile.enableTidalStreams || settings.centerBodyType !== 'BlackHole') return;
 
         const attraction = settings.gravityStrength * settings.systemAttraction;
@@ -1914,7 +1916,7 @@
       }
 
       function drawResonanceBridges() {
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         if (!profile.enableResonanceBridges) return;
 
         const attraction = settings.gravityStrength * settings.systemAttraction;
@@ -1995,7 +1997,7 @@
       }
 
       function drawLocalDust(sys, dustAlpha) {
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         if (!profile.enableLocalDust || dustAlpha <= 0.01) return;
 
         const sizeMult = settings.orbitSize;
@@ -2024,7 +2026,7 @@
       function drawPlanet(sys, planet, planetPhaseAlpha) {
         if (planetPhaseAlpha <= 0.01) return;
 
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         const depthScale = 1.0 + planet.depthZ * 0.13;
         const depthBrightness = 0.86 + planet.depthZ * 0.14;
         const r = Math.max(1.2, planet.baseSize * settings.planetSize * depthScale);
@@ -2202,7 +2204,7 @@
       function resize() {
         const newW = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1920);
         const newH = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1080);
-        const newDpr = clamp(window.devicePixelRatio || 1, 1, 1.5);
+        const newDpr = window.__desklandScale ? window.__desklandScale(1.5) : clamp(window.devicePixelRatio || 1, 1, 1.5);
 
         const prevW = viewWidth;
         const prevH = viewHeight;
@@ -2266,7 +2268,7 @@
           return;
         }
 
-        const profile = QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High;
+        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         const minFrameInterval = 1000 / (profile.targetFps + 2);
         const rawDeltaMs = now - lastFrameTime;
         if (rawDeltaMs < minFrameInterval) return;
@@ -2539,6 +2541,12 @@
             handleMessage({ t: 'icons', icons: icons, dpr: meta && meta.dpr });
           });
         }
+
+        window.addEventListener('deskland:lowmode', function () {
+          buildStarField();
+          buildAsteroids();
+          bgNeedsRedraw = true;
+        });
 
         window.addEventListener('resize', function () {
           resize();

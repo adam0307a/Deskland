@@ -223,6 +223,9 @@ class SettingsActivity : AppCompatActivity(), ThemeStore.Listener {
             "virtualBarMode" -> {
                 store.setVirtualBarModeValue(msg.optString("v", "auto"))
             }
+            "lowMode" -> {
+                store.setLowModeEnabled(msg.optBoolean("v", false))
+            }
             "importTheme" -> {
                 importPicker.launch(arrayOf("*/*"))
             }

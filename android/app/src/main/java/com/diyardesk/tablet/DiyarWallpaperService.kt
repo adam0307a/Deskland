@@ -33,6 +33,13 @@ class DiyarWallpaperService : WallpaperService() {
         private val store by lazy { DiyarAppState.store(this@DiyarWallpaperService) }
         private val importer by lazy { DiyarAppState.importer(this@DiyarWallpaperService) }
         private val assetLoader by lazy { PrototypeAssets.createAssetLoader(this@DiyarWallpaperService, importer) }
+        private val lowModeJs: String by lazy {
+            try {
+                assets.open("prototype/low-mode.js").bufferedReader(Charsets.UTF_8).use { it.readText() }
+            } catch (_: Exception) {
+                ""
+            }
+        }
 
         private var virtualDisplay: VirtualDisplay? = null
         private var presentation: WallpaperPresentation? = null
@@ -170,6 +177,9 @@ class DiyarWallpaperService : WallpaperService() {
                     override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                         pageReady = false
                         view.evaluateJavascript(PrototypeAssets.WEBVIEW_BRIDGE_JS, null)
+                        if (lowModeJs.isNotEmpty()) {
+                            view.evaluateJavascript(lowModeJs, null)
+                        }
                     }
 
                     override fun onPageFinished(view: WebView, url: String?) {
@@ -191,10 +201,15 @@ class DiyarWallpaperService : WallpaperService() {
             loadedThemeId = active
             pageReady = false
             val page = PrototypeAssets.resolvePageFromThemes(this@DiyarWallpaperService, importer, active)
-            wv.loadUrl(PrototypeAssets.themeUrl(page, "wallpaper=1"))
+            val query = if (store.lowMode) "wallpaper=1&low=1" else "wallpaper=1"
+            wv.loadUrl(PrototypeAssets.themeUrl(page, query))
         }
 
         private fun pushAllState(wv: WebView) {
+            PrototypeAssets.dispatchMessage(wv, JSONObject().apply {
+                put("t", "lowMode")
+                put("v", store.lowMode)
+            })
             PrototypeAssets.dispatchMessage(wv, store.buildWallpaperSettingsMessage())
             PrototypeAssets.dispatchMessage(wv, store.buildIconsMessage(surfaceW, surfaceH))
             PrototypeAssets.dispatchMessage(wv, JSONObject().apply {

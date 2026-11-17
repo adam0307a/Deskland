@@ -32,6 +32,7 @@ WallpaperItem {
     }
     property bool pageReady: false
     property bool windowPaused: false
+    property bool lowMode: false
     property var iconMover: null
     property bool iconMoveActive: false
     property double lastIconMoveAt: 0
@@ -73,7 +74,8 @@ WallpaperItem {
             var appId = String(tasksModel.data(idx, TaskManager.AbstractTasksModel.AppId) || "").toLowerCase();
             if (appId.indexOf("deskland") !== -1 || appId.indexOf("diyardesk") !== -1)
                 continue;
-            if (Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen))) {
+            if (Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen))
+                    || (root.lowMode && Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMaximized)))) {
                 covered = true;
                 break;
             }
@@ -132,10 +134,17 @@ WallpaperItem {
 
     Timer {
         id: iconMoveTimer
-        interval: root.iconMoveActive ? 40 : 320
+        interval: root.lowMode ? (root.iconMoveActive ? 150 : 800) : (root.iconMoveActive ? 40 : 320)
         repeat: true
         running: root.pageReady && !root.effectivePaused && root.iconMover !== null
         onTriggered: {
+            view.runJavaScript("window.__desklandLowModeState ? '1' : '0'", function (lm) {
+                var nextLow = (lm === '1');
+                if (nextLow !== root.lowMode) {
+                    root.lowMode = nextLow;
+                    root.updateWindowPause();
+                }
+            });
             view.runJavaScript("window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : ''", function (raw) {
                 var mover = root.iconMover;
                 if (!mover || typeof mover.applyMoveIcons !== "function") return;
@@ -168,6 +177,10 @@ WallpaperItem {
 
         Component.onCompleted: {
             view.userScripts.collection = [
+                { name: "deskland-low-mode",
+                  sourceUrl: root.prototypeRoot + "low-mode.js",
+                  injectionPoint: WebEngineScript.DocumentCreation,
+                  worldId: WebEngineScript.MainWorld },
                 { name: "deskland-bridge",
                   sourceUrl: Qt.resolvedUrl("inject.js"),
                   injectionPoint: WebEngineScript.DocumentCreation,

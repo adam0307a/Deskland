@@ -30,9 +30,14 @@
   var hostPaused = false;
   var filePaused = false;
   var lastPauseSent = null;
+  var lastLowModeSent = null;
+  window.__desklandLowModeState = false;
 
   window.chrome = window.chrome || {};
   function replayCachedTo(fn) {
+    if (lastLowModeSent !== null) {
+      try { fn({ data: JSON.stringify({ t: 'lowMode', v: lastLowModeSent }) }); } catch (e) {}
+    }
     if (lastSettings) {
       try { fn({ data: lastSettings }); } catch (e) {}
     }
@@ -53,6 +58,7 @@
     /* Replay latest icons/settings when the page signals ready so heavy pages never miss initial polls. */
     postMessage: function (m) {
       if (m === 'ready') {
+        if (lastLowModeSent !== null) window.__desklandDeliver(JSON.stringify({ t: 'lowMode', v: lastLowModeSent }));
         if (lastSettings) window.__desklandDeliver(lastSettings);
         if (lastIcons) window.__desklandDeliver(lastIcons);
         return;
@@ -199,6 +205,12 @@
       var data;
       try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
       if (!data) return;
+      var lowMode = !!data.lowMode;
+      window.__desklandLowModeState = lowMode;
+      if (lowMode !== lastLowModeSent) {
+        lastLowModeSent = lowMode;
+        window.__desklandDeliver(JSON.stringify({ t: 'lowMode', v: lowMode }));
+      }
       var theme = data.theme || 'meadow';
       var page = THEME_PAGES[theme];
       if (theme !== CURRENT_THEME) {

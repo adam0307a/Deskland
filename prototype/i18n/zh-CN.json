@@ -143,11 +143,14 @@
     "virtualBarTitle": "桌面虚拟图标控制栏",
     "virtualBarAuto": "图标栏：自动",
     "virtualBarAlways": "图标栏：始终显示",
-    "virtualBarOff": "图标栏：隐藏"
+    "virtualBarOff": "图标栏：隐藏",
+    "lowMode": "低功耗模式",
+    "lowModeTitle": "严格性能优化：限制 15 FPS、0.75x 分辨率、关闭模糊/阴影并在窗口覆盖时更快暂停"
   },
   "host": {
     "traySettings": "设置…",
     "trayPause": "暂停动画",
+    "trayLowMode": "低功耗模式",
     "trayReload": "重新载入",
     "trayAutostart": "开机自动启动",
     "trayExit": "退出（恢复原壁纸）",

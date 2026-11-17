@@ -39,7 +39,7 @@ $sources = @('.gitattributes', '.gitignore', 'AGENTS.md', 'LICENSE', 'NOTICE', '
     'host\DesktopHost.cs', 'host\Themes.cs', 'host\DesklandPreview.ico', 'host\README.md', 'host\app.manifest', 'host\build.ps1', 'host\inspect.ps1',
     'tools\build-installer.ps1', 'tools\installer.nsi', 'tools\version.json')
 $themeFiles = @('flat.html', 'meadow.html', 'aurora.html', 'glade.html', 'rift.html', 'strike.html', 'pocket.html', 'roach.html', 'rosebrook.html', 'polarnight.html', 'desert.html', 'zen-archipelago.html', 'istanbul.html',
-    'settings.html', 'thumbs-data.js', 'share.js', 'wall-icons.js', 'serve.mjs', 'themes.json',
+    'settings.html', 'thumbs-data.js', 'low-mode.js', 'share.js', 'wall-icons.js', 'serve.mjs', 'themes.json',
     'beach-palms.js', 'meadow-boy.js', 'meadow-cat.js', 'aurora-pines.js', 'glade-trees.js', 'rift-props.js', 'strike-props.js', 'pocket-props.js', 'roach-props.js', 'rosebrook-blooms.js', 'desert-props.js', 'istanbul-city.js', 'istanbul-props.js',
     'i18n\en.json', 'i18n\zh-CN.json', 'thumbs\beach.webp', 'thumbs\meadow.webp', 'thumbs\polarnight.webp', 'thumbs\desert.webp', 'thumbs\istanbul.webp',
     'assets\beach-coconut-palm-v2.png', 'assets\beach-coconut-palm-curved.png', 'assets\beach-coconut-palm-airy.png', 'assets\beach-coconut-palm-windswept.png', 'assets\beach-coconut-palm-arch.png',

@@ -169,6 +169,7 @@ class SettingsStore:
         self.virtual_icons: list[dict[str, Any]] = []
         self.virtual_bar_collapsed: bool | None = None
         self.virtual_bar_mode: str = "auto"
+        self.low_mode: bool = False
         self._lock = threading.Lock()
 
     def load(self) -> None:
@@ -198,6 +199,9 @@ class SettingsStore:
             mode = data.get("virtualBarMode")
             if isinstance(mode, str) and mode in VIRTUAL_BAR_MODES:
                 self.virtual_bar_mode = mode
+            low_mode = data.get("lowMode")
+            if isinstance(low_mode, bool):
+                self.low_mode = low_mode
         except (OSError, ValueError, TypeError):
             self.theme = THEME_DEFAULT
             self.lang = LANG_DEFAULT
@@ -205,6 +209,7 @@ class SettingsStore:
             self.virtual_icons = []
             self.virtual_bar_collapsed = None
             self.virtual_bar_mode = "auto"
+            self.low_mode = False
 
     def save(self) -> None:
         with self._lock:
@@ -216,6 +221,7 @@ class SettingsStore:
                 "virtualIcons": self.virtual_icons,
                 "virtualBarCollapsed": self.virtual_bar_collapsed,
                 "virtualBarMode": self.virtual_bar_mode,
+                "lowMode": self.low_mode,
             }
             raw = json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8")
             try:

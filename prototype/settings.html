@@ -302,6 +302,9 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4M8 1.8c1.8 1.7 2.7 3.8 2.7 6.2S9.8 12.5 8 14.2C6.2 12.5 5.3 10.4 5.3 8S6.2 3.5 8 1.8z"/></svg>
       <select id="lang" data-i18n-title="language" aria-label="Language"></select>
     </label>
+    <label class="switch-row" data-i18n-title="lowModeTitle" title="Strict eco optimization: 15 FPS cap, reduced scale, no heavy blurs">
+      <span data-i18n="lowMode">Low mode</span><input type="checkbox" id="lowMode"><i class="switch"></i>
+    </label>
     <label class="switch-row" data-i18n-title="autostartTitle" title="开机后自动运行 DiyarDesk">
       <span data-i18n="autostart">开机自动启动</span><input type="checkbox" id="autostart"><i class="switch"></i>
     </label>
@@ -779,6 +782,12 @@ function flashSaved() {
   }, 700);
 }
 
+$('lowMode').addEventListener('change', e => {
+  const v = !!e.target.checked;
+  state.lowMode = v;
+  send({ t: 'lowMode', v });
+  toPreview({ t: 'lowMode', v });
+});
 $('autostart').addEventListener('change', e => send({ t: 'autostart', v: e.target.checked }));
 $('virtualBarMode').addEventListener('change', e => {
   const mode = e.target.value;
@@ -849,6 +858,7 @@ function sendPreviewBootstrap() {
   if (previewReady) return;
   previewReady = true;
   clearTimeout(previewReadyTimer);
+  toPreview({ t: 'lowMode', v: !!state.lowMode });
   toPreview({ t: 'settings', v: Object.assign(valuesOf(themeById(state.theme)), { audioAllow: host ? 0 : 1 }) });
   if (state.icons) toPreview(state.icons);
 }
@@ -1021,6 +1031,8 @@ function onHost(m) {
       state.theme = themeById(m.theme) && themeById(m.theme).status === 'ready' ? m.theme : 'beach';
       state.params = m.params || {};
       state.screen = m.screen;
+      state.lowMode = !!m.lowMode;
+      if ($('lowMode')) $('lowMode').checked = state.lowMode;
       $('autostart').checked = !!m.autostart;
       if ($('virtualBarMode')) $('virtualBarMode').value = m.virtualBarMode || 'auto';
       state.autostartWarn = !!m.autostartWarn;
@@ -1053,6 +1065,10 @@ function onHost(m) {
     updateFoot();
   } else if (m.t === 'autostart') {
     $('autostart').checked = !!m.v;
+  } else if (m.t === 'lowMode') {
+    state.lowMode = !!m.v;
+    if ($('lowMode')) $('lowMode').checked = state.lowMode;
+    toPreview({ t: 'lowMode', v: state.lowMode });
   } else if (m.t === 'recProgress') {
     shareProgress(m.p);
   } else if (m.t === 'shareResult') {

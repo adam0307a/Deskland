@@ -97,3 +97,14 @@ def test_virtual_icons_settings_roundtrip_and_sanitize(tmp_path):
         {"name": "Yeni Klasör", "type": "folder", "x": 120, "y": 81, "w": 76, "h": 86},
         {"name": "Notlar.txt", "type": "txt", "x": 200, "y": 140, "w": 256, "h": 24},
     ]
+
+
+def test_low_mode_setting_roundtrip(tmp_path):
+    store = SettingsStore(tmp_path)
+    assert store.low_mode is False
+    store.low_mode = True
+    store.save()
+
+    loaded = SettingsStore(tmp_path)
+    loaded.load()
+    assert loaded.low_mode is True

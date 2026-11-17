@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Deskland · 草地（原型）</title>
+<script src="low-mode.js"></script>
 <script src="wall-icons.js"></script>
 <!--
   Deskland · 草地主题原型（俯视；纯 WebGL2，2D，每帧直接计算）
@@ -885,7 +886,7 @@ function applyLayout(kind) {
 function resize() {
   W = innerWidth; H = innerHeight;
   // 预览模式：页面按整块桌面的尺寸排版、再整体缩小显示，所以画布只需要很低的分辨率
-  const scale = PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality);
+  const scale = window.__desklandScale ? window.__desklandScale(P.quality, 0.45) : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, P.quality));
   // 按画布实际占的大小算（带小数：2560 宽的屏幕 150% 缩放是 1706.67，innerWidth 取整成 1707），
   // 不然画布比屏幕多出一个像素，浏览器会把整幅画缩放一下贴上去，又发糊
   const box = cv.getBoundingClientRect();

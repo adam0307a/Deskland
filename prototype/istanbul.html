@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="tr"><head><meta charset="utf-8"><title>İstanbul — Boğaz'da Gün Batımı</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="low-mode.js"></script>
 <script src="wall-icons.js"></script>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0d2a45; }
@@ -27,7 +28,7 @@ let paused = false, cacheOK = false, geo = null, T = 3, lastT = 0, lastClock = 0
 const timeNow = () => P.time > 0 ? P.time : (h => h >= 5 && h < 10 ? 1 : h >= 10 && h < 17 ? 2 : h >= 17 && h < 20 ? 3 : 4)(new Date().getHours());
 
 function resize() {
-  const d = Math.min(devicePixelRatio || 1, 1.5), b = cv.getBoundingClientRect();
+  const d = window.__desklandScale ? window.__desklandScale(1.5) : Math.min(devicePixelRatio || 1, 1.5), b = cv.getBoundingClientRect();
   W = b.width || innerWidth; H = b.height || innerHeight;
   cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv._scale = d; cacheOK = false;
 }

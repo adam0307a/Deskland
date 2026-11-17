@@ -153,8 +153,11 @@ class DesklandHost:
             on_reload=self.reload,
             on_autostart=self.set_autostart,
             on_exit=self.quit,
+            on_low_mode=self.set_low_mode,
         )
         self.tray.set_autostart(self.autostart_enabled())
+        self.tray.set_low_mode(self.settings.low_mode)
+        self._apply_process_priority(self.settings.low_mode)
         self._welcome()
         if show_settings:
             self.open_settings()
@@ -222,6 +225,30 @@ class DesklandHost:
             self.tray.set_autostart(actual)
         self.log.write("Otomatik başlatma açık" if actual else "Otomatik başlatma kapalı")
 
+    @staticmethod
+    def _apply_process_priority(low_mode: bool) -> None:
+        try:
+            cur = os.getpriority(os.PRIO_PROCESS, 0)
+            target = 10 if low_mode else 0
+            if low_mode and cur < target:
+                os.setpriority(os.PRIO_PROCESS, 0, target)
+            elif not low_mode and cur > 0:
+                os.setpriority(os.PRIO_PROCESS, 0, 0)
+        except OSError:
+            pass
+
+    def set_low_mode(self, enabled: bool) -> None:
+        val = bool(enabled)
+        self.settings.low_mode = val
+        self.schedule_save()
+        self._apply_process_priority(val)
+        if self.tray is not None:
+            self.tray.set_low_mode(val)
+        if self.wallpaper is not None:
+            self.wallpaper.set_low_mode(val)
+        self._post_settings({"t": "lowMode", "v": val})
+        self.log.write("Düşük performans modu açık" if val else "Düşük performans modu kapalı")
+
     # ---------------------------------------------------------------- state
     def schedule_save(self) -> None:
         if self._save_timeout:
@@ -282,6 +309,8 @@ class DesklandHost:
             self._on_lang(message)
         elif kind == "virtualBarMode":
             self._on_virtual_bar_mode(message)
+        elif kind == "lowMode":
+            self.set_low_mode(bool(message.get("v")))
         elif kind == "autostart":
             self.set_autostart(bool(message.get("v")))
             self._post_settings({"t": "autostart", "v": self.autostart_enabled()})
@@ -331,6 +360,7 @@ class DesklandHost:
                 "langEff": self.i18n.code,
                 "langSys": self.i18n.system,
                 "virtualBarMode": self.settings.virtual_bar_mode,
+                "lowMode": self.settings.low_mode,
                 "canSaveSnapshot": True,
             }
         )
