@@ -831,10 +831,12 @@
         lastTrailX: r.x, lastTrailY: r.y,
         fade: 0.0,
         snowBuild: 0.15,
+        capBuild: 0.25,
         removing: false,
         isFolder: guessIsFolder(r, name),
         seed: s,
-        drift: buildDriftProfile(s)
+        drift: buildDriftProfile(s),
+        capJitter: ((s & 255) / 255 - 0.5) * 4.5
       };
     }
 
@@ -896,7 +898,7 @@
         if (matchedIn.has(i)) continue;
         const inc = incoming[i];
         const st = createIconState(inc, inc.name, inc.name);
-        if (!iconsSeen) { st.fade = 1; st.snowBuild = 1; }
+        if (!iconsSeen) { st.fade = 1; st.snowBuild = 1; st.capBuild = 1; }
         else spawnSnowBurst(inc.x + inc.w * 0.5, inc.y + inc.h * 0.72, 6, 0);
         iconStates.push(st);
       }
@@ -921,6 +923,7 @@
         if (st.removing) {
           st.fade = Math.max(0, st.fade - dt * 2.8);
           st.snowBuild = Math.max(0, st.snowBuild - dt * 2.2);
+          st.capBuild = Math.max(0, st.capBuild - dt * 2.6);
           if (st.fade <= 0.01) iconStates.splice(i, 1);
           continue;
         }
@@ -942,15 +945,19 @@
         if (st.speed > 20) {
           movingIconCount++;
           st.snowBuild = Math.max(0.45, st.snowBuild - dt * 0.7);
+          st.capBuild = Math.max(0.12, st.capBuild - dt * 1.45);
           const dTrail = Math.hypot(st.x - st.lastTrailX, st.y - st.lastTrailY);
           if (dTrail > 22) {
             st.lastTrailX = st.x;
             st.lastTrailY = st.y;
             spawnTrail(st.x + st.w * 0.5, st.y + st.h * 0.76, st.w * 0.34, 9);
             spawnSnowBurst(st.x + st.w * 0.5, st.y + st.h * 0.74, 3, -st.vx * 0.08);
+            spawnSnowBurst(st.x + st.w * 0.5, st.y + 6, 2, -st.vx * 0.05);
           }
         } else {
           st.snowBuild = Math.min(1, st.snowBuild + dt * 0.65);
+          const snowRate = 0.14 + 0.24 * clamp(P.snowIntensity, 0, 1.5);
+          st.capBuild = Math.min(1, st.capBuild + dt * snowRate);
         }
       }
 
@@ -1068,6 +1075,40 @@
           ctx.beginPath();
           ctx.ellipse(cx + 1.5, baseY - moundRy * 0.12, moundRx * 0.56, Math.max(3.5, moundRy * 0.36), 0, 0, Math.PI * 2);
           ctx.fill();
+        }
+
+        // Top Snow Cap: accumulated snow resting along the upper edge and shoulders of each file/folder icon
+        if (st.capBuild > 0.04) {
+          const capAmt = st.capBuild * clamp(0.55 + amt * 0.45, 0.4, 1.2);
+          const capHalfW = Math.min(30, Math.max(20, st.w * 0.40)) * (st.isFolder ? 1.12 : 0.92);
+          const capY = st.y + 7;
+          const crestH = (st.isFolder ? 9.5 : 8.0) * clamp(0.65 + amt * 0.35, 0.6, 1.25) * st.capBuild;
+          const jx = st.capJitter || 0;
+
+          // Cool shaded underside rim hugging icon top
+          ctx.beginPath();
+          ctx.moveTo(cx - capHalfW, capY + 3);
+          ctx.quadraticCurveTo(cx - capHalfW * 0.5 + jx, capY - crestH * 1.15, cx + jx * 0.5, capY - crestH * 0.85);
+          ctx.quadraticCurveTo(cx + capHalfW * 0.5 + jx, capY - crestH * 1.05, cx + capHalfW, capY + 3);
+          ctx.quadraticCurveTo(cx + capHalfW * 0.4, capY + 6.5, cx, capY + 5);
+          ctx.quadraticCurveTo(cx - capHalfW * 0.4, capY + 6.5, cx - capHalfW, capY + 3);
+          ctx.closePath();
+
+          const capGrad = ctx.createLinearGradient(cx, capY - crestH, cx, capY + 6);
+          capGrad.addColorStop(0, `rgba(240, 247, 255, ${(0.88 * capAmt).toFixed(3)})`);
+          capGrad.addColorStop(0.65, `rgba(196, 216, 238, ${(0.76 * capAmt).toFixed(3)})`);
+          capGrad.addColorStop(1, `rgba(128, 154, 184, ${(0.45 * capAmt).toFixed(3)})`);
+          ctx.fillStyle = capGrad;
+          ctx.fill();
+
+          // Crisp moonlit snow crest highlight along upper ridge
+          ctx.strokeStyle = `rgba(246, 250, 255, ${(0.70 * capAmt).toFixed(3)})`;
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          ctx.moveTo(cx - capHalfW * 0.85, capY + 1);
+          ctx.quadraticCurveTo(cx - capHalfW * 0.4 + jx, capY - crestH * 0.98, cx + jx * 0.5, capY - crestH * 0.72);
+          ctx.quadraticCurveTo(cx + capHalfW * 0.45 + jx, capY - crestH * 0.88, cx + capHalfW * 0.85, capY + 1);
+          ctx.stroke();
         }
 
         ctx.restore();
