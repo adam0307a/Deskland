@@ -1444,6 +1444,7 @@ class WallpaperForm : Form
     }
     public void Reload()
     {
+        reader.ResetOrbitalPositions();
         if (web.CoreWebView2 == null) return;
         try { web.CoreWebView2.Reload(); }
         catch (InvalidOperationException ex) { WebDead(ex); }
@@ -1470,6 +1471,7 @@ class WallpaperForm : Form
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
     {
+        reader.ResetOrbitalPositions();
         uiRectGroups.Clear();
         uiMouseCaptured = false;
         page = newPage;
@@ -1567,6 +1569,62 @@ class WallpaperForm : Form
             object vObj;
             if (m.TryGetValue("v", out vObj) && VirtualBarCollapsedSaved != null) VirtualBarCollapsedSaved(vObj);
         }
+        else if (kind == "moveIcons")
+        {
+            HandleMoveIconsMessage(m);
+        }
+    }
+
+    void HandleMoveIconsMessage(Dictionary<string, object> m)
+    {
+        object resetObj;
+        bool reset = m.TryGetValue("reset", out resetObj) && resetObj is bool && (bool)resetObj;
+        if (reset)
+        {
+            reader.ResetOrbitalPositions();
+            return;
+        }
+        object rawIcons;
+        if (!m.TryGetValue("icons", out rawIcons) || rawIcons == null)
+        {
+            reader.ResetOrbitalPositions();
+            return;
+        }
+        var arr = rawIcons as object[];
+        if (arr == null)
+        {
+            var lst = rawIcons as System.Collections.ArrayList;
+            if (lst != null) arr = lst.ToArray();
+        }
+        if (arr == null || arr.Length == 0)
+        {
+            reader.ResetOrbitalPositions();
+            return;
+        }
+        var targets = new List<MoveIconTarget>(arr.Length);
+        for (int i = 0; i < arr.Length; i++)
+        {
+            var spec = arr[i] as Dictionary<string, object>;
+            if (spec == null) continue;
+            object idxObj, xObj, yObj;
+            if (!spec.TryGetValue("index", out idxObj) || !spec.TryGetValue("x", out xObj) || !spec.TryGetValue("y", out yObj)) continue;
+            try
+            {
+                targets.Add(new MoveIconTarget
+                {
+                    Index = Convert.ToInt32(idxObj),
+                    X = Convert.ToInt32(xObj),
+                    Y = Convert.ToInt32(yObj)
+                });
+            }
+            catch { }
+        }
+        if (targets.Count == 0)
+        {
+            reader.ResetOrbitalPositions();
+            return;
+        }
+        reader.ApplyMoveIcons(targets, screen);
     }
 
     protected override async void OnShown(EventArgs e)
@@ -1607,6 +1665,18 @@ class WallpaperForm : Form
                 if (msg.StartsWith("record|")) { OnRecord(msg); return; }
                 if (msg == "ready")
                 {
+                    Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+                    int wLeft = Math.Max(0, wa.Left - screen.Left);
+                    int wTop = Math.Max(0, wa.Top - screen.Top);
+                    int wRight = Math.Max(0, screen.Right - wa.Right);
+                    int wBottom = Math.Max(0, screen.Bottom - wa.Bottom);
+                    core.PostWebMessageAsString(Json.Stringify(Json.Obj(
+                        "t", "hostCaps",
+                        "moveIcons", true,
+                        "orbitUi", true,
+                        "lang", I18n.Code,
+                        "workInsets", new object[] { wLeft, wTop, wRight, wBottom }
+                    )));
                     if (VirtualStateJson != null) core.PostWebMessageAsString(VirtualStateJson());
                     if (SettingsJson != null) core.PostWebMessageAsString(SettingsJson());
                     lastIcons = ""; lastPause = -1; PollIcons(); PollForeground();
@@ -1978,6 +2048,7 @@ class WallpaperForm : Form
         shuttingDown = true;
         StopMouseHook();
         iconTimer.Stop(); fgTimer.Stop();
+        reader.ResetOrbitalPositions();
         reader.Dispose();
         IntPtr parent = parentHwnd;
         try { web.Dispose(); } catch { }
@@ -1993,6 +2064,7 @@ class WallpaperForm : Form
         StopMouseHook();
         if (winEventHook != IntPtr.Zero) { Native.UnhookWinEvent(winEventHook); winEventHook = IntPtr.Zero; }
         iconTimer.Stop(); fgTimer.Stop();
+        reader.ResetOrbitalPositions();
         reader.Dispose();
         base.OnHandleDestroyed(e);
     }
@@ -2004,14 +2076,34 @@ struct DesktopIcon
     public string Name;
 }
 
-// 通过桌面 ListView 的跨进程消息读取图标矩形与名称（图标 + 文字，物理像素，屏幕坐标）
+struct MoveIconTarget
+{
+    public int Index, X, Y;
+}
+
+struct HomeIconInfo
+{
+    public Native.RECT Rect;
+    public Native.POINT Pos;
+    public string Name;
+}
+
+// 通过桌面 ListView 的跨进程消息读取图标矩形与名称（图标 + 文字，物理像素，屏幕坐标），并支持在轨道主题中临时移动图标位置
 class IconReader : IDisposable
 {
     const int AllocBytes = 1024;
     const int TextOffset = 128;
     const int MaxTextChars = 260;
+    const int LvmGetItemPosition = 0x1010;
+    const int LvmSetItemPosition32 = 0x1031;
+    const int LvmSetExtendedListViewStyle = 0x1036;
+    const int LvmGetExtendedListViewStyle = 0x1037;
+    const uint LvsExSnapToGrid = 0x00080000;
+    const int LvsAutoArrange = 0x0100;
 
     IntPtr listView, proc, mem;
+    bool orbitalActive, snapGridWasOn, snapGridDisabled, autoArrangeWasOn, autoArrangeDisabled;
+    List<HomeIconInfo> homeIcons;
 
     static IntPtr FindListView()
     {
@@ -2067,29 +2159,210 @@ class IconReader : IDisposable
         return end <= 0 ? "" : Encoding.Unicode.GetString(buf, 0, end);
     }
 
+    bool ReadLiveItemRectAndName(int index, Native.POINT origin, IntPtr textPtr, byte[] textBuf, out Native.RECT rect, out string name)
+    {
+        rect = new Native.RECT();
+        name = "";
+        IntPtr n;
+        if (!Native.WriteProcessMemory(proc, mem, ref rect, 16, out n)) return false;
+        Native.SendMessage(listView, 0x100E /* LVM_GETITEMRECT */, new IntPtr(index), mem);
+        if (!Native.ReadProcessMemory(proc, mem, out rect, 16, out n)) return false;
+        rect.Left += origin.X; rect.Right += origin.X; rect.Top += origin.Y; rect.Bottom += origin.Y;
+        name = ReadItemText(index, textPtr, textBuf);
+        return true;
+    }
+
+    bool CaptureHomeIcons()
+    {
+        if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return false; }
+        if (!Native.IsWindowVisible(listView)) return false;
+        int count = (int)Native.SendMessage(listView, 0x1004 /* LVM_GETITEMCOUNT */, IntPtr.Zero, IntPtr.Zero);
+        if (count <= 0) return false;
+        var origin = new Native.POINT();
+        Native.ClientToScreen(listView, ref origin);
+        IntPtr textPtr = new IntPtr(mem.ToInt64() + TextOffset);
+        var textBuf = new byte[MaxTextChars * 2];
+        var captured = new List<HomeIconInfo>(count);
+        for (int i = 0; i < count; i++)
+        {
+            Native.RECT r;
+            string name;
+            if (!ReadLiveItemRectAndName(i, origin, textPtr, textBuf, out r, out name)) { Close(); return false; }
+            var pos = new Native.POINT();
+            IntPtr n;
+            Native.SendMessage(listView, LvmGetItemPosition, new IntPtr(i), mem);
+            if (!Native.ReadProcessMemory(proc, mem, out pos, 8, out n)) { Close(); return false; }
+            captured.Add(new HomeIconInfo { Rect = r, Pos = pos, Name = name });
+        }
+        homeIcons = captured;
+        uint exStyle = (uint)Native.SendMessage(listView, LvmGetExtendedListViewStyle, IntPtr.Zero, IntPtr.Zero).ToInt64();
+        snapGridWasOn = (exStyle & LvsExSnapToGrid) != 0;
+        if (snapGridWasOn)
+        {
+            IntPtr res;
+            Native.SendMessageTimeout(listView, LvmSetExtendedListViewStyle, new IntPtr(unchecked((int)LvsExSnapToGrid)), IntPtr.Zero, 0x0002, 40, out res);
+            snapGridDisabled = true;
+        }
+        int style = Native.GetWindowLong(listView, Native.GWL_STYLE);
+        autoArrangeWasOn = (style & LvsAutoArrange) != 0;
+        if (autoArrangeWasOn)
+        {
+            Native.SetWindowLong(listView, Native.GWL_STYLE, style & ~LvsAutoArrange);
+            autoArrangeDisabled = true;
+        }
+        orbitalActive = true;
+        return true;
+    }
+
+    public void ApplyMoveIcons(List<MoveIconTarget> targets, Rectangle screen)
+    {
+        if (targets == null || targets.Count == 0) return;
+        // 用户正在拖拽 / 按住鼠标或右键菜单打开时让出控制权，避免打断原生桌面操作
+        if ((Native.GetAsyncKeyState(0x01) & 0x8000) != 0 || (Native.GetAsyncKeyState(0x02) & 0x8000) != 0) return;
+        if (Native.FindWindow("#32768", null) != IntPtr.Zero) return;
+
+        if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return; }
+        if (!Native.IsWindowVisible(listView)) return;
+        if (!orbitalActive || homeIcons == null)
+        {
+            if (!CaptureHomeIcons()) return;
+        }
+        int liveCount = (int)Native.SendMessage(listView, 0x1004 /* LVM_GETITEMCOUNT */, IntPtr.Zero, IntPtr.Zero);
+        if (liveCount != homeIcons.Count)
+        {
+            ResetOrbitalPositions();
+            return;
+        }
+
+        var origin = new Native.POINT();
+        Native.ClientToScreen(listView, ref origin);
+        Rectangle clampArea = Screen.PrimaryScreen.WorkingArea;
+        if (!clampArea.IntersectsWith(screen)) clampArea = screen;
+
+        for (int i = 0; i < targets.Count; i++)
+        {
+            MoveIconTarget t = targets[i];
+            if (t.Index < 0 || t.Index >= homeIcons.Count) continue;
+            HomeIconInfo home = homeIcons[t.Index];
+            int w = Math.Max(48, home.Rect.Right - home.Rect.Left);
+            int h = Math.Max(48, home.Rect.Bottom - home.Rect.Top);
+            int halfW = w / 2, halfH = h / 2;
+            int minX = clampArea.Left + halfW;
+            int maxX = Math.Max(minX, clampArea.Right - halfW);
+            int minY = clampArea.Top + halfH;
+            int maxY = Math.Max(minY, clampArea.Bottom - halfH);
+
+            int targetScreenX = Math.Max(minX, Math.Min(maxX, screen.X + t.X));
+            int targetScreenY = Math.Max(minY, Math.Min(maxY, screen.Y + t.Y));
+
+            int homeCxScreen = (home.Rect.Left + home.Rect.Right) / 2;
+            int homeCyScreen = (home.Rect.Top + home.Rect.Bottom) / 2;
+            int homePosScreenX = home.Pos.X + origin.X;
+            int homePosScreenY = home.Pos.Y + origin.Y;
+            int centerOffsetX = homeCxScreen - homePosScreenX;
+            int centerOffsetY = homeCyScreen - homePosScreenY;
+
+            var pt = new Native.POINT();
+            pt.X = (targetScreenX - origin.X) - centerOffsetX;
+            pt.Y = (targetScreenY - origin.Y) - centerOffsetY;
+            IntPtr n, res;
+            if (!Native.WriteProcessMemory(proc, mem, ref pt, 8, out n))
+            {
+                orbitalActive = false; homeIcons = null; snapGridDisabled = false; autoArrangeDisabled = false;
+                Close();
+                return;
+            }
+            Native.SendMessageTimeout(listView, LvmSetItemPosition32, new IntPtr(t.Index), mem, 0x0002, 40, out res);
+        }
+    }
+
+    public void ResetOrbitalPositions()
+    {
+        if (!orbitalActive && !snapGridDisabled && !autoArrangeDisabled && homeIcons == null) return;
+        if (listView != IntPtr.Zero && mem != IntPtr.Zero && Native.IsWindow(listView))
+        {
+            IntPtr res;
+            if (homeIcons != null)
+            {
+                int liveCount = (int)Native.SendMessage(listView, 0x1004 /* LVM_GETITEMCOUNT */, IntPtr.Zero, IntPtr.Zero);
+                int nItems = Math.Min(liveCount, homeIcons.Count);
+                for (int i = 0; i < nItems; i++)
+                {
+                    Native.POINT pt = homeIcons[i].Pos;
+                    IntPtr n;
+                    if (!Native.WriteProcessMemory(proc, mem, ref pt, 8, out n)) break;
+                    Native.SendMessageTimeout(listView, LvmSetItemPosition32, new IntPtr(i), mem, 0x0002, 40, out res);
+                }
+            }
+            if (snapGridDisabled)
+            {
+                Native.SendMessageTimeout(listView, LvmSetExtendedListViewStyle,
+                    new IntPtr(unchecked((int)LvsExSnapToGrid)),
+                    snapGridWasOn ? new IntPtr(unchecked((int)LvsExSnapToGrid)) : IntPtr.Zero,
+                    0x0002, 40, out res);
+            }
+            if (autoArrangeDisabled)
+            {
+                int style = Native.GetWindowLong(listView, Native.GWL_STYLE);
+                Native.SetWindowLong(listView, Native.GWL_STYLE, autoArrangeWasOn ? (style | LvsAutoArrange) : (style & ~LvsAutoArrange));
+            }
+        }
+        orbitalActive = false;
+        snapGridDisabled = false;
+        snapGridWasOn = false;
+        autoArrangeDisabled = false;
+        autoArrangeWasOn = false;
+        homeIcons = null;
+    }
+
     public List<DesktopIcon> Read(out bool visible)
     {
         visible = false;
         if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return null; }
         visible = Native.IsWindowVisible(listView);
         var result = new List<DesktopIcon>();
-        if (!visible) return result;                   // 用户隐藏了桌面图标 → 全是海
+        if (!visible)
+        {
+            if (orbitalActive) ResetOrbitalPositions();
+            return result;                   // 用户隐藏了桌面图标 → 全是海
+        }
         int count = (int)Native.SendMessage(listView, 0x1004 /* LVM_GETITEMCOUNT */, IntPtr.Zero, IntPtr.Zero);
+        if (orbitalActive && homeIcons != null)
+        {
+            if (count == homeIcons.Count)
+            {
+                IntPtr tp = new IntPtr(mem.ToInt64() + TextOffset);
+                var tb = new byte[MaxTextChars * 2];
+                bool namesMatch = true;
+                for (int i = 0; i < count; i++)
+                {
+                    if (!string.Equals(ReadItemText(i, tp, tb), homeIcons[i].Name, StringComparison.Ordinal))
+                    {
+                        namesMatch = false;
+                        break;
+                    }
+                }
+                if (namesMatch)
+                {
+                    for (int i = 0; i < homeIcons.Count; i++)
+                        result.Add(new DesktopIcon { Rect = homeIcons[i].Rect, Name = homeIcons[i].Name });
+                    return result;
+                }
+            }
+            ResetOrbitalPositions();
+        }
         var origin = new Native.POINT();
         Native.ClientToScreen(listView, ref origin);
         IntPtr textPtr = new IntPtr(mem.ToInt64() + TextOffset);
         var textBuf = new byte[MaxTextChars * 2];
         for (int i = 0; i < count; i++)
         {
-            var r = new Native.RECT();                 // Left = LVIR_BOUNDS（0）：图标 + 文字的整体范围
-            IntPtr n;
-            if (!Native.WriteProcessMemory(proc, mem, ref r, 16, out n)) { Close(); return null; }
-            Native.SendMessage(listView, 0x100E /* LVM_GETITEMRECT */, new IntPtr(i), mem);
-            if (!Native.ReadProcessMemory(proc, mem, out r, 16, out n)) { Close(); return null; }
-            r.Left += origin.X; r.Right += origin.X; r.Top += origin.Y; r.Bottom += origin.Y;
+            Native.RECT r;                 // Left = LVIR_BOUNDS（0）：图标 + 文字的整体范围
+            string name;
+            if (!ReadLiveItemRectAndName(i, origin, textPtr, textBuf, out r, out name)) { Close(); return null; }
             var item = new DesktopIcon();
             item.Rect = r;
-            item.Name = ReadItemText(i, textPtr, textBuf);
+            item.Name = name;
             result.Add(item);
         }
         return result;
@@ -2102,7 +2375,7 @@ class IconReader : IDisposable
         mem = proc = IntPtr.Zero;
     }
 
-    public void Dispose() { Close(); }
+    public void Dispose() { ResetOrbitalPositions(); Close(); }
 }
 
 static class Native
@@ -2177,14 +2450,17 @@ static class Native
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr h, IntPtr rect, IntPtr rgn, uint flags);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
     [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr h, int attribute, out int value, int size);
     [DllImport("kernel32.dll")] public static extern IntPtr OpenProcess(uint access, bool inherit, uint pid);
     [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
     [DllImport("kernel32.dll")] public static extern IntPtr VirtualAllocEx(IntPtr proc, IntPtr addr, IntPtr size, uint type, uint protect);
     [DllImport("kernel32.dll")] public static extern bool VirtualFreeEx(IntPtr proc, IntPtr addr, IntPtr size, uint type);
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref RECT buf, int size, out IntPtr written);
+    [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref POINT buf, int size, out IntPtr written);
     [DllImport("kernel32.dll")] public static extern bool WriteProcessMemory(IntPtr proc, IntPtr addr, ref LVITEMW buf, int size, out IntPtr written);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, out RECT buf, int size, out IntPtr read);
+    [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, out POINT buf, int size, out IntPtr read);
     [DllImport("kernel32.dll")] public static extern bool ReadProcessMemory(IntPtr proc, IntPtr addr, [Out] byte[] buf, int size, out IntPtr read);
 }
 

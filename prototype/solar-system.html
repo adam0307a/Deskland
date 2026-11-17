@@ -24,12 +24,52 @@
       height: 100vh;
       pointer-events: auto;
     }
+    #orbit-pause-btn {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      gap: 7px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(155, 198, 255, 0.46);
+      background: rgba(13, 20, 33, 0.80);
+      color: #eef4ff;
+      font: 500 12px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.42);
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+    #orbit-pause-btn:hover {
+      background: rgba(27, 38, 56, 0.92);
+    }
+    #orbit-pause-btn.paused {
+      border-color: rgba(255, 210, 125, 0.62);
+    }
+    #orbit-pause-btn.paused:hover {
+      background: rgba(36, 56, 76, 0.92);
+    }
+    #orbit-pause-btn .glyph {
+      font-size: 13px;
+      color: #9fd0ff;
+    }
+    #orbit-pause-btn.paused .glyph {
+      color: #ffd88a;
+    }
   </style>
   <!-- Optional DiyarDesk shared wall-icons helper if running inside prototype/ directory -->
   <script src="wall-icons.js"></script>
 </head>
 <body>
   <canvas id="space-canvas"></canvas>
+  <button id="orbit-pause-btn" type="button" aria-pressed="false">
+    <span class="glyph" aria-hidden="true">&#x23F8;</span>
+    <span class="label">Pause Icons</span>
+  </button>
 
   <script>
     (function () {
@@ -156,8 +196,12 @@
       const canvas = document.getElementById('space-canvas');
       const cv = canvas;
       const ctx = canvas.getContext('2d', { alpha: false });
+      const orbitPauseBtn = document.getElementById('orbit-pause-btn');
       const WALL = new URLSearchParams(window.location.search || '').has('wallpaper');
       let W = 0, H = 0, icons = [], frameN = 0, paused = false;
+      let hostOrbitUi = false, orbitPaused = false, hostLang = 'en';
+      let hostWorkInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+      let lastOrbitUiRectSig = '';
 
       let viewWidth = window.innerWidth || 1920;
       let viewHeight = window.innerHeight || 1080;
@@ -1064,11 +1108,29 @@
           }
 
           handleIcons(list, msg);
+          syncOrbitPauseUi();
+          return;
+        }
+
+        if (msgType === 'hostCaps') {
+          hostOrbitUi = !!msg.orbitUi;
+          if (typeof msg.lang === 'string' && msg.lang) hostLang = msg.lang.toLowerCase();
+          if (Array.isArray(msg.workInsets) && msg.workInsets.length >= 4) {
+            const s = window.devicePixelRatio || 1;
+            hostWorkInsets = {
+              left: Math.max(0, Number(msg.workInsets[0]) / s || 0),
+              top: Math.max(0, Number(msg.workInsets[1]) / s || 0),
+              right: Math.max(0, Number(msg.workInsets[2]) / s || 0),
+              bottom: Math.max(0, Number(msg.workInsets[3]) / s || 0)
+            };
+          }
+          syncOrbitPauseUi();
           return;
         }
 
         if (msgType === 'reset') {
           applySettingsPatch(Object.assign({}, DEFAULT_SETTINGS, msg.v || {}));
+          syncOrbitPauseUi();
           return;
         }
 
@@ -1080,6 +1142,7 @@
         ) {
           const payload = msg.v || msg.params || msg.settings || msg.data || msg.config || msg.values || msg;
           applySettingsPatch(payload);
+          syncOrbitPauseUi();
           return;
         }
 
@@ -1088,6 +1151,7 @@
             const patch = {};
             patch[msg.key || msg.name] = msg.value;
             applySettingsPatch(patch);
+            syncOrbitPauseUi();
           }
           return;
         }
@@ -1150,9 +1214,55 @@
       // =========================================================================
       // 10. SIMULATION UPDATES & ORBITAL HOST BRIDGE
       // =========================================================================
+      function reportOrbitBtnRect() {
+        if (!window.chrome || !window.chrome.webview || typeof window.chrome.webview.postMessage !== 'function') return;
+        let payloadRect = null;
+        if (orbitPauseBtn && orbitPauseBtn.style.display !== 'none') {
+          const r = orbitPauseBtn.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            payloadRect = [Math.floor(r.left), Math.floor(r.top), Math.ceil(r.width), Math.ceil(r.height)];
+          }
+        }
+        const sig = JSON.stringify(payloadRect);
+        if (sig === lastOrbitUiRectSig) return;
+        lastOrbitUiRectSig = sig;
+        try {
+          window.chrome.webview.postMessage(JSON.stringify({ t: 'uiRect', src: 'orbitCtrl', r: payloadRect }));
+        } catch (e) {}
+      }
+
+      function syncOrbitPauseUi() {
+        if (!orbitPauseBtn) return;
+        const canShow = hostOrbitUi && !isPreviewMode && settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && systems.length > 0;
+        if (!canShow) {
+          orbitPauseBtn.style.display = 'none';
+          if (orbitPaused) {
+            orbitPaused = false;
+            emitHostOrbitalIconPositions(0);
+          }
+          reportOrbitBtnRect();
+          return;
+        }
+        const isZh = hostLang.indexOf('zh') === 0;
+        const glyphEl = orbitPauseBtn.querySelector('.glyph');
+        const labelEl = orbitPauseBtn.querySelector('.label');
+        if (glyphEl) glyphEl.textContent = orbitPaused ? '\u25B6' : '\u23F8';
+        if (labelEl) {
+          labelEl.textContent = orbitPaused
+            ? (isZh ? '\u6062\u590D\u56FE\u6807' : 'Resume Icons')
+            : (isZh ? '\u6682\u505C\u56FE\u6807' : 'Pause Icons');
+        }
+        orbitPauseBtn.classList.toggle('paused', orbitPaused);
+        orbitPauseBtn.setAttribute('aria-pressed', String(orbitPaused));
+        orbitPauseBtn.style.right = Math.round(hostWorkInsets.right + 18) + 'px';
+        orbitPauseBtn.style.bottom = Math.round(hostWorkInsets.bottom + 18) + 'px';
+        orbitPauseBtn.style.display = 'inline-flex';
+        requestAnimationFrame(reportOrbitBtnRect);
+      }
+
       let sentOrbitalPositions = false;
       function emitHostOrbitalIconPositions(dt) {
-        const shouldOrbit = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && systems.length > 0);
+        const shouldOrbit = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && systems.length > 0 && !orbitPaused);
         if (!shouldOrbit) {
           if (sentOrbitalPositions) {
             sentOrbitalPositions = false;
@@ -1207,7 +1317,7 @@
         const lerpAlpha = 1.0 - Math.exp(-8.5 * dt);
         const coreX = viewWidth * 0.5;
         const coreY = viewHeight * 0.5;
-        const isOrbitMode = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001);
+        const isOrbitMode = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && !orbitPaused);
 
         for (let i = 0; i < systems.length; i++) {
           const sys = systems[i];
@@ -1225,8 +1335,15 @@
 
             // Clamp within safe screen margins so orbiting icons stay visible on desktop
             const margin = 54;
-            sys.targetX = clamp(coreX + lx * cosR - ly * sinR, margin, viewWidth - margin);
-            sys.targetY = clamp(coreY + lx * sinR + ly * cosR, margin, viewHeight - margin);
+            const minX = hostWorkInsets.left + margin;
+            const maxX = Math.max(minX, viewWidth - hostWorkInsets.right - margin);
+            const minY = hostWorkInsets.top + margin;
+            const maxY = Math.max(minY, viewHeight - hostWorkInsets.bottom - margin);
+            sys.targetX = clamp(coreX + lx * cosR - ly * sinR, minX, maxX);
+            sys.targetY = clamp(coreY + lx * sinR + ly * cosR, minY, maxY);
+          } else if (sys.state !== 'removing') {
+            sys.targetX = sys.anchorX;
+            sys.targetY = sys.anchorY;
           }
 
           const prevX = sys.currentX;
@@ -2344,7 +2461,22 @@
           window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
         }
 
+        if (orbitPauseBtn) {
+          orbitPauseBtn.addEventListener('pointerdown', function (ev) {
+            ev.stopPropagation();
+          });
+          orbitPauseBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            orbitPaused = !orbitPaused;
+            if (orbitPaused) {
+              emitHostOrbitalIconPositions(0);
+            }
+            syncOrbitPauseUi();
+          });
+        }
+
         window.addEventListener('pointermove', function (ev) {
+          if (orbitPauseBtn && (ev.target === orbitPauseBtn || orbitPauseBtn.contains(ev.target))) return;
           const rect = canvas.getBoundingClientRect();
           const nx = ev.clientX - rect.left;
           const ny = ev.clientY - rect.top;
@@ -2371,6 +2503,7 @@
         }, { passive: true });
 
         window.addEventListener('pointerdown', function (ev) {
+          if (orbitPauseBtn && (ev.target === orbitPauseBtn || orbitPauseBtn.contains(ev.target))) return;
           const rect = canvas.getBoundingClientRect();
           pointer.x = ev.clientX - rect.left;
           pointer.y = ev.clientY - rect.top;
@@ -2407,7 +2540,10 @@
           });
         }
 
-        window.addEventListener('resize', resize, { passive: true });
+        window.addEventListener('resize', function () {
+          resize();
+          reportOrbitBtnRect();
+        }, { passive: true });
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) {
             lastFrameTime = performance.now();
