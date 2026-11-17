@@ -182,7 +182,7 @@
       "page": "aurora.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 27% 46%, rgba(255, 200, 108, 0.72) 0, rgba(255, 180, 76, 0.16) 7%, transparent 15%), radial-gradient(ellipse 26% 22% at 32% 48%, #3c5276 0, #314463 72%, #8bd6ea 76%, transparent 80%), radial-gradient(ellipse 68% 22% at 68% 36%, rgba(52, 235, 168, 0.56) 0, rgba(35, 198, 214, 0.25) 48%, transparent 78%), radial-gradient(ellipse 52% 20% at 62% 72%, rgba(148, 96, 238, 0.42) 0, transparent 76%), linear-gradient(155deg, #071224 0%, #0d263b 52%, #13384f 100%)",
+      "thumb": "url(thumbs/aurora.webp) center / cover no-repeat, radial-gradient(circle at 27% 46%, rgba(255, 200, 108, 0.72) 0, rgba(255, 180, 76, 0.16) 7%, transparent 15%), radial-gradient(ellipse 26% 22% at 32% 48%, #3c5276 0, #314463 72%, #8bd6ea 76%, transparent 80%), radial-gradient(ellipse 68% 22% at 68% 36%, rgba(52, 235, 168, 0.56) 0, rgba(35, 198, 214, 0.25) 48%, transparent 78%), radial-gradient(ellipse 52% 20% at 62% 72%, rgba(148, 96, 238, 0.42) 0, transparent 76%), linear-gradient(155deg, #071224 0%, #0d263b 52%, #13384f 100%)",
       "groups": [
         {
           "name": "雪岸",
@@ -288,7 +288,7 @@
       "page": "glade.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 38% 58%, rgba(232,243,168,0.92) 0%, rgba(164,209,104,0.85) 34%, rgba(92,150,74,0.9) 62%, transparent 80%), radial-gradient(circle at 76% 24%, rgba(44,104,58,0.92) 0%, transparent 48%), linear-gradient(155deg, #214e30 0%, #3a7745 45%, #6ba655 100%)",
+      "thumb": "url(thumbs/glade.webp) center / cover no-repeat, radial-gradient(circle at 38% 58%, rgba(232,243,168,0.92) 0%, rgba(164,209,104,0.85) 34%, rgba(92,150,74,0.9) 62%, transparent 80%), radial-gradient(circle at 76% 24%, rgba(44,104,58,0.92) 0%, transparent 48%), linear-gradient(155deg, #214e30 0%, #3a7745 45%, #6ba655 100%)",
       "groups": [
         {
           "name": "空地",
@@ -364,7 +364,7 @@
       "page": "rift.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 36% 52%, rgba(46,230,214,0.72) 0%, rgba(72,92,98,0.92) 22%, rgba(43,66,54,0.88) 44%, transparent 66%), radial-gradient(circle at 72% 38%, rgba(208,162,74,0.68) 0%, rgba(30,68,54,0.9) 34%, transparent 62%), linear-gradient(140deg, #122620 0%, #1c3d32 45%, #165e68 62%, #244a38 100%)",
+      "thumb": "url(thumbs/rift.webp) center / cover no-repeat, radial-gradient(circle at 36% 52%, rgba(46,230,214,0.72) 0%, rgba(72,92,98,0.92) 22%, rgba(43,66,54,0.88) 44%, transparent 66%), radial-gradient(circle at 72% 38%, rgba(208,162,74,0.68) 0%, rgba(30,68,54,0.9) 34%, transparent 62%), linear-gradient(140deg, #122620 0%, #1c3d32 45%, #165e68 62%, #244a38 100%)",
       "groups": [
         {
           "name": "圣坛",
@@ -470,7 +470,7 @@
       "page": "strike.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 38% 54%, rgba(110,104,95,0.92) 0%, rgba(164,132,90,0.88) 38%, rgba(212,174,116,0.92) 72%, transparent 88%), radial-gradient(circle at 72% 36%, rgba(242,168,54,0.72) 0%, rgba(138,104,64,0.85) 36%, transparent 64%), linear-gradient(145deg, #685036 0%, #9c7a4c 48%, #c9a46d 100%)",
+      "thumb": "url(thumbs/strike.webp) center / cover no-repeat, radial-gradient(circle at 38% 54%, rgba(110,104,95,0.92) 0%, rgba(164,132,90,0.88) 38%, rgba(212,174,116,0.92) 72%, transparent 88%), radial-gradient(circle at 72% 36%, rgba(242,168,54,0.72) 0%, rgba(138,104,64,0.85) 36%, transparent 64%), linear-gradient(145deg, #685036 0%, #9c7a4c 48%, #c9a46d 100%)",
       "groups": [
         {
           "name": "交火区",
@@ -576,7 +576,7 @@
       "page": "pocket.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 38% 52%, rgba(168,46,40,0.92) 0%, rgba(112,56,42,0.88) 32%, rgba(84,112,86,0.9) 62%, transparent 82%), radial-gradient(circle at 72% 36%, rgba(235,190,82,0.75) 0%, rgba(74,98,74,0.88) 38%, transparent 66%), linear-gradient(150deg, #3c4b39 0%, #5e6d52 48%, #7a7352 100%)",
+      "thumb": "url(thumbs/pocket.webp) center / cover no-repeat, radial-gradient(circle at 38% 52%, rgba(168,46,40,0.92) 0%, rgba(112,56,42,0.88) 32%, rgba(84,112,86,0.9) 62%, transparent 82%), radial-gradient(circle at 72% 36%, rgba(235,190,82,0.75) 0%, rgba(74,98,74,0.88) 38%, transparent 66%), linear-gradient(150deg, #3c4b39 0%, #5e6d52 48%, #7a7352 100%)",
       "groups": [
         {
           "name": "战线与包围",
@@ -681,7 +681,7 @@
       "page": "roach.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(circle at 32% 45%, rgba(255,196,92,0.85) 0%, rgba(196,108,48,0.72) 28%, transparent 56%), radial-gradient(circle at 70% 54%, rgba(235,96,158,0.68) 0%, rgba(124,62,36,0.75) 34%, transparent 62%), linear-gradient(155deg, #1b202d 0%, #3a2d28 52%, #594435 100%)",
+      "thumb": "url(thumbs/roach.webp) center / cover no-repeat, radial-gradient(circle at 32% 45%, rgba(255,196,92,0.85) 0%, rgba(196,108,48,0.72) 28%, transparent 56%), radial-gradient(circle at 70% 54%, rgba(235,96,158,0.68) 0%, rgba(124,62,36,0.75) 34%, transparent 62%), linear-gradient(155deg, #1b202d 0%, #3a2d28 52%, #594435 100%)",
       "groups": [
         {
           "name": "街景与地砖",
@@ -778,7 +778,7 @@
       "adaptive": true,
       "name": "玫瑰溪畔",
       "desc": "翠绿草地间清溪蜿蜒，拖动或放下桌面图标时，玫瑰与繁花围绕它悄然盛放，花瓣随风轻落。",
-      "thumb": "radial-gradient(circle at 28% 36%, rgba(225,58,86,0.52) 0%, rgba(225,58,86,0) 24%), radial-gradient(circle at 72% 30%, rgba(244,128,158,0.46) 0%, rgba(244,128,158,0) 22%), radial-gradient(circle at 52% 68%, rgba(255,222,168,0.42) 0%, rgba(255,222,168,0) 18%), linear-gradient(155deg, transparent 32%, rgba(92,202,216,0.58) 44%, rgba(44,148,168,0.68) 51%, rgba(124,224,232,0.50) 58%, transparent 70%), linear-gradient(180deg, #1b542f 0%, #2a703e 45%, #1d5730 100%)",
+      "thumb": "url(thumbs/rosebrook.webp) center / cover no-repeat, radial-gradient(circle at 28% 36%, rgba(225,58,86,0.52) 0%, rgba(225,58,86,0) 24%), radial-gradient(circle at 72% 30%, rgba(244,128,158,0.46) 0%, rgba(244,128,158,0) 22%), radial-gradient(circle at 52% 68%, rgba(255,222,168,0.42) 0%, rgba(255,222,168,0) 18%), linear-gradient(155deg, transparent 32%, rgba(92,202,216,0.58) 44%, rgba(44,148,168,0.68) 51%, rgba(124,224,232,0.50) 58%, transparent 70%), linear-gradient(180deg, #1b542f 0%, #2a703e 45%, #1d5730 100%)",
       "page": "rosebrook.html",
       "status": "ready",
       "product": "free",
@@ -1088,7 +1088,7 @@
       "page": "zen-archipelago.html",
       "status": "ready",
       "product": "free",
-      "thumb": "radial-gradient(ellipse 26% 18% at 32% 40%, rgba(255,148,184,0.68) 0%, rgba(78,242,255,0.22) 60%, transparent 78%), radial-gradient(ellipse 22% 16% at 68% 64%, rgba(255,194,217,0.62) 0%, rgba(28,128,148,0.26) 62%, transparent 80%), radial-gradient(circle at 52% 28%, rgba(255,220,140,0.48) 0%, transparent 32%), linear-gradient(155deg, #07131e 0%, #0f384e 52%, #155c6e 100%)",
+      "thumb": "url(thumbs/zen-archipelago.webp) center / cover no-repeat, radial-gradient(ellipse 26% 18% at 32% 40%, rgba(255,148,184,0.68) 0%, rgba(78,242,255,0.22) 60%, transparent 78%), radial-gradient(ellipse 22% 16% at 68% 64%, rgba(255,194,217,0.62) 0%, rgba(28,128,148,0.26) 62%, transparent 80%), radial-gradient(circle at 52% 28%, rgba(255,220,140,0.48) 0%, transparent 32%), linear-gradient(155deg, #07131e 0%, #0f384e 52%, #155c6e 100%)",
       "groups": [
         {
           "name": "光影与氛围",
