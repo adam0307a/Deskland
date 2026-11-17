@@ -136,6 +136,7 @@
     'zen-archipelago': 'zen-archipelago.html',
     istanbul: 'istanbul.html',
     'solar-system': 'solar-system.html',
+    winter: 'winter.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';

@@ -1514,6 +1514,129 @@
           ]
         }
       ]
+    },
+    {
+      "id": "winter",
+      "adaptive": true,
+      "name": "冬夜雪屋",
+      "desc": "静谧暮雪世界：远处雪山与松林环抱，木屋暖窗飘起炊烟，桌面图标自然落入柔和雪堆之中",
+      "page": "winter.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/winter.webp) center / cover no-repeat, linear-gradient(160deg, #0b1422 0%, #1d2e45 55%, #142030 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "雪景与风",
+          "params": [
+            {
+              "key": "snowIntensity",
+              "label": "降雪量",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.75,
+              "format": "percent"
+            },
+            {
+              "key": "snowSpeed",
+              "label": "飘雪速度",
+              "min": 0.2,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 0.85,
+              "format": "times"
+            },
+            {
+              "key": "windStrength",
+              "label": "微风风力",
+              "min": -1.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.18
+            },
+            {
+              "key": "atmosphereDensity",
+              "label": "冬雾氛围",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.75,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "风景与木屋",
+          "params": [
+            {
+              "key": "mountainVisibility",
+              "label": "雪山可见度",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.85,
+              "format": "percent"
+            },
+            {
+              "key": "treeDensity",
+              "label": "松林密度",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.80,
+              "format": "percent"
+            },
+            {
+              "key": "smokeAmount",
+              "label": "烟囱炊烟",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.85,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconSnowAmount",
+              "label": "图标积雪",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.90,
+              "format": "percent"
+            },
+            {
+              "key": "animSpeed",
+              "label": "动画速率",
+              "min": 0.2,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

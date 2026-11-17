@@ -844,6 +844,52 @@
           ]
         }
       }
+    },
+    "winter": {
+      "name": "Winter Cabin & Living Snow",
+      "desc": "Quiet winter twilight world with snowy peaks, pine forest, warm cabin smoke, and snow drifts cradling your desktop icons",
+      "groups": [
+        "Snow & Wind",
+        "Scenery & Cabin",
+        "Icons & Performance"
+      ],
+      "params": {
+        "snowIntensity": {
+          "label": "Snow intensity"
+        },
+        "snowSpeed": {
+          "label": "Snow speed"
+        },
+        "windStrength": {
+          "label": "Wind strength"
+        },
+        "atmosphereDensity": {
+          "label": "Atmosphere density"
+        },
+        "mountainVisibility": {
+          "label": "Mountain visibility"
+        },
+        "treeDensity": {
+          "label": "Tree density"
+        },
+        "smokeAmount": {
+          "label": "Smoke amount"
+        },
+        "iconSnowAmount": {
+          "label": "Icon snow amount"
+        },
+        "animSpeed": {
+          "label": "Animation speed"
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
     }
   }
 }

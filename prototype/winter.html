@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Winter Cabin &amp; Living Snow</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0e1826; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; }
+    #ghosts { position: fixed; inset: 0; pointer-events: none; }
+    .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .28; }
+    .ghost i { width: 40px; height: 40px; border-radius: 9px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+    .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 3px; background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // 1. SETTINGS & QUALITY PROFILES
+    // =========================================================================
+    const QS = new URLSearchParams(location.search || '');
+    const WALL = QS.has('wallpaper');
+    const PREVIEW = QS.has('preview');
+
+    const DEFAULTS = {
+      snowIntensity: 0.75,
+      snowSpeed: 0.85,
+      windStrength: 0.18,
+      smokeAmount: 0.85,
+      atmosphereDensity: 0.75,
+      treeDensity: 0.80,
+      mountainVisibility: 0.85,
+      iconSnowAmount: 0.90,
+      animSpeed: 1.0,
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    const P = Object.assign({}, DEFAULTS);
+
+    const QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, snowScale: 0.38, smokeScale: 0.45, treeScale: 0.65, softGlow: false },
+      Medium: { maxDpr: 1.25, snowScale: 0.70, smokeScale: 0.75, treeScale: 0.85, softGlow: true },
+      High:   { maxDpr: 1.50, snowScale: 1.00, smokeScale: 1.00, treeScale: 1.00, softGlow: true }
+    };
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    // =========================================================================
+    // 2. CANVAS, RENDERER STATE & DETERMINISTIC PRNG
+    // =========================================================================
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d', { alpha: false });
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+
+    let W = innerWidth || 1920;
+    let H = innerHeight || 1080;
+    let scale = 1;
+    let cacheOK = false;
+    let paused = false;
+    let _rafId = 0;
+    let lastT = 0;
+    let simTime = 0;
+    let seed = 20261117;
+    let horizonY = 0;
+    let houseAnchor = { x: 0, y: 0, scale: 1 };
+
+    function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function smoothstep(e0, e1, x) {
+      const t = clamp((x - e0) / (e1 - e0 || 1), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+    function mulberry32(a) {
+      let s = a >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    function hashStr(str) {
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    // =========================================================================
+    // 3. STATIC SCENERY LAYER (SKY, MOUNTAINS, FOREST, SNOW GROUND, HOUSE BASE)
+    // =========================================================================
+    const stars = [];
+    const trees = [];
+    const fgPines = [];
+
+    function buildStars() {
+      stars.length = 0;
+      const rng = mulberry32(seed ^ 0x91A2B3);
+      const count = 48;
+      for (let i = 0; i < count; i++) {
+        stars.push({
+          nx: rng(),
+          ny: 0.03 + rng() * 0.42,
+          r: 0.55 + rng() * 1.1,
+          a: 0.14 + rng() * 0.36,
+          tw: 0.5 + rng() * 1.4,
+          ph: rng() * Math.PI * 2
+        });
+      }
+    }
+
+    function pickHousePlacement() {
+      // Choose an unobstructed spot along the upper snow slope (~horizon) away from icons.
+      const candidates = [0.76, 0.28, 0.54, 0.84, 0.18];
+      const baseH = clamp(Math.min(W, H) * 0.125, 74, 140);
+      const hy = horizonY + Math.min(34, H * 0.03);
+      let bestX = W * 0.76;
+      let bestScore = -1e9;
+      for (let c = 0; c < candidates.length; c++) {
+        const cx = W * candidates[c];
+        let minDist = 1e9;
+        for (let i = 0; i < iconStates.length; i++) {
+          const ic = iconStates[i];
+          if (ic.removing) continue;
+          const d = Math.hypot((ic.x + ic.w * 0.5) - cx, (ic.y + ic.h * 0.5) - hy);
+          if (d < minDist) minDist = d;
+        }
+        const score = Math.min(minDist, 280) - (c === 0 ? 0 : 12 * c);
+        if (score > bestScore) {
+          bestScore = score;
+          bestX = cx;
+        }
+      }
+      houseAnchor.x = clamp(bestX, 110, Math.max(110, W - 110));
+      houseAnchor.y = hy;
+      houseAnchor.scale = baseH / 84;
+    }
+
+    function drawMountainRidge(g, yBase, amp, freqA, freqB, phase, fillStyle, snowColor, snowMix) {
+      const steps = Math.max(24, Math.ceil(W / 28));
+      const pts = new Array(steps + 1);
+      for (let i = 0; i <= steps; i++) {
+        const x = (i / steps) * W;
+        const n = i / steps;
+        const h1 = Math.sin(n * freqA + phase) * 0.52 + Math.sin(n * freqB + phase * 1.7) * 0.31 + Math.cos(n * (freqA * 2.1) - phase * 0.6) * 0.17;
+        const ridge = yBase - Math.abs(h1) * amp;
+        pts[i] = { x, y: ridge };
+      }
+      g.beginPath();
+      g.moveTo(0, H);
+      for (let i = 0; i <= steps; i++) g.lineTo(pts[i].x, pts[i].y);
+      g.lineTo(W, H);
+      g.closePath();
+      g.fillStyle = fillStyle;
+      g.fill();
+
+      // Smooth painterly snow-draped mountain face gradient & snowy crest rim (no harsh stripes)
+      if (snowMix > 0.01) {
+        g.save();
+        g.beginPath();
+        g.moveTo(0, H);
+        for (let i = 0; i <= steps; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.lineTo(W, H);
+        g.closePath();
+        g.clip();
+        const peakY = pts.reduce((m, p) => (p.y < m ? p.y : m), yBase);
+        const snowGrad = g.createLinearGradient(0, peakY, 0, yBase + 16);
+        snowGrad.addColorStop(0, snowColor);
+        snowGrad.addColorStop(0.55, snowColor);
+        snowGrad.addColorStop(1, 'rgba(30, 46, 68, 0)');
+        g.globalAlpha = snowMix * 0.72;
+        g.fillStyle = snowGrad;
+        g.fillRect(0, peakY - 2, W, (yBase - peakY) + 22);
+        g.restore();
+
+        g.save();
+        g.strokeStyle = snowColor;
+        g.globalAlpha = Math.min(0.65, snowMix * 1.45);
+        g.lineWidth = 2.2;
+        g.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          if (i === 0) g.moveTo(pts[i].x, pts[i].y);
+          else g.lineTo(pts[i].x, pts[i].y);
+        }
+        g.stroke();
+        g.restore();
+      }
+    }
+
+    function drawPine(g, x, y, h, foliageCol, snowCol, rngSeed) {
+      const rng = mulberry32(rngSeed);
+      const tiers = h > 54 ? 4 : 3;
+      const wBase = h * (0.44 + rng() * 0.12);
+
+      // Soft ground contact shadow
+      g.fillStyle = 'rgba(10, 18, 30, 0.30)';
+      g.beginPath();
+      g.ellipse(x + h * 0.06, y + 1.5, wBase * 0.58, Math.max(2, h * 0.065), 0, 0, Math.PI * 2);
+      g.fill();
+
+      // Trunk
+      const tw = Math.max(2, h * 0.085);
+      g.fillStyle = '#1b1615';
+      g.fillRect(x - tw * 0.5, y - h * 0.18, tw, h * 0.2);
+
+      for (let t = 0; t < tiers; t++) {
+        const frac = t / tiers;
+        const nextFrac = (t + 1) / tiers;
+        const tierBottom = y - h * (0.12 + frac * 0.66);
+        const tierTop = y - h * (0.36 + nextFrac * 0.62);
+        const halfW = wBase * (0.56 - frac * 0.34);
+        const sag = (tierBottom - tierTop) * 0.14;
+
+        g.fillStyle = foliageCol;
+        g.beginPath();
+        g.moveTo(x, tierTop);
+        g.quadraticCurveTo(x + halfW * 0.55, lerp(tierTop, tierBottom, 0.55), x + halfW, tierBottom);
+        g.quadraticCurveTo(x, tierBottom + sag, x - halfW, tierBottom);
+        g.quadraticCurveTo(x - halfW * 0.55, lerp(tierTop, tierBottom, 0.55), x, tierTop);
+        g.closePath();
+        g.fill();
+
+        // Asymmetric natural snow cap resting on upper boughs
+        const snowSpan = halfW * (0.76 + rng() * 0.14);
+        const snowDepth = (tierBottom - tierTop) * 0.42;
+        g.fillStyle = snowCol;
+        g.beginPath();
+        g.moveTo(x, tierTop);
+        g.quadraticCurveTo(x + snowSpan * 0.5, tierTop + snowDepth * 0.45, x + snowSpan, tierTop + snowDepth);
+        g.quadraticCurveTo(x + snowSpan * 0.25, tierTop + snowDepth * 0.85, x - snowSpan * 0.65, tierTop + snowDepth * 0.92);
+        g.quadraticCurveTo(x - snowSpan * 0.38, tierTop + snowDepth * 0.45, x, tierTop);
+        g.closePath();
+        g.fill();
+      }
+    }
+
+    function buildForestLayout() {
+      trees.length = 0;
+      fgPines.length = 0;
+      const prof = getProfile();
+      const density = clamp(P.treeDensity, 0, 1.5) * prof.treeScale;
+      if (density <= 0.02) return;
+
+      const rng = mulberry32(seed ^ 0x4F2A11);
+      const count = Math.round(clamp((W / 44) * density, 0, 68));
+      for (let i = 0; i < count; i++) {
+        const depth = rng(); // 0 = far ridge, 1 = mid slope
+        const x = (i / Math.max(1, count - 1)) * (W + 40) - 20 + (rng() - 0.5) * 34;
+        const y = horizonY + lerp(-12, Math.max(26, H * 0.06), depth) + (rng() - 0.5) * 14;
+        // Keep a breathing pocket right around the cabin doorway
+        if (Math.abs(x - houseAnchor.x) < 58 * houseAnchor.scale && Math.abs(y - houseAnchor.y) < 42) continue;
+        const h = lerp(24, 62, depth) * (0.82 + rng() * 0.36);
+        trees.push({ x, y, h, depth, seed: (seed + i * 7919) >>> 0 });
+      }
+      trees.sort((a, b) => a.y - b.y);
+
+      // A few sparse foreground corner pines (outside icon clusters when adaptive=1)
+      const fgCount = Math.round(clamp((W / 420) * density, 0, 6));
+      for (let i = 0; i < fgCount; i++) {
+        const side = i % 2 === 0 ? 0.04 + rng() * 0.14 : 0.84 + rng() * 0.13;
+        const px = W * side;
+        const py = horizonY + H * (0.14 + rng() * 0.22);
+        let clear = true;
+        if (P.adaptive) {
+          for (let j = 0; j < iconStates.length; j++) {
+            const ic = iconStates[j];
+            if (ic.removing) continue;
+            if (Math.hypot((ic.x + ic.w * 0.5) - px, (ic.y + ic.h * 0.5) - py) < 110) {
+              clear = false;
+              break;
+            }
+          }
+        }
+        if (clear && Math.hypot(px - houseAnchor.x, py - houseAnchor.y) > 105) {
+          fgPines.push({ x: px, y: py, h: clamp(H * 0.085, 58, 108) * (0.85 + rng() * 0.3), seed: (seed + 997 * (i + 1)) >>> 0 });
+        }
+      }
+    }
+
+    function drawStaticCabin(g) {
+      const cx = houseAnchor.x;
+      const cy = houseAnchor.y;
+      const s = houseAnchor.scale;
+      g.save();
+      g.translate(cx, cy);
+      g.scale(s, s);
+
+      // Ground snow mound & contact shadow under cabin
+      g.fillStyle = 'rgba(11, 19, 31, 0.42)';
+      g.beginPath();
+      g.ellipse(4, 14, 56, 12, 0, 0, Math.PI * 2);
+      g.fill();
+
+      // Cozy warm light spill cast onto the snow directly below the windows
+      const spillGrad = g.createRadialGradient(-2, 16, 4, -2, 18, 62);
+      spillGrad.addColorStop(0, 'rgba(246, 168, 86, 0.24)');
+      spillGrad.addColorStop(0.55, 'rgba(220, 134, 66, 0.09)');
+      spillGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      g.fillStyle = spillGrad;
+      g.beginPath();
+      g.ellipse(-2, 18, 62, 22, 0, 0, Math.PI * 2);
+      g.fill();
+
+      // Chimney (back right of roof)
+      g.fillStyle = '#382d2b';
+      g.fillRect(16, -54, 11, 24);
+      g.fillStyle = '#261e1d';
+      g.fillRect(14, -56, 15, 4);
+      g.fillStyle = '#b9cbe0';
+      g.beginPath();
+      g.ellipse(21.5, -56, 7.5, 2.2, 0, 0, Math.PI * 2);
+      g.fill();
+
+      // Cabin main timber body
+      g.fillStyle = '#2b201c';
+      g.beginPath();
+      g.moveTo(-36, 12);
+      g.lineTo(-36, -18);
+      g.lineTo(0, -40);
+      g.lineTo(36, -18);
+      g.lineTo(36, 12);
+      g.closePath();
+      g.fill();
+
+      // Horizontal log plank seams
+      g.strokeStyle = 'rgba(14, 10, 9, 0.48)';
+      g.lineWidth = 1;
+      for (let py = -12; py <= 8; py += 5) {
+        g.beginPath();
+        g.moveTo(-35, py);
+        g.lineTo(35, py);
+        g.stroke();
+      }
+
+      // Eave shadow
+      g.fillStyle = 'rgba(10, 12, 16, 0.42)';
+      g.beginPath();
+      g.moveTo(-37, -17);
+      g.lineTo(0, -39);
+      g.lineTo(37, -17);
+      g.lineTo(37, -11);
+      g.lineTo(0, -33);
+      g.lineTo(-37, -11);
+      g.closePath();
+      g.fill();
+
+      // Steep pitched roof
+      g.fillStyle = '#1b1d23';
+      g.beginPath();
+      g.moveTo(-45, -14);
+      g.lineTo(0, -45);
+      g.lineTo(45, -14);
+      g.lineTo(41, -11);
+      g.lineTo(0, -39);
+      g.lineTo(-41, -11);
+      g.closePath();
+      g.fill();
+
+      // Thick organic snow cap sitting on roof
+      g.fillStyle = '#c8d8ea';
+      g.beginPath();
+      g.moveTo(-47, -14);
+      g.quadraticCurveTo(-24, -33, 0, -47);
+      g.quadraticCurveTo(24, -33, 47, -14);
+      g.quadraticCurveTo(44, -9, 36, -12);
+      g.quadraticCurveTo(18, -24, 0, -37);
+      g.quadraticCurveTo(-18, -24, -36, -12);
+      g.quadraticCurveTo(-44, -9, -47, -14);
+      g.closePath();
+      g.fill();
+
+      g.fillStyle = '#e5eef8';
+      g.beginPath();
+      g.moveTo(-44, -15);
+      g.quadraticCurveTo(-21, -33, 0, -46);
+      g.quadraticCurveTo(21, -33, 44, -15);
+      g.quadraticCurveTo(22, -28, 0, -41);
+      g.quadraticCurveTo(-22, -28, -44, -15);
+      g.closePath();
+      g.fill();
+
+      // Wooden door
+      g.fillStyle = '#1d1512';
+      g.fillRect(-5, -8, 10, 20);
+      g.strokeStyle = '#47362e';
+      g.lineWidth = 1;
+      g.strokeRect(-5, -8, 10, 20);
+
+      // Window frames (actual warm glow drawn dynamically for gentle candle warmth)
+      g.fillStyle = '#1d1512';
+      g.fillRect(-26, -12, 13, 12);
+      g.fillRect(13, -12, 13, 12);
+      g.fillRect(-4.5, -26, 9, 8);
+
+      g.restore();
+    }
+
+    function rebuildStaticLayer() {
+      const s = cv._scale || scale;
+      bgCanvas.width = Math.max(1, cv.width);
+      bgCanvas.height = Math.max(1, cv.height);
+      const g = bgCtx;
+      g.setTransform(s, 0, 0, s, 0, 0);
+
+      const atmo = clamp(P.atmosphereDensity, 0, 1.5);
+      const mVis = clamp(P.mountainVisibility, 0, 1);
+
+      // 1. Calm dark winter twilight sky
+      const sky = g.createLinearGradient(0, 0, 0, horizonY + 40);
+      sky.addColorStop(0, '#0a121f');
+      sky.addColorStop(0.52, '#142237');
+      sky.addColorStop(0.84, '#22354f');
+      sky.addColorStop(1, '#314763');
+      g.fillStyle = sky;
+      g.fillRect(0, 0, W, horizonY + 40);
+
+      // Subtle moon / winter horizon glow
+      const moonX = W * 0.22;
+      const moonY = horizonY * 0.34;
+      const moonHalo = g.createRadialGradient(moonX, moonY, 6, moonX, moonY, Math.min(W, H) * 0.28);
+      moonHalo.addColorStop(0, 'rgba(218, 232, 250, 0.22)');
+      moonHalo.addColorStop(0.28, 'rgba(130, 166, 206, 0.08)');
+      moonHalo.addColorStop(1, 'rgba(18, 30, 48, 0)');
+      g.fillStyle = moonHalo;
+      g.fillRect(0, 0, W, horizonY + 40);
+
+      // Soft crescent/pale moon disc
+      g.fillStyle = 'rgba(232, 241, 252, 0.72)';
+      g.beginPath();
+      g.arc(moonX, moonY, clamp(Math.min(W, H) * 0.02, 10, 22), 0, Math.PI * 2);
+      g.fill();
+
+      // 2. Layered Snowy Mountains
+      if (mVis > 0.02) {
+        g.save();
+        g.globalAlpha = clamp(mVis, 0, 1);
+        const mH = clamp(H * 0.24, 90, 240);
+        drawMountainRidge(g, horizonY + 8, mH * 0.92, 5.4, 11.7, (seed % 100) * 0.07, '#22344b', '#6d85a1', 0.22 * mVis);
+        if (atmo > 0.05) {
+          const mist1 = g.createLinearGradient(0, horizonY - mH * 0.55, 0, horizonY + 25);
+          mist1.addColorStop(0, 'rgba(42, 62, 86, 0)');
+          mist1.addColorStop(1, `rgba(60, 84, 112, ${clamp(0.32 * atmo, 0, 0.52)})`);
+          g.fillStyle = mist1;
+          g.fillRect(0, horizonY - mH * 0.55, W, mH * 0.65);
+        }
+        drawMountainRidge(g, horizonY + 14, mH * 0.66, 4.1, 9.2, (seed % 97) * 0.11 + 1.4, '#1a293c', '#8ea6c2', 0.28 * mVis);
+        g.restore();
+      }
+
+      // 3. Rolling Snow Hills & Desktop Winter Snow Plain (tuned for crisp white icon text legibility)
+      const groundGrad = g.createLinearGradient(0, horizonY - 12, 0, H);
+      groundGrad.addColorStop(0, '#5a7390');
+      groundGrad.addColorStop(0.08, '#415975');
+      groundGrad.addColorStop(0.28, '#2b3e56');
+      groundGrad.addColorStop(0.68, '#1d2b3e');
+      groundGrad.addColorStop(1, '#142030');
+      g.beginPath();
+      g.moveTo(0, H);
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        const x = t * W;
+        const wave = Math.sin(t * 4.4 + 0.6) * 14 + Math.cos(t * 9.0) * 6;
+        g.lineTo(x, horizonY + wave);
+      }
+      g.lineTo(W, H);
+      g.closePath();
+      g.fillStyle = groundGrad;
+      g.fill();
+
+      // Subtle moonlit ridge line on upper snow drift
+      g.strokeStyle = 'rgba(205, 223, 242, 0.34)';
+      g.lineWidth = 2;
+      g.beginPath();
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        const x = t * W;
+        const wave = Math.sin(t * 4.4 + 0.6) * 14 + Math.cos(t * 9.0) * 6;
+        if (i === 0) g.moveTo(x, horizonY + wave);
+        else g.lineTo(x, horizonY + wave);
+      }
+      g.stroke();
+
+      // Subtle layered snow contour banks in midground
+      const rngGround = mulberry32(seed ^ 0x33C7);
+      for (let k = 0; k < 4; k++) {
+        const yOff = horizonY + 26 + k * (H - horizonY) * 0.19;
+        g.fillStyle = `rgba(150, 178, 208, ${0.06 - k * 0.01})`;
+        g.beginPath();
+        g.moveTo(0, H);
+        for (let i = 0; i <= 24; i++) {
+          const t = i / 24;
+          const x = t * W;
+          const dy = Math.sin(t * (3.1 + k * 0.8) + rngGround() * 0.2 + k * 1.9) * 16;
+          g.lineTo(x, yOff + dy);
+        }
+        g.lineTo(W, H);
+        g.closePath();
+        g.fill();
+      }
+
+      // 4. Horizon Mist & Pine Forest
+      if (atmo > 0.05) {
+        const hMist = g.createLinearGradient(0, horizonY - 45, 0, horizonY + 55);
+        hMist.addColorStop(0, 'rgba(54, 78, 106, 0)');
+        hMist.addColorStop(0.5, `rgba(116, 146, 178, ${clamp(0.18 * atmo, 0, 0.34)})`);
+        hMist.addColorStop(1, 'rgba(38, 56, 78, 0)');
+        g.fillStyle = hMist;
+        g.fillRect(0, horizonY - 45, W, 100);
+      }
+
+      buildForestLayout();
+      for (let i = 0; i < trees.length; i++) {
+        const tr = trees[i];
+        const fol = tr.depth < 0.45 ? '#16282a' : '#1b312d';
+        const snw = tr.depth < 0.45 ? '#8ca4be' : '#b7cbe0';
+        drawPine(g, tr.x, tr.y, tr.h, fol, snw, tr.seed);
+      }
+
+      // 5. Cabin Structure
+      drawStaticCabin(g);
+
+      for (let i = 0; i < fgPines.length; i++) {
+        const tr = fgPines[i];
+        drawPine(g, tr.x, tr.y, tr.h, '#172b26', '#aec3da', tr.seed);
+      }
+
+      cacheOK = true;
+    }
+
+    function drawDynamicCabinLights(t) {
+      const cx = houseAnchor.x;
+      const cy = houseAnchor.y;
+      const s = houseAnchor.scale;
+      const flicker = 0.88 + 0.07 * Math.sin(t * 3.1) + 0.05 * Math.cos(t * 5.7);
+      const prof = getProfile();
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(s, s);
+
+      if (prof.softGlow) {
+        const wGlow = ctx.createRadialGradient(-2, -6, 4, -2, -6, 44);
+        wGlow.addColorStop(0, `rgba(255, 190, 96, ${0.26 * flicker})`);
+        wGlow.addColorStop(0.55, `rgba(240, 142, 62, ${0.09 * flicker})`);
+        wGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = wGlow;
+        ctx.beginPath();
+        ctx.arc(-2, -6, 44, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Warm amber glowing window panes (left, right, small loft)
+      const panes = [[-24.5, -10.5, 10, 9], [14.5, -10.5, 10, 9], [-3, -24.5, 6, 5]];
+      for (let i = 0; i < panes.length; i++) {
+        const [px, py, pw, ph] = panes[i];
+        const wg = ctx.createLinearGradient(px, py, px, py + ph);
+        wg.addColorStop(0, `rgba(255, 224, 152, ${0.92 * flicker})`);
+        wg.addColorStop(1, `rgba(242, 148, 62, ${0.88 * flicker})`);
+        ctx.fillStyle = wg;
+        ctx.fillRect(px, py, pw, ph);
+      }
+      // Window cross mullions
+      ctx.fillStyle = '#251a17';
+      ctx.fillRect(-20, -10.5, 1, 9);
+      ctx.fillRect(-24.5, -6.5, 10, 1);
+      ctx.fillRect(19, -10.5, 1, 9);
+      ctx.fillRect(14.5, -6.5, 10, 1);
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // 4. OBJECT-POOLED CHIMNEY SMOKE SYSTEM
+    // =========================================================================
+    const SMOKE_MAX = 72;
+    const smokePool = new Array(SMOKE_MAX);
+    for (let i = 0; i < SMOKE_MAX; i++) {
+      smokePool[i] = { active: false, x: 0, y: 0, vx: 0, vy: 0, r: 4, maxR: 26, age: 0, life: 4, phase: 0, alpha: 0.25 };
+    }
+    let smokeSpawnAcc = 0;
+
+    function spawnSmokePuff() {
+      const prof = getProfile();
+      const cap = Math.floor(SMOKE_MAX * prof.smokeScale);
+      for (let i = 0; i < cap; i++) {
+        const p = smokePool[i];
+        if (!p.active) {
+          const s = houseAnchor.scale;
+          p.active = true;
+          p.x = houseAnchor.x + 21.5 * s + (Math.random() - 0.5) * 2.5 * s;
+          p.y = houseAnchor.y - 57 * s;
+          p.vx = (Math.random() - 0.5) * 3;
+          p.vy = -(14 + Math.random() * 7) * (0.75 + 0.25 * s);
+          p.r = 3.2 * s;
+          p.maxR = (16 + Math.random() * 14) * s;
+          p.age = 0;
+          p.life = 4.2 + Math.random() * 1.8;
+          p.phase = Math.random() * Math.PI * 2;
+          p.alpha = 0.18 + Math.random() * 0.12;
+          return;
+        }
+      }
+    }
+
+    function stepSmoke(dt) {
+      const amt = clamp(P.smokeAmount, 0, 1.5);
+      const speed = clamp(P.animSpeed, 0.1, 2.5);
+      const effDt = dt * speed;
+      if (amt > 0.02) {
+        smokeSpawnAcc += effDt * (3.2 * amt);
+        while (smokeSpawnAcc >= 1) {
+          smokeSpawnAcc -= 1;
+          spawnSmokePuff();
+        }
+      }
+      const windPx = P.windStrength * 26;
+      for (let i = 0; i < SMOKE_MAX; i++) {
+        const p = smokePool[i];
+        if (!p.active) continue;
+        p.age += effDt;
+        if (p.age >= p.life) { p.active = false; continue; }
+        const k = p.age / p.life;
+        const sway = Math.sin(p.age * 1.9 + p.phase) * (5 + k * 9);
+        p.x += (p.vx + windPx * (0.4 + k * 0.9) + sway) * effDt;
+        p.y += p.vy * (1 - k * 0.35) * effDt;
+        p.r = lerp(p.r, p.maxR, Math.min(1, effDt * 0.95));
+      }
+    }
+
+    function drawSmoke() {
+      const amt = clamp(P.smokeAmount, 0, 1.5);
+      if (amt <= 0.02) return;
+      for (let i = 0; i < SMOKE_MAX; i++) {
+        const p = smokePool[i];
+        if (!p.active) continue;
+        const k = p.age / p.life;
+        const env = Math.sin(Math.min(1, k * 4.5) * Math.PI * 0.5) * (1 - k) * (1 - k);
+        const a = p.alpha * clamp(amt, 0.2, 1.2) * env;
+        if (a <= 0.004) continue;
+        ctx.fillStyle = `rgba(202, 214, 228, ${a.toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // =========================================================================
+    // 5. OBJECT-POOLED DEPTH SNOWFALL SYSTEM
+    // =========================================================================
+    const SNOW_MAX = 260;
+    const snowPool = new Array(SNOW_MAX);
+    for (let i = 0; i < SNOW_MAX; i++) {
+      snowPool[i] = { x: 0, y: 0, layer: 0, r: 1, vy: 20, alpha: 0.4, phase: 0, sway: 6, vxExtra: 0 };
+    }
+
+    function resetFlake(f, topOnly) {
+      f.layer = Math.random() < 0.45 ? 0 : (Math.random() < 0.65 ? 1 : 2);
+      f.x = Math.random() * (W + 120) - 60;
+      f.y = topOnly ? -8 - Math.random() * 24 : Math.random() * H;
+      if (f.layer === 0) {
+        f.r = 0.8 + Math.random() * 0.65;
+        f.vy = 13 + Math.random() * 10;
+        f.alpha = 0.16 + Math.random() * 0.16;
+        f.sway = 3 + Math.random() * 4;
+      } else if (f.layer === 1) {
+        f.r = 1.45 + Math.random() * 0.85;
+        f.vy = 24 + Math.random() * 14;
+        f.alpha = 0.34 + Math.random() * 0.22;
+        f.sway = 6 + Math.random() * 7;
+      } else {
+        f.r = 2.3 + Math.random() * 1.15;
+        f.vy = 40 + Math.random() * 22;
+        f.alpha = 0.54 + Math.random() * 0.24;
+        f.sway = 10 + Math.random() * 9;
+      }
+      f.phase = Math.random() * Math.PI * 2;
+      f.vxExtra = 0;
+    }
+
+    function initSnow() {
+      for (let i = 0; i < SNOW_MAX; i++) resetFlake(snowPool[i], false);
+    }
+
+    function stepSnow(dt) {
+      const prof = getProfile();
+      const activeCount = Math.round(clamp(SNOW_MAX * (P.snowIntensity / 1.5) * prof.snowScale, 0, SNOW_MAX));
+      const spd = clamp(P.snowSpeed, 0.1, 2.5) * clamp(P.animSpeed, 0.1, 2.5);
+      const windBase = P.windStrength * 36;
+      const effDt = dt * spd;
+
+      for (let i = 0; i < activeCount; i++) {
+        const f = snowPool[i];
+        const depthMul = f.layer === 0 ? 0.55 : (f.layer === 1 ? 0.85 : 1.18);
+        f.phase += effDt * (0.9 + f.layer * 0.35);
+        f.vxExtra *= Math.exp(-3.5 * dt);
+        f.x += (windBase * depthMul + Math.sin(f.phase) * f.sway + f.vxExtra) * effDt;
+        f.y += f.vy * effDt;
+
+        // Subtle wake interaction when a flake passes close to a moving desktop icon
+        if (f.layer >= 1 && movingIconCount > 0) {
+          for (let j = 0; j < iconStates.length; j++) {
+            const ic = iconStates[j];
+            if (ic.speed < 25 || ic.removing) continue;
+            const dx = f.x - (ic.x + ic.w * 0.5);
+            const dy = f.y - (ic.y + ic.h * 0.5);
+            if (Math.abs(dx) < 62 && Math.abs(dy) < 62) {
+              f.vxExtra += clamp(ic.vx * 0.14 + (dx > 0 ? 18 : -18), -65, 65) * dt * 4;
+              break;
+            }
+          }
+        }
+
+        if (f.y > H + 10 || f.x < -80 || f.x > W + 80) {
+          resetFlake(f, true);
+        }
+      }
+    }
+
+    function drawSnow() {
+      const prof = getProfile();
+      const activeCount = Math.round(clamp(SNOW_MAX * (P.snowIntensity / 1.5) * prof.snowScale, 0, SNOW_MAX));
+      if (activeCount <= 0) return;
+
+      for (let layer = 0; layer <= 2; layer++) {
+        for (let i = 0; i < activeCount; i++) {
+          const f = snowPool[i];
+          if (f.layer !== layer) continue;
+          ctx.fillStyle = `rgba(228, 238, 248, ${f.alpha.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    // =========================================================================
+    // 6. ICON TRACKING, SNOW MOUNDS, TRAILS & BURST PARTICLES
+    // =========================================================================
+    let icons = [];            // Share/export contract array: [{ x, y, w, h }, ...]
+    const iconStates = [];     // Smooth interpolated winter states
+    let iconsSeen = false;
+    let movingIconCount = 0;
+
+    const TRAIL_MAX = 64;
+    const trailPool = new Array(TRAIL_MAX);
+    for (let i = 0; i < TRAIL_MAX; i++) {
+      trailPool[i] = { active: false, x: 0, y: 0, rx: 22, ry: 8, age: 0, life: 2.2 };
+    }
+
+    const BURST_MAX = 96;
+    const burstPool = new Array(BURST_MAX);
+    for (let i = 0; i < BURST_MAX; i++) {
+      burstPool[i] = { active: false, x: 0, y: 0, vx: 0, vy: 0, r: 1.5, age: 0, life: 0.7 };
+    }
+
+    function spawnTrail(x, y, rx, ry) {
+      for (let i = 0; i < TRAIL_MAX; i++) {
+        const t = trailPool[i];
+        if (!t.active) {
+          t.active = true;
+          t.x = x; t.y = y; t.rx = rx; t.ry = ry;
+          t.age = 0; t.life = 2.0;
+          return;
+        }
+      }
+    }
+
+    function spawnSnowBurst(cx, cy, count, spreadVx) {
+      if (window.__desklandLowMode) count = Math.min(count, 3);
+      let spawned = 0;
+      for (let i = 0; i < BURST_MAX && spawned < count; i++) {
+        const b = burstPool[i];
+        if (!b.active) {
+          b.active = true;
+          b.x = cx + (Math.random() - 0.5) * 32;
+          b.y = cy + (Math.random() - 0.5) * 14;
+          b.vx = spreadVx + (Math.random() - 0.5) * 34;
+          b.vy = -(8 + Math.random() * 20);
+          b.r = 1.1 + Math.random() * 1.4;
+          b.age = 0;
+          b.life = 0.55 + Math.random() * 0.45;
+          spawned++;
+        }
+      }
+    }
+
+    function buildDriftProfile(seedVal) {
+      const rng = mulberry32(seedVal);
+      const pts = [];
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2;
+        const wob = 0.84 + rng() * 0.30 + 0.08 * Math.sin(ang * 3 + rng());
+        pts.push({ c: Math.cos(ang) * wob, s: Math.sin(ang) * wob });
+      }
+      return pts;
+    }
+
+    function guessIsFolder(rect, name) {
+      if (typeof name === 'string' && name.trim()) {
+        const clean = name.trim();
+        // Folders rarely end in .ext (2-5 chars)
+        if (!/\.[a-zA-Z0-9]{1,5}$/.test(clean)) return true;
+        return false;
+      }
+      // Fallback: folder icons tend to have slightly wider/squarer boxes
+      return rect.w >= rect.h * 0.88;
+    }
+
+    function createIconState(r, name, explicitKey) {
+      const s = explicitKey ? hashStr(explicitKey) : hashStr(`p:${Math.round(r.x / 24)}:${Math.round(r.y / 24)}`);
+      return {
+        key: explicitKey || '',
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        tx: r.x, ty: r.y, tw: r.w, th: r.h,
+        vx: 0, vy: 0, speed: 0,
+        lastTrailX: r.x, lastTrailY: r.y,
+        fade: 0.0,
+        snowBuild: 0.15,
+        removing: false,
+        isFolder: guessIsFolder(r, name),
+        seed: s,
+        drift: buildDriftProfile(s)
+      };
+    }
+
+    function syncIncomingIcons(rawList, namesList) {
+      const incoming = rawList.map((r, i) => ({
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        name: Array.isArray(namesList) && typeof namesList[i] === 'string' ? namesList[i] : ''
+      }));
+
+      // Active (non-removing) states
+      const active = iconStates.filter(s => !s.removing);
+      const matchedState = new Set();
+      const matchedIn = new Set();
+
+      // Pass 1: exact name match if names are unique/present
+      const pairs = [];
+      for (let i = 0; i < incoming.length; i++) {
+        const inc = incoming[i];
+        const icx = inc.x + inc.w * 0.5, icy = inc.y + inc.h * 0.5;
+        for (let s = 0; s < active.length; s++) {
+          const st = active[s];
+          const scx = st.tx + st.tw * 0.5, scy = st.ty + st.th * 0.5;
+          let d = Math.hypot(icx - scx, icy - scy);
+          if (inc.name && st.key && inc.name === st.key) d *= 0.25;
+          pairs.push({ i, s, d });
+        }
+      }
+      pairs.sort((a, b) => a.d - b.d);
+
+      // Lock close stationary icons first (<= 22px)
+      for (let k = 0; k < pairs.length; k++) {
+        const p = pairs[k];
+        if (p.d > 22) break;
+        if (matchedIn.has(p.i) || matchedState.has(p.s)) continue;
+        const inc = incoming[p.i], st = active[p.s];
+        st.tx = inc.x; st.ty = inc.y; st.tw = inc.w; st.th = inc.h;
+        if (inc.name) { st.key = inc.name; st.isFolder = guessIsFolder(inc, inc.name); }
+        matchedIn.add(p.i); matchedState.add(p.s);
+      }
+      // Track dragged icons across the desktop
+      for (let k = 0; k < pairs.length; k++) {
+        const p = pairs[k];
+        if (matchedIn.has(p.i) || matchedState.has(p.s)) continue;
+        const inc = incoming[p.i], st = active[p.s];
+        st.tx = inc.x; st.ty = inc.y; st.tw = inc.w; st.th = inc.h;
+        if (inc.name) { st.key = inc.name; st.isFolder = guessIsFolder(inc, inc.name); }
+        matchedIn.add(p.i); matchedState.add(p.s);
+      }
+
+      // Deleted icons enter brief smooth fade-out
+      for (let s = 0; s < active.length; s++) {
+        if (!matchedState.has(s)) {
+          active[s].removing = true;
+        }
+      }
+
+      // Newly added icons fade in with a gentle snow puff
+      for (let i = 0; i < incoming.length; i++) {
+        if (matchedIn.has(i)) continue;
+        const inc = incoming[i];
+        const st = createIconState(inc, inc.name, inc.name);
+        if (!iconsSeen) { st.fade = 1; st.snowBuild = 1; }
+        else spawnSnowBurst(inc.x + inc.w * 0.5, inc.y + inc.h * 0.72, 6, 0);
+        iconStates.push(st);
+      }
+
+      icons = incoming.map(it => ({ x: it.x, y: it.y, w: it.w, h: it.h }));
+      iconsSeen = true;
+
+      if (P.adaptive) {
+        const prevHx = houseAnchor.x;
+        pickHousePlacement();
+        if (Math.abs(prevHx - houseAnchor.x) > 8) cacheOK = false;
+        else if (fgPines.length > 0) cacheOK = false;
+      }
+    }
+
+    function stepIconEffects(dt) {
+      const kLerp = 1 - Math.exp(-11 * dt);
+      movingIconCount = 0;
+
+      for (let i = iconStates.length - 1; i >= 0; i--) {
+        const st = iconStates[i];
+        if (st.removing) {
+          st.fade = Math.max(0, st.fade - dt * 2.8);
+          st.snowBuild = Math.max(0, st.snowBuild - dt * 2.2);
+          if (st.fade <= 0.01) iconStates.splice(i, 1);
+          continue;
+        }
+        st.fade = Math.min(1, st.fade + dt * 2.4);
+
+        const prevX = st.x, prevY = st.y;
+        st.x = lerp(st.x, st.tx, kLerp);
+        st.y = lerp(st.y, st.ty, kLerp);
+        st.w = lerp(st.w, st.tw, kLerp);
+        st.h = lerp(st.h, st.th, kLerp);
+
+        if (Math.hypot(st.tx - st.x, st.ty - st.y) < 0.2) {
+          st.x = st.tx; st.y = st.ty;
+        }
+        st.vx = (st.x - prevX) / Math.max(dt, 0.001);
+        st.vy = (st.y - prevY) / Math.max(dt, 0.001);
+        st.speed = Math.hypot(st.vx, st.vy);
+
+        if (st.speed > 20) {
+          movingIconCount++;
+          st.snowBuild = Math.max(0.45, st.snowBuild - dt * 0.7);
+          const dTrail = Math.hypot(st.x - st.lastTrailX, st.y - st.lastTrailY);
+          if (dTrail > 22) {
+            st.lastTrailX = st.x;
+            st.lastTrailY = st.y;
+            spawnTrail(st.x + st.w * 0.5, st.y + st.h * 0.76, st.w * 0.34, 9);
+            spawnSnowBurst(st.x + st.w * 0.5, st.y + st.h * 0.74, 3, -st.vx * 0.08);
+          }
+        } else {
+          st.snowBuild = Math.min(1, st.snowBuild + dt * 0.65);
+        }
+      }
+
+      for (let i = 0; i < TRAIL_MAX; i++) {
+        const t = trailPool[i];
+        if (!t.active) continue;
+        t.age += dt;
+        if (t.age >= t.life) t.active = false;
+      }
+      for (let i = 0; i < BURST_MAX; i++) {
+        const b = burstPool[i];
+        if (!b.active) continue;
+        b.age += dt;
+        if (b.age >= b.life) { b.active = false; continue; }
+        b.vy += 42 * dt;
+        b.vx *= Math.exp(-2.2 * dt);
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+      }
+    }
+
+    function drawIconSnowMounds() {
+      if (!P.adaptive || P.iconSnowAmount <= 0.02) return;
+      const amt = clamp(P.iconSnowAmount, 0, 1.5);
+
+      // 1. Subtle fading snow tracks behind moved icons
+      for (let i = 0; i < TRAIL_MAX; i++) {
+        const tr = trailPool[i];
+        if (!tr.active) continue;
+        const k = 1 - tr.age / tr.life;
+        ctx.fillStyle = `rgba(182, 204, 228, ${(0.16 * k * k * Math.min(1, amt)).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.ellipse(tr.x, tr.y, tr.rx * (0.85 + 0.2 * (1 - k)), tr.ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 2. Natural irregular snow banks & soft contact shadows anchored to each icon
+      for (let i = 0; i < iconStates.length; i++) {
+        const st = iconStates[i];
+        const alpha = st.fade * clamp(amt, 0.25, 1.15);
+        if (alpha <= 0.02) continue;
+
+        const cx = st.x + st.w * 0.5;
+        const baseY = st.y + st.h * 0.72;
+        const folderBoost = st.isFolder ? 1.18 : 0.94;
+        const moundRx = Math.max(26, st.w * 0.50) * folderBoost * (0.82 + 0.18 * st.snowBuild) * clamp(0.75 + amt * 0.22, 0.7, 1.15);
+        const moundRy = Math.max(10, st.h * 0.16) * folderBoost * (0.78 + 0.22 * st.snowBuild);
+        const pts = st.drift;
+        const inSky = baseY < (horizonY + 8);
+
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, alpha);
+
+        // Soft ambient dark cushion directly behind label/bottom so white icon labels remain readable
+        const labelShadow = ctx.createRadialGradient(cx, st.y + st.h * 0.84, 4, cx, st.y + st.h * 0.84, st.w * 0.65);
+        labelShadow.addColorStop(0, inSky ? 'rgba(9, 15, 25, 0.34)' : 'rgba(10, 17, 28, 0.44)');
+        labelShadow.addColorStop(1, 'rgba(10, 17, 28, 0)');
+        ctx.fillStyle = labelShadow;
+        ctx.beginPath();
+        ctx.ellipse(cx, st.y + st.h * 0.84, st.w * 0.64, Math.max(12, st.h * 0.24), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (inSky) {
+          // Icons above the snow horizon sit on an airy frosted ledge / soft snow-mist halo instead of a heavy rock blob
+          const halo = ctx.createRadialGradient(cx, baseY - 2, 4, cx, baseY - 2, moundRx * 1.15);
+          halo.addColorStop(0, `rgba(198, 218, 240, ${(0.22 * st.snowBuild).toFixed(3)})`);
+          halo.addColorStop(0.55, `rgba(132, 162, 196, ${(0.10 * st.snowBuild).toFixed(3)})`);
+          halo.addColorStop(1, 'rgba(132, 162, 196, 0)');
+          ctx.fillStyle = halo;
+          ctx.beginPath();
+          ctx.ellipse(cx, baseY - 2, moundRx * 1.12, moundRy * 0.95, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.beginPath();
+          for (let p = 0; p < pts.length; p++) {
+            const px = cx + pts[p].c * moundRx * 0.88;
+            const py = baseY + pts[p].s * moundRy * 0.42;
+            if (p === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = `rgba(218, 232, 246, ${(0.24 * st.snowBuild).toFixed(3)})`;
+          ctx.fill();
+        } else {
+          // Irregular organic outer snow drift polygon (muted cool dusk snow with soft blue-grey shading)
+          ctx.beginPath();
+          for (let p = 0; p < pts.length; p++) {
+            const px = cx + pts[p].c * moundRx;
+            const py = baseY + pts[p].s * moundRy;
+            if (p === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          const driftGrad = ctx.createLinearGradient(cx, baseY - moundRy, cx, baseY + moundRy);
+          driftGrad.addColorStop(0, 'rgba(222, 235, 248, 0.72)');
+          driftGrad.addColorStop(0.55, 'rgba(154, 178, 206, 0.48)');
+          driftGrad.addColorStop(1, 'rgba(72, 94, 122, 0.18)');
+          ctx.fillStyle = driftGrad;
+          ctx.fill();
+
+          // Subtle crescent snow crest on the upper rim of the mound (underneath icon glyph)
+          ctx.beginPath();
+          for (let p = 0; p < pts.length; p++) {
+            const px = cx + pts[p].c * moundRx * 0.74;
+            const py = (baseY - moundRy * 0.28) + pts[p].s * moundRy * 0.50;
+            if (p === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fillStyle = `rgba(238, 245, 252, ${(0.44 * st.snowBuild).toFixed(3)})`;
+          ctx.fill();
+
+          // Subtle bottom contact shadow directly beneath icon object
+          ctx.fillStyle = 'rgba(12, 20, 32, 0.34)';
+          ctx.beginPath();
+          ctx.ellipse(cx + 1.5, baseY - moundRy * 0.12, moundRx * 0.56, Math.max(3.5, moundRy * 0.36), 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      // 3. Soft snow dust puffs from moving/added icons
+      for (let i = 0; i < BURST_MAX; i++) {
+        const b = burstPool[i];
+        if (!b.active) continue;
+        const k = 1 - b.age / b.life;
+        ctx.fillStyle = `rgba(224, 236, 248, ${(0.52 * k).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r * (0.7 + 0.3 * k), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // =========================================================================
+    // 7. MAIN RENDERER, RESIZE & ANIMATION LOOP
+    // =========================================================================
+    function draw(now) {
+      if (!cacheOK) rebuildStaticLayer();
+
+      const s = cv._scale || scale;
+      // Blit cached mountain/forest/cabin/ground backdrop
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(bgCanvas, 0, 0);
+      ctx.setTransform(s, 0, 0, s, 0, 0);
+
+      const t = simTime;
+      // Subtle twinkling winter stars
+      for (let i = 0; i < stars.length; i++) {
+        const st = stars[i];
+        const a = st.a * (0.72 + 0.28 * Math.sin(t * st.tw + st.ph));
+        ctx.fillStyle = `rgba(226, 236, 248, ${a.toFixed(2)})`;
+        ctx.fillRect(st.nx * W, st.ny * horizonY, st.r, st.r);
+      }
+
+      drawDynamicCabinLights(t);
+      drawSmoke();
+      drawIconSnowMounds();
+      drawSnow();
+    }
+
+    function resize() {
+      const box = cv.getBoundingClientRect();
+      W = box.width || innerWidth || 1920;
+      H = box.height || innerHeight || 1080;
+      const prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+
+      horizonY = clamp(H * 0.48, 150, H - 180);
+      pickHousePlacement();
+      cacheOK = false;
+      initSnow();
+    }
+
+    function _scheduleFrame() {
+      if (!paused && !_rafId) _rafId = requestAnimationFrame(frame);
+    }
+
+    function _setPaused(v) {
+      paused = PREVIEW ? false : !!v;
+      if (paused) {
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+        lastT = 0;
+      } else {
+        _scheduleFrame();
+      }
+    }
+
+    function frame(now) {
+      _rafId = 0;
+      if (paused) { lastT = 0; return; }
+      _scheduleFrame();
+      const dt = lastT ? Math.min((now - lastT) / 1000, 0.08) : 0.03;
+      lastT = now;
+      simTime += dt * clamp(P.animSpeed, 0.1, 2.5);
+
+      stepIconEffects(dt);
+      stepSmoke(dt);
+      stepSnow(dt);
+      draw(now);
+    }
+
+    // =========================================================================
+    // 8. HOST MESSAGE PROTOCOL, SETTINGS & PREVIEW / STANDALONE LIFECYCLE
+    // =========================================================================
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      if (typeof v.seed === 'number' && v.seed !== seed) {
+        seed = (v.seed >>> 0) || 20261117;
+        buildStars();
+        cacheOK = false;
+      }
+      let needStaticRebuild = false;
+      for (const k in v) {
+        if (!(k in P)) continue;
+        const val = v[k];
+        if (k === 'quality' && typeof val === 'string' && val in QUALITY_PROFILES) {
+          if (P.quality !== val) { P.quality = val; resize(); }
+          continue;
+        }
+        if (typeof val === 'number' && P[k] !== val) {
+          P[k] = val;
+          if (k === 'atmosphereDensity' || k === 'treeDensity' || k === 'mountainVisibility' || k === 'adaptive') {
+            needStaticRebuild = true;
+          }
+        }
+      }
+      if (needStaticRebuild) cacheOK = false;
+    }
+
+    function drawGhosts() {
+      const box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(ic =>
+        `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`
+      ).join('');
+    }
+
+    function handleMessage(ev) {
+      let m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      const kind = m.t || m.type;
+      if (kind === 'pause') {
+        _setPaused(m.v);
+        if (paused) draw(performance.now());
+        return;
+      }
+      if (kind === 'settings') { applySettings(m.v || m.params || m); return; }
+      if (kind === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+      if (kind === 'icons') {
+        const k = window.devicePixelRatio || 1;
+        const rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k }))
+          : [];
+        syncIncomingIcons(rects, m.n);
+        if (PREVIEW) drawGhosts();
+        if (paused) draw(performance.now());
+      }
+    }
+
+    function buildDemoIcons() {
+      const cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.44, 0.68], [0.54, 0.68], [0.80, 0.72]
+      ];
+      return cells.map(([fx, fy], i) => ({
+        x: Math.round(fx * W),
+        y: Math.round(fy * H),
+        w: i % 3 === 0 ? 80 : 72,
+        h: 86
+      }));
+    }
+
+    function init() {
+      buildStars();
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', function () { resize(); cacheOK = false; });
+
+      if (PREVIEW) {
+        document.body.classList.add('preview');
+        const g = document.createElement('div');
+        g.id = 'ghosts';
+        document.body.appendChild(g);
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      } else {
+        // Standalone test fallback with sample icons (without drawing real OS labels)
+        syncIncomingIcons(buildDemoIcons(), []);
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            const k = window.devicePixelRatio || 1;
+            const rects = vList.map(v => ({ x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k }));
+            syncIncomingIcons(rects, []);
+          }
+        });
+      }
+
+      // Expose read-only runtime state for share.js and testing
+      Object.defineProperty(window, 'cv', { get: () => cv });
+      Object.defineProperty(window, 'W', { get: () => W });
+      Object.defineProperty(window, 'H', { get: () => H });
+      Object.defineProperty(window, 'WALL', { get: () => WALL });
+      Object.defineProperty(window, 'icons', { get: () => icons });
+      Object.defineProperty(window, 'cacheOK', { get: () => cacheOK, set: v => { cacheOK = !!v; } });
+      window.draw = draw;
+      window.handleMessage = handleMessage;
+
+      _scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>
