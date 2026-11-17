@@ -149,9 +149,14 @@ class CustomThemeImporterTest {
         assertTrue(entry.getString("thumb").contains("url(__custom/$id/preview.svg)"))
         val groups = entry.getJSONArray("groups")
         assertEquals(2, groups.length())
-        val cb = groups.getJSONObject(0).getJSONArray("params").getJSONObject(0)
+        val byName = (0 until groups.length())
+            .map { groups.getJSONObject(it) }
+            .associateBy { it.getString("name") }
+        val cb = byName.getValue("Black Hole & Core").getJSONArray("params").getJSONObject(0)
+        assertEquals("centerBodyType", cb.getString("key"))
         assertEquals("BlackHole", cb.getString("default"))
-        val ss = groups.getJSONObject(1).getJSONArray("params").getJSONObject(0)
+        val ss = byName.getValue("Space").getJSONArray("params").getJSONObject(0)
+        assertEquals("shootingStars", ss.getString("key"))
         assertEquals(true, ss.getBoolean("default"))
     }
 }
