@@ -384,7 +384,8 @@ class CustomThemeImporter(private val customThemesRoot: File) {
             is JSONArray -> {
                 for (i in 0 until rawSettings.length()) {
                     val spec = rawSettings.optJSONObject(i) ?: continue
-                    val key = spec.optString("key").ifBlank { continue }
+                    val key = spec.optString("key").trim()
+                    if (key.isEmpty()) continue
                     items.add(key to spec)
                 }
             }

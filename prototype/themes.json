@@ -1322,7 +1322,7 @@
       "page": "solar-system.html",
       "status": "ready",
       "product": "free",
-      "thumb": "url(thumbs/solar-system.svg) center / cover no-repeat, linear-gradient(160deg, #0b1020 0%, #050811 55%, #020307 100%)",
+      "thumb": "url(thumbs/solar-system.webp) center / cover no-repeat, linear-gradient(160deg, #0b1020 0%, #050811 55%, #020307 100%)",
       "thumbSource": "custom",
       "groups": [
         {
