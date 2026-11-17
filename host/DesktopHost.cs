@@ -612,7 +612,13 @@ class HostContext : ApplicationContext
                     return;
                 }
                 string page = Themes.PageFor(pageDir, id);
-                if (page == null || id == Settings.Theme) return;
+                if (page == null || !Themes.PageExists(pageDir, page))
+                {
+                    settingsWin.Post(Json.Stringify(Json.Obj("t", "themeChanged", "id", Settings.Theme)));
+                    Log.Write("拒绝缺失页面的主题切换：" + id);
+                    return;
+                }
+                if (id == Settings.Theme) return;
                 Settings.Theme = id;
                 SaveSoon();
                 if (form != null) form.LoadPage(page);
@@ -993,6 +999,18 @@ class HostContext : ApplicationContext
         nextStart = DateTime.MaxValue;
         if (!ThemeAllowed(Settings.Theme)) Settings.Theme = ThemeAllowed("beach") ? "beach" : "meadow";
         string page = ThemeAllowed(Settings.Theme) ? Themes.PageFor(pageDir, Settings.Theme) : null;
+        if (string.IsNullOrEmpty(page) || !Themes.PageExists(pageDir, page))
+        {
+            string fallback = Themes.FirstReadyBuiltIn(pageDir);
+            string fallbackPage = Themes.PageFor(pageDir, fallback);
+            if (!string.IsNullOrEmpty(fallbackPage) && Themes.PageExists(pageDir, fallbackPage))
+            {
+                Log.Write("主题页面不存在（" + (Settings.Theme ?? "") + "），已回退到内置主题：" + fallback);
+                Settings.Theme = fallback;
+                page = fallbackPage;
+                SaveSoon();
+            }
+        }
         if (page == null)
         {
             Log.Write("没有可加载的已授权主题，5 秒后重试");
@@ -1691,9 +1709,9 @@ class WallpaperForm : Form
         base.OnShown(e);
         try
         {
-            if (!File.Exists(Path.Combine(pageDir, page)))
+            if (!Themes.PageExists(pageDir, page))
             {
-                Fail(I18n.T("errNoPage", "path", Path.Combine(pageDir, page)));
+                Fail(I18n.T("errNoPage", "path", Themes.PageDisplayPath(pageDir, page)));
                 return;
             }
             if (!AttachToDesktop())

@@ -125,6 +125,28 @@ static class Themes
         if (product == "free") return true;
         return product != null && owns != null && owns(product);
     }
+
+    public static bool PageExists(string pageDir, string page)
+    {
+        if (string.IsNullOrEmpty(page)) return false;
+        if (page.StartsWith("__custom/", StringComparison.Ordinal))
+        {
+            string fullPath, mime;
+            return CustomThemes.ResolveFile(page, out fullPath, out mime);
+        }
+        return File.Exists(Path.Combine(pageDir, page.Replace('/', Path.DirectorySeparatorChar)));
+    }
+
+    public static string PageDisplayPath(string pageDir, string page)
+    {
+        if (string.IsNullOrEmpty(page)) return pageDir;
+        if (page.StartsWith("__custom/", StringComparison.Ordinal))
+        {
+            string sub = page.Substring("__custom/".Length).Replace('/', Path.DirectorySeparatorChar);
+            return Path.Combine(CustomThemes.Dir, sub);
+        }
+        return Path.Combine(pageDir, page.Replace('/', Path.DirectorySeparatorChar));
+    }
 }
 
 static class CustomThemes
