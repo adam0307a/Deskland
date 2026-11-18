@@ -194,6 +194,7 @@
       if (hideBtn) hideBtn.classList.toggle('active', uiHidden);
     }
     requestAnimationFrame(reportBarRect);
+    try { window.dispatchEvent(new CustomEvent('deskland:vicons-layout')); } catch (_) {}
   }
 
   function clampPos(x, y, w, h) {

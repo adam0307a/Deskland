@@ -1083,7 +1083,19 @@
           : [];
         syncIncomingIcons(rects);
         if (PREVIEW) drawGhosts();
-        if (paused) draw();
+        if (paused) {
+          for (let i = iconStates.length - 1; i >= 0; i--) {
+            if (iconStates[i].removing) iconStates.splice(i, 1);
+            else {
+              iconStates[i].x = iconStates[i].tx;
+              iconStates[i].y = iconStates[i].ty;
+              iconStates[i].w = iconStates[i].tw;
+              iconStates[i].h = iconStates[i].th;
+              iconStates[i].opacity = 1;
+            }
+          }
+          draw();
+        }
       }
     }
 

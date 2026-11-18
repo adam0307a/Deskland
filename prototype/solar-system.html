@@ -28,7 +28,7 @@
       position: fixed;
       right: 18px;
       bottom: 18px;
-      z-index: 20;
+      z-index: 2147482950;
       display: none;
       align-items: center;
       gap: 7px;
@@ -1266,18 +1266,38 @@
           return;
         }
         const isZh = hostLang.indexOf('zh') === 0;
+        const isTr = hostLang.indexOf('tr') === 0;
         const glyphEl = orbitPauseBtn.querySelector('.glyph');
         const labelEl = orbitPauseBtn.querySelector('.label');
         if (glyphEl) glyphEl.textContent = orbitPaused ? '\u25B6' : '\u23F8';
         if (labelEl) {
           labelEl.textContent = orbitPaused
-            ? (isZh ? '\u6062\u590D\u56FE\u6807' : 'Resume Icons')
-            : (isZh ? '\u6682\u505C\u56FE\u6807' : 'Pause Icons');
+            ? (isZh ? '\u6062\u590D\u56FE\u6807' : isTr ? '\u0130konlar\u0131 Devam Ettir' : 'Resume Icons')
+            : (isZh ? '\u6682\u505C\u56FE\u6807' : isTr ? '\u0130konlar\u0131 Duraklat' : 'Pause Icons');
         }
         orbitPauseBtn.classList.toggle('paused', orbitPaused);
         orbitPauseBtn.setAttribute('aria-pressed', String(orbitPaused));
-        orbitPauseBtn.style.right = Math.round(hostWorkInsets.right + 18) + 'px';
-        orbitPauseBtn.style.bottom = Math.round(hostWorkInsets.bottom + 18) + 'px';
+
+        let btnRight = Math.round(hostWorkInsets.right + 18);
+        let btnBottom = Math.round(hostWorkInsets.bottom + 18);
+        const bar = document.getElementById('dk-ctrl-bar');
+        const barVisible = !!(bar && window.getComputedStyle(bar).display !== 'none');
+        if (barVisible) {
+          const br = bar.getBoundingClientRect();
+          if (br.width > 0 && br.height > 0) {
+            const vw = window.innerWidth || document.documentElement.clientWidth || 1280;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 720;
+            if (br.left > 210) {
+              btnRight = Math.round((vw - br.left) + 10);
+              btnBottom = Math.max(btnBottom, Math.round(vh - br.bottom));
+            } else {
+              btnRight = Math.max(btnRight, Math.round(vw - br.right));
+              btnBottom = Math.round((vh - br.top) + 10);
+            }
+          }
+        }
+        orbitPauseBtn.style.right = btnRight + 'px';
+        orbitPauseBtn.style.bottom = btnBottom + 'px';
         orbitPauseBtn.style.display = 'inline-flex';
         requestAnimationFrame(reportOrbitBtnRect);
       }
@@ -2606,7 +2626,11 @@
 
         window.addEventListener('resize', function () {
           resize();
+          syncOrbitPauseUi();
           reportOrbitBtnRect();
+        }, { passive: true });
+        window.addEventListener('deskland:vicons-layout', function () {
+          syncOrbitPauseUi();
         }, { passive: true });
         document.addEventListener('visibilitychange', function () {
           if (!document.hidden) {

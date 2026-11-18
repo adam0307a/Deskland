@@ -1404,7 +1404,7 @@ class WallpaperForm : Form
     IntPtr parentHwnd, insertAfter;
     string lastIcons = "";
     int lastPause = -1;
-    bool manualPause, lowMode, shuttingDown;
+    bool manualPause, lowMode, shuttingDown, allowMoveIcons;
     long lastMoveIconsMs;
 
     public bool Fatal { get; private set; }
@@ -1562,6 +1562,7 @@ class WallpaperForm : Form
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
     {
+        allowMoveIcons = false;
         reader.ResetOrbitalPositions();
         uiRectGroups.Clear();
         uiMouseCaptured = false;
@@ -1668,6 +1669,7 @@ class WallpaperForm : Form
 
     void HandleMoveIconsMessage(Dictionary<string, object> m)
     {
+        if (!allowMoveIcons) return;
         object resetObj;
         bool reset = m.TryGetValue("reset", out resetObj) && resetObj is bool && (bool)resetObj;
         if (reset)
@@ -1719,7 +1721,7 @@ class WallpaperForm : Form
         int minIntervalMs = lowMode ? 60 : 30;
         if (nowMs - lastMoveIconsMs < minIntervalMs) return;
         lastMoveIconsMs = nowMs;
-        reader.QueueMoveIcons(targets, screen, Screen.PrimaryScreen.WorkingArea);
+        reader.QueueMoveIcons(targets, screen, Screen.PrimaryScreen.WorkingArea, reader.CurrentMoveEpoch);
     }
 
     protected override async void OnShown(EventArgs e)
@@ -1768,6 +1770,8 @@ class WallpaperForm : Form
                 if (msg.StartsWith("record|")) { OnRecord(msg); return; }
                 if (msg == "ready")
                 {
+                    allowMoveIcons = string.Equals(page, "solar-system.html", StringComparison.OrdinalIgnoreCase);
+                    if (!allowMoveIcons) reader.ResetOrbitalPositions();
                     Rectangle wa = Screen.PrimaryScreen.WorkingArea;
                     int wLeft = Math.Max(0, wa.Left - screen.Left);
                     int wTop = Math.Max(0, wa.Top - screen.Top);
@@ -1790,6 +1794,11 @@ class WallpaperForm : Form
                 {
                     try { OnWallJsonMessage(msg); } catch { }
                 }
+            };
+            core.NavigationStarting += delegate
+            {
+                allowMoveIcons = false;
+                reader.ResetOrbitalPositions();
             };
             core.Navigate(PageUrl);
             iconTimer.Start();
@@ -2226,6 +2235,12 @@ class IconReader : IDisposable
     List<MoveIconTarget> pendingTargets;
     Rectangle pendingScreen, pendingWorkArea;
     bool hasPendingMove, workerStopping;
+    int moveEpoch, pendingEpoch;
+
+    public int CurrentMoveEpoch
+    {
+        get { return Thread.VolatileRead(ref moveEpoch); }
+    }
 
     static IntPtr FindListView()
     {
@@ -2337,12 +2352,12 @@ class IconReader : IDisposable
         return true;
     }
 
-    public void QueueMoveIcons(List<MoveIconTarget> targets, Rectangle screen, Rectangle workArea)
+    public void QueueMoveIcons(List<MoveIconTarget> targets, Rectangle screen, Rectangle workArea, int expectedEpoch)
     {
         if (targets == null || targets.Count == 0) return;
         lock (moveLock)
         {
-            if (workerStopping) return;
+            if (workerStopping || expectedEpoch != moveEpoch) return;
             if (moveWorker == null)
             {
                 moveWorker = new Thread(MoveWorkerLoop);
@@ -2353,6 +2368,7 @@ class IconReader : IDisposable
             pendingTargets = targets;
             pendingScreen = screen;
             pendingWorkArea = workArea;
+            pendingEpoch = expectedEpoch;
             hasPendingMove = true;
         }
         try { moveSignal.Set(); } catch { }
@@ -2366,6 +2382,7 @@ class IconReader : IDisposable
             catch { break; }
             List<MoveIconTarget> targets;
             Rectangle scr, wa;
+            int epoch;
             lock (moveLock)
             {
                 if (workerStopping) break;
@@ -2373,26 +2390,29 @@ class IconReader : IDisposable
                 targets = pendingTargets;
                 scr = pendingScreen;
                 wa = pendingWorkArea;
+                epoch = pendingEpoch;
                 hasPendingMove = false;
                 pendingTargets = null;
             }
-            if (targets != null && targets.Count > 0)
+            if (targets != null && targets.Count > 0 && epoch == Thread.VolatileRead(ref moveEpoch))
             {
-                try { ApplyMoveIconsSync(targets, scr, wa); }
+                try { ApplyMoveIconsSync(targets, scr, wa, epoch); }
                 catch { }
             }
         }
     }
 
-    void ApplyMoveIconsSync(List<MoveIconTarget> targets, Rectangle screen, Rectangle workingArea)
+    void ApplyMoveIconsSync(List<MoveIconTarget> targets, Rectangle screen, Rectangle workingArea, int expectedEpoch)
     {
         if (targets == null || targets.Count == 0) return;
+        if (expectedEpoch != Thread.VolatileRead(ref moveEpoch)) return;
         // 用户正在拖拽 / 按住鼠标或右键菜单打开时让出控制权，避免打断原生桌面操作
         if ((Native.GetAsyncKeyState(0x01) & 0x8000) != 0 || (Native.GetAsyncKeyState(0x02) & 0x8000) != 0) return;
         if (Native.FindWindow("#32768", null) != IntPtr.Zero) return;
 
         lock (sync)
         {
+            if (expectedEpoch != Thread.VolatileRead(ref moveEpoch)) return;
             if (listView == IntPtr.Zero || mem == IntPtr.Zero || !Native.IsWindow(listView)) { if (!Open()) return; }
             if (!Native.IsWindowVisible(listView)) return;
             if (!orbitalActive || homeIcons == null)
@@ -2459,6 +2479,7 @@ class IconReader : IDisposable
     {
         lock (moveLock)
         {
+            moveEpoch++;
             hasPendingMove = false;
             pendingTargets = null;
         }
