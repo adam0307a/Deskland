@@ -1837,8 +1837,8 @@ class WallpaperForm : Form
     IntPtr mouseHook;
     Native.LowLevelMouseProc mouseHookProc;
     double uiScale = 1.0;
-    bool uiMouseCaptured;
-    int lastDownTick = -1, lastClickCount = 1;
+    bool uiMouseCaptured, desktopMouseDown;
+    int lastDownTick = -1, lastClickCount = 1, lastHoverTick;
     Native.POINT lastDownPt;
 
     bool HasAnyUiRect()
@@ -1898,8 +1898,6 @@ class WallpaperForm : Form
     {
         if (nCode < 0 || shuttingDown || IsDisposed || web.CoreWebView2 == null)
             return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
-        if (!uiMouseCaptured && !HasAnyUiRect())
-            return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
 
         int msg = wParam.ToInt32();
         if (msg != Native.WM_LBUTTONDOWN && msg != Native.WM_LBUTTONUP && msg != Native.WM_MOUSEMOVE)
@@ -1912,7 +1910,7 @@ class WallpaperForm : Form
 
         if (msg == Native.WM_LBUTTONDOWN)
         {
-            if (IsPointInUi(cssX, cssY) && IsDesktopHit(hs.pt))
+            if (HasAnyUiRect() && IsPointInUi(cssX, cssY) && IsDesktopHit(hs.pt))
             {
                 int now = Environment.TickCount;
                 int dblMs = SystemInformation.DoubleClickTime;
@@ -1926,12 +1924,28 @@ class WallpaperForm : Form
                 BeginInvoke((Action)delegate { DispatchWebMouse("mousePressed", cssX, cssY, "left", cc, 1); });
                 return (IntPtr)1;
             }
+            if (lastPause != 1 && screen.Contains(hs.pt) && IsDesktopHit(hs.pt))
+            {
+                desktopMouseDown = true;
+                BeginInvoke((Action)delegate { DispatchWebMouse("mousePressed", cssX, cssY, "left", 1, 1); });
+            }
         }
         else if (msg == Native.WM_MOUSEMOVE)
         {
             if (uiMouseCaptured)
             {
                 BeginInvoke((Action)delegate { DispatchWebMouse("mouseMoved", cssX, cssY, "left", 0, 1); });
+            }
+            else if (lastPause != 1 && screen.Contains(hs.pt))
+            {
+                int now = Environment.TickCount;
+                int minMoveMs = lowMode ? 45 : 20;
+                if (unchecked(now - lastHoverTick) >= minMoveMs && IsDesktopHit(hs.pt))
+                {
+                    lastHoverTick = now;
+                    bool down = desktopMouseDown;
+                    BeginInvoke((Action)delegate { DispatchWebMouse("mouseMoved", cssX, cssY, down ? "left" : "none", 0, down ? 1 : 0); });
+                }
             }
         }
         else if (msg == Native.WM_LBUTTONUP)
@@ -1942,6 +1956,11 @@ class WallpaperForm : Form
                 int cc = lastClickCount;
                 BeginInvoke((Action)delegate { DispatchWebMouse("mouseReleased", cssX, cssY, "left", cc, 0); });
                 return (IntPtr)1;
+            }
+            if (desktopMouseDown)
+            {
+                desktopMouseDown = false;
+                BeginInvoke((Action)delegate { DispatchWebMouse("mouseReleased", cssX, cssY, "left", 1, 0); });
             }
         }
         return Native.CallNextHookEx(mouseHook, nCode, wParam, lParam);
@@ -1962,6 +1981,7 @@ class WallpaperForm : Form
     void StopMouseHook()
     {
         uiMouseCaptured = false;
+        desktopMouseDown = false;
         if (mouseHook != IntPtr.Zero)
         {
             Native.UnhookWindowsHookEx(mouseHook);
