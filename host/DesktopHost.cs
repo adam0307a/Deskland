@@ -1277,6 +1277,23 @@ static class AppIcon
 }
 
 // 设置窗口：普通的桌面窗口，里面用 WebView2 显示 prototype/settings.html
+static class WebViewConfig
+{
+    public const string BrowserArguments =
+        "--autoplay-policy=no-user-gesture-required"
+        + " --disable-background-timer-throttling"
+        + " --disable-renderer-backgrounding"
+        + " --disable-backgrounding-occluded-windows";
+
+    public static CoreWebView2CreationProperties CreateProperties()
+    {
+        var props = new CoreWebView2CreationProperties();
+        props.UserDataFolder = Path.Combine(Log.DataDir, "WebView2");
+        props.AdditionalBrowserArguments = BrowserArguments;
+        return props;
+    }
+}
+
 class SettingsForm : Form
 {
     readonly WebView2 web;
@@ -1300,9 +1317,7 @@ class SettingsForm : Form
         web = new WebView2();
         web.Dock = DockStyle.Fill;
         web.DefaultBackgroundColor = BackColor;
-        web.CreationProperties = new CoreWebView2CreationProperties();
-        web.CreationProperties.UserDataFolder = Path.Combine(Log.DataDir, "WebView2");
-        web.CreationProperties.AdditionalBrowserArguments = "--autoplay-policy=no-user-gesture-required";
+        web.CreationProperties = WebViewConfig.CreateProperties();
         Controls.Add(web);
     }
 
@@ -1420,13 +1435,7 @@ class WallpaperForm : Form
         web = new WebView2();
         web.Dock = DockStyle.Fill;
         web.DefaultBackgroundColor = BackColor;
-        web.CreationProperties = new CoreWebView2CreationProperties();
-        web.CreationProperties.UserDataFolder = Path.Combine(Log.DataDir, "WebView2");
-        web.CreationProperties.AdditionalBrowserArguments =
-            "--autoplay-policy=no-user-gesture-required"
-            + " --disable-background-timer-throttling"
-            + " --disable-renderer-backgrounding"
-            + " --disable-backgrounding-occluded-windows";
+        web.CreationProperties = WebViewConfig.CreateProperties();
         Controls.Add(web);
 
         iconTimer = new System.Windows.Forms.Timer();
