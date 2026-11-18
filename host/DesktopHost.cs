@@ -1924,7 +1924,7 @@ class WallpaperForm : Form
                 BeginInvoke((Action)delegate { DispatchWebMouse("mousePressed", cssX, cssY, "left", cc, 1); });
                 return (IntPtr)1;
             }
-            if (lastPause != 1 && screen.Contains(hs.pt) && IsDesktopHit(hs.pt))
+            if (lastPause != 1 && screen.Contains(hs.pt.X, hs.pt.Y) && IsDesktopHit(hs.pt))
             {
                 desktopMouseDown = true;
                 BeginInvoke((Action)delegate { DispatchWebMouse("mousePressed", cssX, cssY, "left", 1, 1); });
@@ -1936,7 +1936,7 @@ class WallpaperForm : Form
             {
                 BeginInvoke((Action)delegate { DispatchWebMouse("mouseMoved", cssX, cssY, "left", 0, 1); });
             }
-            else if (lastPause != 1 && screen.Contains(hs.pt))
+            else if (lastPause != 1 && screen.Contains(hs.pt.X, hs.pt.Y))
             {
                 int now = Environment.TickCount;
                 int minMoveMs = lowMode ? 45 : 20;
