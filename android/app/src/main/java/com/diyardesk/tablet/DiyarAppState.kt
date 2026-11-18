@@ -42,6 +42,10 @@ object DiyarAppState {
 
     fun systemLangCode(): String {
         val lang = Locale.getDefault().language
-        return if (lang.equals("zh", ignoreCase = true)) "zh-CN" else "en"
+        return when {
+            lang.equals("zh", ignoreCase = true) -> "zh-CN"
+            lang.equals("tr", ignoreCase = true) -> "tr"
+            else -> "en"
+        }
     }
 }

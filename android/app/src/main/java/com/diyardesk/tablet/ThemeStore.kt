@@ -359,12 +359,13 @@ class ThemeStore(private val storageDir: File) {
     }
 
     companion object {
-        const val DEFAULT_THEME = "beach"
+        const val DEFAULT_THEME = "software-world"
 
         fun resolveEffectiveLang(setting: String, systemLang: String): String {
             return when {
-                setting == "en" || setting == "zh-CN" -> setting
+                setting == "en" || setting == "zh-CN" || setting == "tr" -> setting
                 systemLang.startsWith("zh", ignoreCase = true) -> "zh-CN"
+                systemLang.startsWith("tr", ignoreCase = true) -> "tr"
                 else -> "en"
             }
         }

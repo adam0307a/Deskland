@@ -78,4 +78,15 @@ class ThemeStoreTest {
         assertEquals(0.50f, (centered.left + centered.right) / 2f, 0.001f)
         assertTrue(centered.isWidget)
     }
+
+    @Test
+    fun resolvesTurkishAndDefaultThemeCorrectly() {
+        val dir = tmp.newFolder("store3")
+        val s = ThemeStore(dir)
+        assertEquals("software-world", s.activeTheme)
+        assertEquals("tr", ThemeStore.resolveEffectiveLang("auto", "tr"))
+        assertEquals("tr", ThemeStore.resolveEffectiveLang("auto", "tr-TR"))
+        assertEquals("tr", ThemeStore.resolveEffectiveLang("tr", "en"))
+        assertEquals("en", ThemeStore.resolveEffectiveLang("auto", "de-DE"))
+    }
 }

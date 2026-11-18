@@ -139,11 +139,35 @@
 
       // Scientific, muted cinematic planetary & stellar palettes (zero neon cyberpunk)
       const STELLAR_TYPES = [
-        { name: 'G-Type Warm', core: '#fff5e4', coronaRgb: '235, 205, 165', orbitRgb: '185, 200, 225' },
-        { name: 'F-Type Ivory', core: '#f4f7ff', coronaRgb: '190, 212, 245', orbitRgb: '168, 194, 232' },
-        { name: 'K-Type Amber', core: '#ffebd2', coronaRgb: '228, 180, 138', orbitRgb: '198, 182, 168' },
-        { name: 'A-Type Pale', core: '#eef4ff', coronaRgb: '165, 195, 240', orbitRgb: '155, 185, 228' }
+        { name: 'G-Type Warm', core: '#fff5e4', coronaRgb: '235, 205, 165', orbitRgb: '185, 200, 225', orbitColor: 'rgb(185, 200, 225)' },
+        { name: 'F-Type Ivory', core: '#f4f7ff', coronaRgb: '190, 212, 245', orbitRgb: '168, 194, 232', orbitColor: 'rgb(168, 194, 232)' },
+        { name: 'K-Type Amber', core: '#ffebd2', coronaRgb: '228, 180, 138', orbitRgb: '198, 182, 168', orbitColor: 'rgb(198, 182, 168)' },
+        { name: 'A-Type Pale', core: '#eef4ff', coronaRgb: '165, 195, 240', orbitRgb: '155, 185, 228', orbitColor: 'rgb(155, 185, 228)' }
       ];
+
+      const STAR_COLOR_RGBS = [
+        '215, 228, 250',
+        '242, 236, 225',
+        '185, 208, 245',
+        '232, 215, 198'
+      ];
+      const ALPHA_LUT_BINS = 32;
+      const STAR_FILL_LUT = STAR_COLOR_RGBS.map(function (rgb) {
+        const arr = new Array(ALPHA_LUT_BINS);
+        for (let b = 0; b < ALPHA_LUT_BINS; b++) {
+          const a = 0.04 + (b / (ALPHA_LUT_BINS - 1)) * (0.92 - 0.04);
+          arr[b] = 'rgba(' + rgb + ', ' + a.toFixed(3) + ')';
+        }
+        return arr;
+      });
+      const WARM_PARTICLE_LUT = (function () {
+        const arr = new Array(ALPHA_LUT_BINS);
+        for (let b = 0; b < ALPHA_LUT_BINS; b++) {
+          const a = 0.03 + (b / (ALPHA_LUT_BINS - 1)) * (0.88 - 0.03);
+          arr[b] = 'rgba(255, 228, 188, ' + a.toFixed(3) + ')';
+        }
+        return arr;
+      })();
 
       const PLANET_PALETTES = [
         { fill: '#8ba4c4', highlight: '#b8cde6', shadow: '#263447', atmoRgb: '139, 164, 196' }, // Neptune Slate
@@ -331,16 +355,10 @@
         const rng = mulberry32((0x44495941 ^ (settings.seed | 0)) >>> 0);
         stars = new Array(count);
 
-        const starColors = [
-          '215, 228, 250',
-          '242, 236, 225',
-          '185, 208, 245',
-          '232, 215, 198'
-        ];
-
         for (let i = 0; i < count; i++) {
           const depthRoll = rng();
           const isBright = depthRoll > 0.92;
+          const colorIdx = Math.floor(rng() * STAR_COLOR_RGBS.length);
           stars[i] = {
             nx: rng(),
             ny: rng(),
@@ -349,7 +367,8 @@
             twinkleAmp: isBright ? (0.12 + rng() * 0.16) : (0.04 + rng() * 0.09),
             twinkleSpeed: 0.4 + rng() * 1.6,
             twinklePhase: rng() * Math.PI * 2,
-            rgb: starColors[Math.floor(rng() * starColors.length)]
+            colorIdx: colorIdx,
+            rgb: STAR_COLOR_RGBS[colorIdx]
           };
         }
       }
@@ -367,6 +386,7 @@
 
         for (let i = 0; i < count; i++) {
           const bandNorm = 0.34 + (rng() + rng()) * 0.16;
+          const astAlpha = 0.08 + rng() * 0.16;
           asteroids[i] = {
             bandNorm: bandNorm,
             angle: rng() * Math.PI * 2,
@@ -376,7 +396,8 @@
             aspect: 0.55 + rng() * 0.45,
             rotation: rng() * Math.PI * 2,
             rotationSpeed: (rng() - 0.5) * 0.4,
-            alpha: 0.08 + rng() * 0.16
+            alpha: astAlpha,
+            fillStyle: 'rgba(168, 180, 198, ' + astAlpha.toFixed(3) + ')'
           };
         }
       }
@@ -1262,11 +1283,13 @@
       }
 
       let sentOrbitalPositions = false;
+      let lastMoveSig = '';
       function emitHostOrbitalIconPositions(dt) {
         const shouldOrbit = (settings.iconOrbitMode === 'Orbit' && settings.globalOrbitSpeed > 0.001 && systems.length > 0 && !orbitPaused);
         if (!shouldOrbit) {
           if (sentOrbitalPositions) {
             sentOrbitalPositions = false;
+            lastMoveSig = '';
             if (!isPreviewMode && window.chrome && window.chrome.webview && typeof window.chrome.webview.postMessage === 'function') {
               window.chrome.webview.postMessage(JSON.stringify({ t: 'moveIcons', reset: true, icons: [] }));
             }
@@ -1275,27 +1298,34 @@
         }
         sentOrbitalPositions = true;
 
-        // Throttle host bridge messages (~20 Hz normal, ~6 Hz in Low Mode) so ListView/QML isn't flooded
+        // Match ~15 FPS Low Mode cadence (avoid ~5 Hz icon jump behind 15 FPS stars) or ~20 Hz normal
         hostSyncAccumulator += dt;
-        const syncInterval = window.__desklandLowMode ? 0.16 : 0.05;
+        const syncInterval = window.__desklandLowMode ? 0.06 : 0.05;
         if (hostSyncAccumulator < syncInterval) return;
         hostSyncAccumulator = 0;
 
         const dprScale = window.devicePixelRatio || 1;
         const payloadIcons = [];
+        let sig = '';
 
         for (let i = 0; i < systems.length; i++) {
           const sys = systems[i];
           if (sys.state === 'removing') continue;
+          const idx = sys.rawIndex >= 0 ? sys.rawIndex : i;
+          const px = Math.round(sys.currentX * dprScale);
+          const py = Math.round(sys.currentY * dprScale);
+          sig += idx + ':' + px + ',' + py + ';';
           payloadIcons.push({
             id: sys.id,
-            index: sys.rawIndex >= 0 ? sys.rawIndex : i,
-            x: Math.round(sys.currentX * dprScale),
-            y: Math.round(sys.currentY * dprScale),
+            index: idx,
+            x: px,
+            y: py,
             cssX: Math.round(sys.currentX),
             cssY: Math.round(sys.currentY)
           });
         }
+        if (sig === lastMoveSig) return;
+        lastMoveSig = sig;
 
         const msgObj = {
           t: 'moveIcons',
@@ -1643,14 +1673,16 @@
       }
 
       function drawStars() {
+        const invSpan = (ALPHA_LUT_BINS - 1) / (0.92 - 0.04);
         for (let i = 0; i < stars.length; i++) {
           const s = stars[i];
           const twinkle = Math.sin(elapsedTime * s.twinkleSpeed + s.twinklePhase) * s.twinkleAmp;
           const alpha = clamp(s.baseAlpha + twinkle, 0.04, 0.92);
+          const bin = Math.min(ALPHA_LUT_BINS - 1, Math.max(0, Math.round((alpha - 0.04) * invSpan)));
           const x = s.nx * viewWidth;
           const y = s.ny * viewHeight;
 
-          ctx.fillStyle = 'rgba(' + s.rgb + ', ' + alpha.toFixed(3) + ')';
+          ctx.fillStyle = STAR_FILL_LUT[s.colorIdx][bin];
           if (s.size <= 1.15) {
             ctx.fillRect(x, y, s.size, s.size);
           } else {
@@ -1667,6 +1699,7 @@
         const cx = viewWidth * 0.5;
         const cy = viewHeight * 0.5;
 
+        ctx.lineWidth = 1;
         for (let i = 0; i < systems.length; i++) {
           const sys = systems[i];
           if (sys.opacity <= 0.05) continue;
@@ -1678,13 +1711,14 @@
           ctx.save();
           ctx.translate(cx, cy);
           ctx.rotate(sys.globalPlaneRot);
-          ctx.strokeStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(4) + ')';
-          ctx.lineWidth = 1;
+          ctx.globalAlpha = alpha;
+          ctx.strokeStyle = sys.stellarType.orbitColor;
           ctx.beginPath();
           ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
           ctx.stroke();
           ctx.restore();
         }
+        ctx.globalAlpha = 1.0;
       }
 
       function drawCentralCore() {
@@ -1797,12 +1831,19 @@
         ctx.restore();
       }
 
-      function drawAccretionDiskHalf(ehR, diskRx, diskRy, intensity, scale, isBackHalf) {
-        const startAngle = isBackHalf ? Math.PI : 0;
-        const endAngle = isBackHalf ? Math.PI * 2 : Math.PI;
+      const ACCRETION_BANDS = [
+        { rFactor: 0.52, width: 3.2, alpha: 0.95 },
+        { rFactor: 0.72, width: 6.5, alpha: 0.65 },
+        { rFactor: 0.94, width: 9.0, alpha: 0.35 }
+      ];
 
-        // Relativistic Doppler beaming gradient: left side (approaching observer) is hotter/brighter ivory-amber,
-        // right side (receding) is dimmer redshifted ochre-rust.
+      function getCachedAccretionDiskGrad(diskRx, intensity, isBackHalf) {
+        const key = Math.round(diskRx * 2) + ':' + Math.round(intensity * 50);
+        const cache = centralBlackHole._diskGradCache || (centralBlackHole._diskGradCache = {});
+        const slot = isBackHalf ? 'back' : 'front';
+        if (cache[slot] && cache[slot].key === key) {
+          return cache[slot].grad;
+        }
         const diskGrad = ctx.createLinearGradient(-diskRx, 0, diskRx, 0);
         const aMult = clamp(intensity * (isBackHalf ? 0.72 : 1.0), 0, 1.4);
         diskGrad.addColorStop(0.0, 'rgba(255, 225, 175, 0.0)');
@@ -1810,17 +1851,21 @@
         diskGrad.addColorStop(0.46, 'rgba(238, 168, 96, ' + clamp(0.44 * aMult, 0, 0.85).toFixed(3) + ')');
         diskGrad.addColorStop(0.78, 'rgba(172, 84, 42, ' + clamp(0.25 * aMult, 0, 0.65).toFixed(3) + ')');
         diskGrad.addColorStop(1.0, 'rgba(120, 48, 24, 0.0)');
+        cache[slot] = { key: key, grad: diskGrad };
+        return diskGrad;
+      }
+
+      function drawAccretionDiskHalf(ehR, diskRx, diskRy, intensity, scale, isBackHalf) {
+        const startAngle = isBackHalf ? Math.PI : 0;
+        const endAngle = isBackHalf ? Math.PI * 2 : Math.PI;
+
+        // Relativistic Doppler beaming gradient: cached across frames unless size/intensity changes
+        const diskGrad = getCachedAccretionDiskGrad(diskRx, intensity, isBackHalf);
 
         // Multi-band concentric accretion rings
-        const bands = [
-          { rFactor: 0.52, width: 3.2, alpha: 0.95 },
-          { rFactor: 0.72, width: 6.5, alpha: 0.65 },
-          { rFactor: 0.94, width: 9.0, alpha: 0.35 }
-        ];
-
-        for (let b = 0; b < bands.length; b++) {
-          const band = bands[b];
-          ctx.strokeStyle = diskGrad;
+        ctx.strokeStyle = diskGrad;
+        for (let b = 0; b < ACCRETION_BANDS.length; b++) {
+          const band = ACCRETION_BANDS[b];
           ctx.lineWidth = band.width * scale;
           ctx.beginPath();
           ctx.ellipse(0, 0, diskRx * band.rFactor, diskRy * band.rFactor, 0, startAngle, endAngle);
@@ -1828,6 +1873,7 @@
         }
 
         // Orbiting hot plasma knots inside the accretion disk
+        const invSpan = (ALPHA_LUT_BINS - 1) / (0.88 - 0.03);
         for (let i = 0; i < centralBlackHole.accretionParticles.length; i++) {
           const ap = centralBlackHole.accretionParticles[i];
           const sinA = Math.sin(ap.angle);
@@ -1841,7 +1887,8 @@
           // Doppler brightening when cos(angle) < 0 (left side)
           const doppler = 0.65 - 0.35 * Math.cos(ap.angle);
           const pAlpha = clamp(ap.alpha * doppler * intensity, 0.03, 0.88);
-          ctx.fillStyle = 'rgba(255, 228, 188, ' + pAlpha.toFixed(3) + ')';
+          const bin = Math.min(ALPHA_LUT_BINS - 1, Math.max(0, Math.round((pAlpha - 0.03) * invSpan)));
+          ctx.fillStyle = WARM_PARTICLE_LUT[bin];
           ctx.fillRect(px, py, ap.size * scale, ap.size * scale);
         }
       }
@@ -1898,6 +1945,7 @@
         const cx = viewWidth * 0.5;
         const cy = viewHeight * 0.5;
         const halfDiag = Math.hypot(viewWidth, viewHeight) * 0.5;
+        const low = !!window.__desklandLowMode;
 
         for (let i = 0; i < asteroids.length; i++) {
           const ast = asteroids[i];
@@ -1908,10 +1956,14 @@
 
           if (x < -10 || x > viewWidth + 10 || y < -10 || y > viewHeight + 10) continue;
 
-          ctx.fillStyle = 'rgba(168, 180, 198, ' + ast.alpha.toFixed(3) + ')';
-          ctx.beginPath();
-          ctx.ellipse(x, y, ast.size, ast.size * ast.aspect, ast.rotation, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.fillStyle = ast.fillStyle;
+          if (low && ast.size <= 1.35) {
+            ctx.fillRect(x - ast.size, y - ast.size * ast.aspect, ast.size * 2, ast.size * 2 * ast.aspect);
+          } else {
+            ctx.beginPath();
+            ctx.ellipse(x, y, ast.size, ast.size * ast.aspect, ast.rotation, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
 
@@ -1961,6 +2013,8 @@
           ? (1.0 + sys.removeProgress * 0.42)
           : 1.0;
 
+        ctx.strokeStyle = sys.stellarType.orbitColor;
+        ctx.lineWidth = 1;
         for (let p = 0; p < sys.planets.length; p++) {
           const planet = sys.planets[p];
           const staggeredStart = 0.28 + (p / Math.max(1, sys.planets.length)) * 0.24;
@@ -1978,10 +2032,7 @@
           const centerOffsetX = -focalOffset * cosRot + planet.lagX + sys.tidalPullX * tidalWeight;
           const centerOffsetY = -focalOffset * sinRot + planet.lagY + sys.tidalPullY * tidalWeight;
 
-          const alpha = planet.orbitAlpha * orbitPhaseAlpha * orbitReveal;
-          ctx.strokeStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(4) + ')';
-          ctx.lineWidth = 1;
-
+          ctx.globalAlpha = planet.orbitAlpha * orbitPhaseAlpha * orbitReveal;
           ctx.beginPath();
           ctx.ellipse(
             sys.currentX + centerOffsetX,
@@ -1994,6 +2045,7 @@
           );
           ctx.stroke();
         }
+        ctx.globalAlpha = 1.0;
       }
 
       function drawLocalDust(sys, dustAlpha) {
@@ -2007,6 +2059,7 @@
           ? (1.0 + sys.removeProgress * 0.65)
           : 1.0;
 
+        ctx.fillStyle = sys.stellarType.orbitColor;
         for (let d = 0; d < sys.dustParticles.length; d++) {
           const pt = sys.dustParticles[d];
           const rx = pt.radius * sizeMult * disperse;
@@ -2017,10 +2070,10 @@
           const wx = sys.currentX + lx * cosRot - ly * sinRot + sys.tidalPullX * 0.5;
           const wy = sys.currentY + lx * sinRot + ly * cosRot + sys.tidalPullY * 0.5;
 
-          const alpha = pt.alpha * dustAlpha;
-          ctx.fillStyle = 'rgba(' + sys.stellarType.orbitRgb + ', ' + alpha.toFixed(3) + ')';
+          ctx.globalAlpha = pt.alpha * dustAlpha;
           ctx.fillRect(wx, wy, pt.size, pt.size);
         }
+        ctx.globalAlpha = 1.0;
       }
 
       function drawPlanet(sys, planet, planetPhaseAlpha) {
@@ -2268,12 +2321,15 @@
           return;
         }
 
-        const profile = (window.__desklandLowMode ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
-        const minFrameInterval = 1000 / (profile.targetFps + 2);
+        const lowModeActive = !!window.__desklandLowMode;
+        const profile = (lowModeActive ? QUALITY_PROFILES.Low : (QUALITY_PROFILES[settings.quality] || QUALITY_PROFILES.High));
         const rawDeltaMs = now - lastFrameTime;
-        if (rawDeltaMs < minFrameInterval) return;
+        if (!lowModeActive) {
+          const minFrameInterval = 1000 / (profile.targetFps + 2);
+          if (rawDeltaMs < minFrameInterval) return;
+        }
 
-        const dt = clamp(rawDeltaMs * 0.001, 0.001, 0.05);
+        const dt = clamp(rawDeltaMs * 0.001, 0.001, lowModeActive ? 0.12 : 0.05);
         lastFrameTime = now;
         elapsedTime += dt;
 

@@ -2,6 +2,105 @@
   "version": 1,
   "themes": [
     {
+      "id": "software-world",
+      "adaptive": true,
+      "name": "代码生态",
+      "desc": "实时软件生态系统：桌面图标化作交互式节点，呈现代理连线、数据包流动、Git 分支与终端氛围",
+      "page": "software-world.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/software-world.webp) center / cover no-repeat, linear-gradient(155deg, #0a0d13 0%, #101928 55%, #0f141d 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "生态系统",
+          "params": [
+            {
+              "key": "animSpeed",
+              "label": "动画速度",
+              "hint": "数据包、节点脉冲、Git 分支与环境漂移的整体速度",
+              "min": 0.25,
+              "max": 2.5,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "networkActivity",
+              "label": "网络活跃度",
+              "hint": "沿节点连线穿梭的数据包频率与吞吐量",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "connectionIntensity",
+              "label": "连线强度",
+              "hint": "节点之间依赖与数据流连线的可见度与覆盖范围",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.55,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "氛围细节",
+          "params": [
+            {
+              "key": "particleDensity",
+              "label": "粒子密度",
+              "hint": "环境网络粒子与后台系统微粒的密度",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.55,
+              "format": "percent"
+            },
+            {
+              "key": "codeParticleDensity",
+              "label": "代码符号密度",
+              "hint": "背景中漂浮编程符号粒子的密度",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.45,
+              "format": "percent"
+            },
+            {
+              "key": "envDetail",
+              "label": "环境细节",
+              "hint": "Git 分支、终端日志、构建圆弧与网格的细节层级",
+              "min": 0.0,
+              "max": 1.0,
+              "step": 0.05,
+              "default": 0.7,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "性能",
+          "params": [
+            {
+              "key": "quality",
+              "label": "画质",
+              "hint": "渲染分辨率缩放与生态细节预算",
+              "options": [
+                "低",
+                "均衡",
+                "高"
+              ],
+              "default": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "meadow",
       "adaptive": true,
       "name": "草地",
@@ -1618,6 +1717,677 @@
               "step": 0.05,
               "default": 1.0,
               "format": "times"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neumorph",
+      "adaptive": true,
+      "name": "新拟态触感表面",
+      "desc": "柔和光影塑形的新拟态交互桌面：微凹凸纹理矩阵、旋钮与滑块控件随指针与点击产生真实弹性压感，桌面图标安放于柔光底座之中",
+      "page": "neumorph.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/neumorph.webp) center / cover no-repeat, linear-gradient(155deg, #edf1f7 0%, #e0e5ec 55%, #d2d9e4 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "质感与光影",
+          "params": [
+            {
+              "key": "palette",
+              "label": "表面配色",
+              "options": [
+                "柔白石膏",
+                "暖沙陶土",
+                "暗夜石板",
+                "鼠尾草雾"
+              ],
+              "values": [
+                "alabaster",
+                "sand",
+                "slate",
+                "sage"
+              ],
+              "default": "alabaster"
+            },
+            {
+              "key": "accentColor",
+              "label": "指示灯色",
+              "options": [
+                "钴蓝",
+                "珊瑚",
+                "翡翠",
+                "琥珀"
+              ],
+              "values": [
+                "cobalt",
+                "coral",
+                "emerald",
+                "amber"
+              ],
+              "default": "cobalt"
+            },
+            {
+              "key": "reliefDepth",
+              "label": "浮雕深度",
+              "min": 0.3,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            },
+            {
+              "key": "lightFollowCursor",
+              "label": "光线跟随指针",
+              "options": [
+                "关闭",
+                "开启"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": false
+            }
+          ]
+        },
+        {
+          "name": "触感与律动",
+          "params": [
+            {
+              "key": "waveSpeed",
+              "label": "呼吸波速",
+              "min": 0.0,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 0.75,
+              "format": "times"
+            },
+            {
+              "key": "tileDensity",
+              "label": "纹理密度",
+              "min": 0.5,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "rippleStrength",
+              "label": "点击压感波纹",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconStyle",
+              "label": "图标底座样式",
+              "options": [
+                "凸起底座",
+                "内凹槽位",
+                "极简光环"
+              ],
+              "values": [
+                "cradle",
+                "well",
+                "minimal"
+              ],
+              "default": "cradle"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "claymorph",
+      "adaptive": true,
+      "name": "黏土拟态糖果世界",
+      "desc": "蓬松 Q 弹的 3D 黏土拟态桌面：悬浮糖果色黏土球与胶囊随鼠标轻推产生果冻般回弹形变，桌面图标安放于饱满立体黏土托垫之上",
+      "page": "claymorph.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/claymorph.webp) center / cover no-repeat, linear-gradient(155deg, #f3f5fc 0%, #e1e7f7 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "黏土与配色",
+          "params": [
+            {
+              "key": "palette",
+              "label": "糖果配色",
+              "options": [
+                "马卡龙粉彩",
+                "莓果奶油",
+                "抹茶陶土",
+                "暮色黏土"
+              ],
+              "values": [
+                "pastel",
+                "candy",
+                "matcha",
+                "dusk"
+              ],
+              "default": "pastel"
+            },
+            {
+              "key": "puffiness",
+              "label": "蓬松厚度",
+              "min": 0.4,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            },
+            {
+              "key": "squishStrength",
+              "label": "Q弹挤压感",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "悬浮塑形",
+          "params": [
+            {
+              "key": "blobCount",
+              "label": "黏土球数量",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "floatSpeed",
+              "label": "漂浮速率",
+              "min": 0.0,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 0.8,
+              "format": "times"
+            },
+            {
+              "key": "cursorRepel",
+              "label": "指针推弹力",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconCradle",
+              "label": "图标托垫样式",
+              "options": [
+                "彩色糖果垫",
+                "奶油枕垫",
+                "立体圆环"
+              ],
+              "values": [
+                "puffy",
+                "cloud",
+                "ring"
+              ],
+              "default": "puffy"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "neobrutalism",
+      "adaptive": true,
+      "name": "新粗野主义海报",
+      "desc": "高对比撞色块、粗黑描边与硬朗零模糊偏移投影构成的动态平面海报桌面，支持点击机械按压反馈与桌面图标贴纸相框",
+      "page": "neobrutalism.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/neobrutalism.webp) center / cover no-repeat, linear-gradient(155deg, #f6f1e7 0%, #ffe14d 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "配色与描边",
+          "params": [
+            {
+              "key": "palette",
+              "label": "海报配色",
+              "options": [
+                "包豪斯撞色",
+                "酸性霓虹",
+                "复古印刷",
+                "暗夜刊物"
+              ],
+              "values": [
+                "bauhaus",
+                "acid",
+                "zine",
+                "dark"
+              ],
+              "default": "bauhaus"
+            },
+            {
+              "key": "borderWeight",
+              "label": "描边粗细",
+              "min": 1.5,
+              "max": 5.5,
+              "step": 0.5,
+              "default": 3.0
+            },
+            {
+              "key": "shadowDepth",
+              "label": "硬投影偏移",
+              "min": 2.0,
+              "max": 14.0,
+              "step": 0.5,
+              "default": 7.0
+            },
+            {
+              "key": "halftonePattern",
+              "label": "网点纹理",
+              "options": [
+                "关闭",
+                "开启"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": true
+            }
+          ]
+        },
+        {
+          "name": "动态与交互",
+          "params": [
+            {
+              "key": "shapeCount",
+              "label": "几何色块数量",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "motionSpeed",
+              "label": "律动速率",
+              "min": 0.0,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 0.85,
+              "format": "times"
+            },
+            {
+              "key": "cursorPush",
+              "label": "指针推弹力",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconFrame",
+              "label": "图标边框样式",
+              "options": [
+                "撞色卡片",
+                "倾斜贴纸",
+                "极简线框"
+              ],
+              "values": [
+                "card",
+                "sticker",
+                "blueprint"
+              ],
+              "default": "card"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "voxelcraft",
+      "adaptive": true,
+      "name": "像素方块世界",
+      "desc": "像素风体素生态桌面：支持四季生物群系、昼夜方块日月循环、闪烁火把与萤火虫、点击碎块经验球，并在桌面图标下方生成漂浮方块岛台",
+      "page": "voxelcraft.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/voxelcraft.webp) center / cover no-repeat, linear-gradient(160deg, #6aaeff 0%, #c6e6ff 60%, #5ca944 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "世界与天时",
+          "params": [
+            {
+              "key": "biome",
+              "label": "生物群系",
+              "options": [
+                "橡树平原",
+                "樱花树林",
+                "雪原针叶林",
+                "绯红下界"
+              ],
+              "values": [
+                "overworld",
+                "cherry",
+                "snowy",
+                "nether"
+              ],
+              "default": "overworld"
+            },
+            {
+              "key": "timeOfDay",
+              "label": "昼夜时段",
+              "options": [
+                "自动循环",
+                "正午晴空",
+                "日落黄昏",
+                "星夜萤火"
+              ],
+              "values": [
+                "auto",
+                "day",
+                "sunset",
+                "night"
+              ],
+              "default": "auto"
+            },
+            {
+              "key": "blockSize",
+              "label": "方块尺寸",
+              "min": 0.75,
+              "max": 1.4,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "cloudDensity",
+              "label": "方块云量",
+              "min": 0.0,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "生态与粒子",
+          "params": [
+            {
+              "key": "weatherAmount",
+              "label": "落叶/萤火/雪花",
+              "min": 0.0,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            },
+            {
+              "key": "critterAmount",
+              "label": "像素蜜蜂",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.1,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "torchGlow",
+              "label": "火把辉光",
+              "min": 0.0,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            },
+            {
+              "key": "animSpeed",
+              "label": "时间流速",
+              "min": 0.2,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconBlockStyle",
+              "label": "图标底座方块",
+              "options": [
+                "漂浮草岛",
+                "木板平台",
+                "像素线框"
+              ],
+              "values": [
+                "island",
+                "planks",
+                "frame"
+              ],
+              "default": "island"
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "liquidglass",
+      "adaptive": true,
+      "name": "液态玻璃折射",
+      "desc": "流光丝绸背景之上悬浮着实时折射、带有色散高光边缘的液态玻璃胶囊与水滴，支持指针光学透镜与桌面图标磨砂玻璃底座",
+      "page": "liquidglass.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "url(thumbs/liquidglass.webp) center / cover no-repeat, linear-gradient(155deg, #0b2545 0%, #2dd4bf 55%, #38bdf8 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "玻璃与流光",
+          "params": [
+            {
+              "key": "palette",
+              "label": "流光配色",
+              "options": [
+                "太浩冰蓝",
+                "极光棱镜",
+                "日落丝绸",
+                "黑曜烟熏"
+              ],
+              "values": [
+                "tahoe",
+                "aurora",
+                "prism",
+                "obsidian"
+              ],
+              "default": "tahoe"
+            },
+            {
+              "key": "refraction",
+              "label": "光学折射率",
+              "min": 0.2,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "percent"
+            },
+            {
+              "key": "frostAmount",
+              "label": "磨砂雾度",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            },
+            {
+              "key": "dispersion",
+              "label": "边缘色散",
+              "min": 0.0,
+              "max": 1.6,
+              "step": 0.05,
+              "default": 0.95,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "流体与水滴",
+          "params": [
+            {
+              "key": "dropletCount",
+              "label": "液态水滴数",
+              "min": 0.0,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "flowSpeed",
+              "label": "流光流速",
+              "min": 0.0,
+              "max": 2.0,
+              "step": 0.05,
+              "default": 0.85,
+              "format": "times"
+            },
+            {
+              "key": "cursorLens",
+              "label": "指针光学透镜",
+              "options": [
+                "关闭",
+                "开启"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": true
+            }
+          ]
+        },
+        {
+          "name": "图标与性能",
+          "params": [
+            {
+              "key": "iconGlassStyle",
+              "label": "图标玻璃样式",
+              "options": [
+                "磨砂胶囊",
+                "晶莹水滴",
+                "棱镜描边"
+              ],
+              "values": [
+                "capsule",
+                "droplet",
+                "prism"
+              ],
+              "default": "capsule"
             },
             {
               "key": "quality",

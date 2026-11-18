@@ -1,0 +1,1045 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voxel Craft World</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #76b8ff; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; image-rendering: pixelated; }
+    #ghosts { position: fixed; inset: 0; pointer-events: none; }
+    .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .28; }
+    .ghost i { width: 40px; height: 40px; border-radius: 4px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+    .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 2px; background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // 1. CONFIGURATION, BIOMES & QUALITY PROFILES
+    // =========================================================================
+    const QS = new URLSearchParams(location.search || '');
+    const WALL = QS.has('wallpaper');
+    const PREVIEW = QS.has('preview');
+
+    const DEFAULTS = {
+      biome: 'overworld',
+      timeOfDay: 'auto',
+      blockSize: 1.0,
+      cloudDensity: 1.0,
+      weatherAmount: 1.0,
+      critterAmount: 1.0,
+      torchGlow: 1.0,
+      animSpeed: 1.0,
+      iconBlockStyle: 'island',
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    const P = Object.assign({}, DEFAULTS);
+
+    const BIOMES = {
+      overworld: {
+        name: 'Overworld',
+        skyDayTop: [106, 174, 255], skyDayBot: [198, 230, 255],
+        skySunTop: [196, 108, 96],  skySunBot: [255, 204, 128],
+        skyNitTop: [11, 18, 38],    skyNitBot: [26, 40, 72],
+        hillFar: '#5987a8', hillFarNit: '#1c2b4a',
+        grassTop: '#64b848', grassMid: '#519e39', grassEdge: '#3e7f2b',
+        dirt: ['#8a5d3b', '#764e30', '#966844'],
+        stone: ['#7c8088', '#686c74', '#8e929b'],
+        planks: ['#b8844c', '#9e6d3b', '#c7935a'],
+        trunk: ['#6c4a2b', '#54381e', '#7d5634'],
+        leaves: ['#478d35', '#5aa844', '#387229'],
+        water: ['#3882d6', '#4a98ea', '#82c8ff'],
+        glowRgb: '255, 190, 74',
+        weatherKind: 'firefly',
+        particles: ['#64b848', '#8a5d3b', '#478d35']
+      },
+      cherry: {
+        name: 'Cherry Grove',
+        skyDayTop: [134, 192, 255], skyDayBot: [252, 224, 236],
+        skySunTop: [212, 110, 146], skySunBot: [255, 206, 178],
+        skyNitTop: [24, 18, 44],    skyNitBot: [48, 34, 76],
+        hillFar: '#8e88ad', hillFarNit: '#2c2246',
+        grassTop: '#72be58', grassMid: '#5da645', grassEdge: '#488834',
+        dirt: ['#875c3e', '#724c31', '#946747'],
+        stone: ['#807e8a', '#6b6975', '#92909c'],
+        planks: ['#d498a6', '#b87c8c', '#e0aab8'],
+        trunk: ['#52343a', '#3d2429', '#66434a'],
+        leaves: ['#f299be', '#ffb8d6', '#d87aa2'],
+        water: ['#4b94dc', '#64aaef', '#a6d8ff'],
+        glowRgb: '255, 206, 132',
+        weatherKind: 'petal',
+        particles: ['#ffb8d6', '#f299be', '#72be58']
+      },
+      snowy: {
+        name: 'Snowy Taiga',
+        skyDayTop: [136, 176, 214], skyDayBot: [218, 236, 250],
+        skySunTop: [134, 142, 196], skySunBot: [242, 184, 158],
+        skyNitTop: [9, 16, 34],     skyNitBot: [22, 36, 62],
+        hillFar: '#7b92ad', hillFarNit: '#18263d',
+        grassTop: '#f2f7fc', grassMid: '#dbe7f4', grassEdge: '#bfd3ea',
+        dirt: ['#7d5941', '#684833', '#8c664c'],
+        stone: ['#77808c', '#636c78', '#89929e'],
+        planks: ['#8a6345', '#735036', '#9c7252'],
+        trunk: ['#4c3625', '#382619', '#5d4430'],
+        leaves: ['#2b5b44', '#397357', '#1f4533'],
+        water: ['#457fb5', '#5e9ad1', '#b4dcff'],
+        glowRgb: '255, 174, 72',
+        weatherKind: 'snow',
+        particles: ['#f2f7fc', '#dbe7f4', '#7d5941']
+      },
+      nether: {
+        name: 'Crimson Nether',
+        skyDayTop: [54, 12, 14],    skyDayBot: [112, 26, 20],
+        skySunTop: [58, 12, 16],    skySunBot: [128, 30, 22],
+        skyNitTop: [36, 8, 10],     skyNitBot: [82, 18, 14],
+        hillFar: '#4c1416', hillFarNit: '#3b0e10',
+        grassTop: '#a63636', grassMid: '#8a2828', grassEdge: '#6b1c1c',
+        dirt: ['#581c1c', '#441313', '#6b2525'],
+        stone: ['#322b38', '#251f2b', '#413948'],
+        planks: ['#78283c', '#5e1c2c', '#8f344b'],
+        trunk: ['#692232', '#4f1624', '#802c40'],
+        leaves: ['#a62c2b', '#d45a28', '#7c1c1c'],
+        water: ['#e8581c', '#ff8c28', '#ffd85c'],
+        glowRgb: '255, 118, 38',
+        weatherKind: 'ember',
+        particles: ['#a63636', '#ff8c28', '#581c1c']
+      }
+    };
+
+    const QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, weatherScale: 0.42, critterScale: 0.45, cloudScale: 0.55, detailPixels: false },
+      Medium: { maxDpr: 1.25, weatherScale: 0.75, critterScale: 0.80, cloudScale: 0.85, detailPixels: true },
+      High:   { maxDpr: 1.50, weatherScale: 1.00, critterScale: 1.00, cloudScale: 1.00, detailPixels: true }
+    };
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    function getBiome() {
+      return BIOMES[P.biome] || BIOMES.overworld;
+    }
+
+    // =========================================================================
+    // 2. CANVAS STATE, UTILITIES & PRNG
+    // =========================================================================
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d', { alpha: false });
+    const terrainCanvas = document.createElement('canvas');
+    const tCtx = terrainCanvas.getContext('2d');
+
+    let W = innerWidth || 1920;
+    let H = innerHeight || 1080;
+    let scale = 1;
+    let cacheOK = false;
+    let paused = false;
+    let _rafId = 0;
+    let lastT = 0;
+    let simTime = 0;
+    let seed = 20261118;
+    let BLOCK = 28;
+    let icons = [];
+    let iconsSeen = false;
+
+    const pointer = { x: -9999, y: -9999, active: false, down: false };
+
+    function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function lerpRgb(c1, c2, t) {
+      return [
+        Math.round(c1[0] + (c2[0] - c1[0]) * t),
+        Math.round(c1[1] + (c2[1] - c1[1]) * t),
+        Math.round(c1[2] + (c2[2] - c1[2]) * t)
+      ];
+    }
+    function mulberry32(a) {
+      let s = a >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // =========================================================================
+    // 3. PROCEDURAL 16x16 PIXEL-ART BLOCK ATLAS & GLOW SPRITE
+    // =========================================================================
+    const atlas = {};
+    let glowSprite = null;
+    let atlasKey = '';
+
+    function makeTile16(drawFn) {
+      const c = document.createElement('canvas');
+      c.width = 16;
+      c.height = 16;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      drawFn(g);
+      return c;
+    }
+
+    function bakeAtlas() {
+      const b = getBiome();
+      const key = P.biome;
+      if (atlasKey === key && atlas.grass) return;
+      atlasKey = key;
+
+      const rng = mulberry32(0x564F584C);
+
+      atlas.dirt = makeTile16(function (g) {
+        g.fillStyle = b.dirt[0];
+        g.fillRect(0, 0, 16, 16);
+        for (let y = 0; y < 16; y += 2) {
+          for (let x = 0; x < 16; x += 2) {
+            const r = rng();
+            if (r < 0.25) { g.fillStyle = b.dirt[1]; g.fillRect(x, y, 2, 2); }
+            else if (r > 0.82) { g.fillStyle = b.dirt[2]; g.fillRect(x, y, 2, 2); }
+          }
+        }
+      });
+
+      atlas.grass = makeTile16(function (g) {
+        g.drawImage(atlas.dirt, 0, 0);
+        g.fillStyle = b.grassMid;
+        g.fillRect(0, 0, 16, 5);
+        g.fillStyle = b.grassTop;
+        g.fillRect(0, 0, 16, 3);
+        const drops = [2, 3, 1, 4, 2, 3, 1, 2];
+        for (let i = 0; i < 8; i++) {
+          g.fillStyle = i % 2 === 0 ? b.grassMid : b.grassEdge;
+          g.fillRect(i * 2, 5, 2, drops[i]);
+        }
+      });
+
+      atlas.stone = makeTile16(function (g) {
+        g.fillStyle = b.stone[0];
+        g.fillRect(0, 0, 16, 16);
+        for (let y = 0; y < 16; y += 2) {
+          for (let x = 0; x < 16; x += 2) {
+            const r = rng();
+            if (r < 0.28) { g.fillStyle = b.stone[1]; g.fillRect(x, y, 2, 2); }
+            else if (r > 0.78) { g.fillStyle = b.stone[2]; g.fillRect(x, y, 2, 2); }
+          }
+        }
+      });
+
+      atlas.planks = makeTile16(function (g) {
+        g.fillStyle = b.planks[0];
+        g.fillRect(0, 0, 16, 16);
+        g.fillStyle = b.planks[2];
+        g.fillRect(0, 1, 16, 2);
+        g.fillRect(0, 9, 16, 2);
+        g.fillStyle = b.planks[1];
+        g.fillRect(0, 7, 16, 1);
+        g.fillRect(0, 15, 16, 1);
+        g.fillRect(7, 0, 1, 8);
+        g.fillRect(14, 8, 1, 8);
+      });
+
+      atlas.trunk = makeTile16(function (g) {
+        g.fillStyle = b.trunk[0];
+        g.fillRect(0, 0, 16, 16);
+        g.fillStyle = b.trunk[1];
+        g.fillRect(2, 0, 2, 16);
+        g.fillRect(10, 0, 2, 16);
+        g.fillStyle = b.trunk[2];
+        g.fillRect(6, 2, 2, 10);
+        g.fillRect(13, 4, 2, 9);
+      });
+
+      atlas.leaves = makeTile16(function (g) {
+        g.fillStyle = b.leaves[0];
+        g.fillRect(0, 0, 16, 16);
+        for (let y = 0; y < 16; y += 2) {
+          for (let x = 0; x < 16; x += 2) {
+            const r = rng();
+            if (r < 0.30) { g.fillStyle = b.leaves[1]; g.fillRect(x, y, 2, 2); }
+            else if (r > 0.74) { g.fillStyle = b.leaves[2]; g.fillRect(x, y, 2, 2); }
+          }
+        }
+      });
+
+      // Pre-baked radial glow sprite for torches/lava (zero shadowBlur!)
+      const gs = 128;
+      glowSprite = document.createElement('canvas');
+      glowSprite.width = gs;
+      glowSprite.height = gs;
+      const gx = glowSprite.getContext('2d');
+      const rg = gx.createRadialGradient(gs * 0.5, gs * 0.5, 0, gs * 0.5, gs * 0.5, gs * 0.5);
+      rg.addColorStop(0.0, 'rgba(' + b.glowRgb + ', 0.65)');
+      rg.addColorStop(0.35, 'rgba(' + b.glowRgb + ', 0.25)');
+      rg.addColorStop(1.0, 'rgba(' + b.glowRgb + ', 0)');
+      gx.fillStyle = rg;
+      gx.fillRect(0, 0, gs, gs);
+    }
+
+    // =========================================================================
+    // 4. TERRAIN, TREES, CLOUDS, WEATHER & CRITTERS
+    // =========================================================================
+    const clouds = [];
+    const weather = [];
+    const critters = [];
+    const torches = [];
+    const particles = [];
+    const stars = [];
+    let pondSpan = null;
+    let terrainHeights = [];
+
+    function buildSkyObjects() {
+      const prof = getProfile();
+      const rng = mulberry32(seed ^ 0x534B5931);
+
+      stars.length = 0;
+      for (let i = 0; i < 42; i++) {
+        stars.push({
+          nx: rng(),
+          ny: 0.04 + rng() * 0.44,
+          size: rng() > 0.7 ? 3 : 2,
+          phase: rng() * Math.PI * 2
+        });
+      }
+
+      const cCount = clamp(Math.round(7 * P.cloudDensity * prof.cloudScale), 0, 14);
+      clouds.length = 0;
+      for (let i = 0; i < cCount; i++) {
+        clouds.push({
+          x: rng() * (W + 200) - 100,
+          y: Math.round((0.06 + rng() * 0.24) * H),
+          w: Math.round((4 + Math.floor(rng() * 4)) * BLOCK),
+          h: Math.round(BLOCK * 0.7),
+          speed: 8 + rng() * 14
+        });
+      }
+
+      const wCount = clamp(Math.round(28 * P.weatherAmount * prof.weatherScale), 0, 56);
+      weather.length = 0;
+      for (let i = 0; i < wCount; i++) {
+        weather.push({
+          x: rng() * W,
+          y: rng() * H,
+          vx: (rng() - 0.5) * 22,
+          vy: 16 + rng() * 26,
+          size: rng() > 0.5 ? 4 : 3,
+          phase: rng() * Math.PI * 2
+        });
+      }
+
+      const kCount = clamp(Math.round(5 * P.critterAmount * prof.critterScale), 0, 10);
+      critters.length = 0;
+      for (let i = 0; i < kCount; i++) {
+        critters.push({
+          x: (0.15 + rng() * 0.70) * W,
+          y: (0.25 + rng() * 0.45) * H,
+          vx: 0,
+          vy: 0,
+          phase: rng() * Math.PI * 2,
+          dir: rng() > 0.5 ? 1 : -1
+        });
+      }
+    }
+
+    function drawBlockTree(colX, groundY, isPine, rng) {
+      const trunkH = isPine ? (4 + Math.floor(rng() * 2)) : (3 + Math.floor(rng() * 2));
+      for (let i = 1; i <= trunkH; i++) {
+        tCtx.drawImage(atlas.trunk, colX, groundY - i * BLOCK, BLOCK, BLOCK);
+      }
+      const topY = groundY - trunkH * BLOCK;
+      if (isPine) {
+        const layers = [
+          { dy: 0, w: 2 },
+          { dy: -1, w: 2 },
+          { dy: -2, w: 1 },
+          { dy: -3, w: 1 },
+          { dy: -4, w: 0 }
+        ];
+        for (let l = 0; l < layers.length; l++) {
+          const ly = topY + layers[l].dy * BLOCK;
+          for (let dx = -layers[l].w; dx <= layers[l].w; dx++) {
+            tCtx.drawImage(atlas.leaves, colX + dx * BLOCK, ly, BLOCK, BLOCK);
+          }
+        }
+      } else {
+        for (let dy = -2; dy <= 0; dy++) {
+          const span = dy === -2 ? 1 : 2;
+          for (let dx = -span; dx <= span; dx++) {
+            if (dy === -2 && Math.abs(dx) === 1 && rng() > 0.6) continue;
+            tCtx.drawImage(atlas.leaves, colX + dx * BLOCK, topY + dy * BLOCK, BLOCK, BLOCK);
+          }
+        }
+        tCtx.drawImage(atlas.leaves, colX, topY - 3 * BLOCK, BLOCK, BLOCK);
+      }
+    }
+
+    function renderTerrainLayer() {
+      bakeAtlas();
+      terrainCanvas.width = Math.max(1, Math.round(W * scale));
+      terrainCanvas.height = Math.max(1, Math.round(H * scale));
+      tCtx.setTransform(scale, 0, 0, scale, 0, 0);
+      tCtx.imageSmoothingEnabled = false;
+      tCtx.clearRect(0, 0, W, H);
+
+      const cols = Math.ceil(W / BLOCK) + 1;
+      const baseRow = Math.floor((H - BLOCK * 2.2) / BLOCK);
+      const rng = mulberry32(seed ^ 0x54455252);
+
+      // Determine pond / lava pool span near bottom-center-right
+      const pStart = Math.floor(cols * 0.48);
+      const pEnd = Math.min(cols - 3, pStart + Math.max(4, Math.floor(cols * 0.14)));
+      pondSpan = { startCol: pStart, endCol: pEnd, waterY: (baseRow + 1) * BLOCK };
+
+      terrainHeights = new Array(cols);
+      torches.length = 0;
+
+      for (let c = 0; c < cols; c++) {
+        let hOffset = 0;
+        if (c >= pStart && c <= pEnd) {
+          hOffset = -1;
+        } else {
+          const wave = Math.sin(c * 0.35 + (seed % 7)) * 1.4 + Math.cos(c * 0.18) * 1.1;
+          hOffset = clamp(Math.round(wave), 0, 3);
+        }
+        const topRow = baseRow - hOffset;
+        terrainHeights[c] = topRow * BLOCK;
+
+        for (let r = topRow; r * BLOCK < H; r++) {
+          const px = c * BLOCK;
+          const py = r * BLOCK;
+          if (c >= pStart && c <= pEnd && r === topRow) {
+            // Pond bed stone
+            tCtx.drawImage(atlas.stone, px, py, BLOCK, BLOCK);
+          } else if (r === topRow) {
+            tCtx.drawImage(atlas.grass, px, py, BLOCK, BLOCK);
+          } else if (r <= topRow + 1) {
+            tCtx.drawImage(atlas.dirt, px, py, BLOCK, BLOCK);
+          } else {
+            tCtx.drawImage(atlas.stone, px, py, BLOCK, BLOCK);
+          }
+        }
+      }
+
+      // Place trees & glowing torches cleanly away from pond
+      const isPine = P.biome === 'snowy';
+      let lastTreeCol = -5;
+      for (let c = 2; c < cols - 3; c++) {
+        if (c >= pStart - 2 && c <= pEnd + 2) continue;
+        if (c - lastTreeCol >= 5 && rng() > 0.62) {
+          drawBlockTree(c * BLOCK, terrainHeights[c], isPine, rng);
+          lastTreeCol = c;
+          if (rng() > 0.45 && c + 2 < cols && (c + 2 < pStart - 1 || c + 2 > pEnd + 1)) {
+            torches.push({
+              x: (c + 2) * BLOCK + BLOCK * 0.42,
+              y: terrainHeights[c + 2]
+            });
+          }
+        }
+      }
+      if (torches.length === 0 && cols > 5) {
+        torches.push({ x: 3 * BLOCK + BLOCK * 0.42, y: terrainHeights[3] });
+      }
+
+      cacheOK = true;
+    }
+
+    // =========================================================================
+    // 5. ADAPTIVE DESKTOP ICON VOXEL PLATFORMS
+    // =========================================================================
+    const iconStates = [];
+
+    function syncIncomingIcons(rects) {
+      icons = Array.isArray(rects) ? rects : [];
+      iconsSeen = true;
+
+      const matched = new Set();
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        let bestIdx = -1;
+        let bestDist = 48;
+        for (let s = 0; s < iconStates.length; s++) {
+          if (matched.has(s)) continue;
+          const st = iconStates[s];
+          const d = Math.hypot(ic.x - st.tx, ic.y - st.ty);
+          if (d < bestDist) { bestDist = d; bestIdx = s; }
+        }
+        if (bestIdx >= 0) {
+          const st = iconStates[bestIdx];
+          st.tx = ic.x; st.ty = ic.y; st.tw = ic.w; st.th = ic.h;
+          st.removing = false;
+          matched.add(bestIdx);
+        } else {
+          iconStates.push({
+            x: ic.x, y: ic.y, w: ic.w, h: ic.h,
+            tx: ic.x, ty: ic.y, tw: ic.w, th: ic.h,
+            opacity: 0,
+            bounce: 0,
+            bounceVel: 0,
+            hasTorch: (i % 3 === 0),
+            removing: false
+          });
+          matched.add(iconStates.length - 1);
+        }
+      }
+      for (let s = 0; s < iconStates.length; s++) {
+        if (!matched.has(s)) iconStates[s].removing = true;
+      }
+    }
+
+    // =========================================================================
+    // 6. INTERACTION & SIMULATION
+    // =========================================================================
+    function popBlockBreak(x, y) {
+      const b = getBiome();
+      for (let i = 0; i < 12; i++) {
+        if (particles.length >= 96) particles.shift();
+        const isXp = i < 4;
+        const ang = -Math.PI * 0.15 - Math.random() * Math.PI * 0.7;
+        const spd = 75 + Math.random() * 135;
+        particles.push({
+          x: x,
+          y: y,
+          vx: Math.cos(ang) * spd + (Math.random() - 0.5) * 45,
+          vy: Math.sin(ang) * spd,
+          size: isXp ? 6 : 5,
+          xp: isXp,
+          col: isXp ? (i % 2 === 0 ? '#a8ff56' : '#ffe85c') : b.particles[i % b.particles.length],
+          life: 0,
+          maxLife: isXp ? 1.15 : 0.75
+        });
+      }
+
+      for (let i = 0; i < iconStates.length; i++) {
+        const st = iconStates[i];
+        const d = Math.hypot(st.x + st.w * 0.5 - x, st.y + st.h * 0.5 - y);
+        if (d < 160) {
+          st.bounceVel += (1 - d / 160) * 90;
+        }
+      }
+    }
+
+    function stepSimulation(dt) {
+      const spd = clamp(P.animSpeed, 0.2, 2.5);
+      simTime += dt * spd;
+      const b = getBiome();
+
+      for (let i = 0; i < clouds.length; i++) {
+        const c = clouds[i];
+        c.x += c.speed * spd * dt;
+        if (c.x > W + 40) c.x = -c.w - 40;
+      }
+
+      for (let i = 0; i < weather.length; i++) {
+        const w = weather[i];
+        if (b.weatherKind === 'firefly') {
+          w.x += Math.sin(simTime * 0.9 + w.phase) * 18 * dt;
+          w.y += Math.cos(simTime * 1.1 + w.phase) * 14 * dt;
+        } else if (b.weatherKind === 'ember') {
+          w.x += Math.sin(simTime * 2.2 + w.phase) * 20 * dt;
+          w.y -= w.vy * spd * dt;
+          if (w.y < -12) { w.y = H + 12; w.x = Math.random() * W; }
+        } else {
+          w.x += (w.vx + Math.sin(simTime * 1.3 + w.phase) * 16) * dt;
+          w.y += w.vy * spd * dt;
+          if (w.y > H + 12) { w.y = -12; w.x = Math.random() * W; }
+          if (w.x > W + 12) w.x = -12;
+          if (w.x < -12) w.x = W + 12;
+        }
+      }
+
+      // Pixel bees / critters gently patrol and inspect cursor
+      for (let i = 0; i < critters.length; i++) {
+        const cr = critters[i];
+        let tx = cr.x + Math.cos(simTime * 0.55 + cr.phase) * 45;
+        let ty = cr.y + Math.sin(simTime * 0.85 + cr.phase) * 24;
+        if (pointer.active && i === 0) {
+          tx = pointer.x + Math.cos(simTime * 1.8) * 32;
+          ty = pointer.y + Math.sin(simTime * 2.1) * 22;
+        }
+        cr.vx += ((tx - cr.x) * 2.5 - cr.vx * 3.0) * dt;
+        cr.vy += ((ty - cr.y) * 2.5 - cr.vy * 3.0) * dt;
+        cr.x = clamp(cr.x + cr.vx * dt, 24, W - 24);
+        cr.y = clamp(cr.y + cr.vy * dt, 24, H - 60);
+        if (Math.abs(cr.vx) > 2) cr.dir = cr.vx >= 0 ? 1 : -1;
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life += dt;
+        if (p.life >= p.maxLife) { particles.splice(i, 1); continue; }
+        p.vy += (p.xp ? 160 : 380) * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      }
+
+      const posAlpha = 1 - Math.exp(-10 * dt);
+      for (let i = iconStates.length - 1; i >= 0; i--) {
+        const st = iconStates[i];
+        st.x = lerp(st.x, st.tx, posAlpha);
+        st.y = lerp(st.y, st.ty, posAlpha);
+        st.w = lerp(st.w, st.tw, posAlpha);
+        st.h = lerp(st.h, st.th, posAlpha);
+        if (st.removing) {
+          st.opacity = Math.max(0, st.opacity - dt * 2.6);
+          if (st.opacity <= 0.005) { iconStates.splice(i, 1); continue; }
+        } else {
+          st.opacity = Math.min(1, st.opacity + dt * 3.2);
+        }
+        const acc = -st.bounce * 120 - st.bounceVel * 12;
+        st.bounceVel += acc * dt;
+        st.bounce = clamp(st.bounce + st.bounceVel * dt, -10, 12);
+      }
+    }
+
+    // =========================================================================
+    // 7. SKY CYCLE & RENDERING
+    // =========================================================================
+    function getSkyPhase() {
+      if (P.timeOfDay === 'day') return 0.25;
+      if (P.timeOfDay === 'sunset') return 0.50;
+      if (P.timeOfDay === 'night') return 0.82;
+      return (simTime * 0.012 + 0.18) % 1.0;
+    }
+
+    function computeSkyColors(b, phase) {
+      // 0..0.42 day, 0.42..0.60 sunset, 0.60..0.92 night, 0.92..1.0 dawn
+      if (phase < 0.40) return { top: b.skyDayTop, bot: b.skyDayBot, nightAmt: 0 };
+      if (phase < 0.50) {
+        const u = (phase - 0.40) / 0.10;
+        return { top: lerpRgb(b.skyDayTop, b.skySunTop, u), bot: lerpRgb(b.skyDayBot, b.skySunBot, u), nightAmt: u * 0.3 };
+      }
+      if (phase < 0.62) {
+        const u = (phase - 0.50) / 0.12;
+        return { top: lerpRgb(b.skySunTop, b.skyNitTop, u), bot: lerpRgb(b.skySunBot, b.skyNitBot, u), nightAmt: 0.3 + u * 0.7 };
+      }
+      if (phase < 0.90) return { top: b.skyNitTop, bot: b.skyNitBot, nightAmt: 1 };
+      const u = (phase - 0.90) / 0.10;
+      return { top: lerpRgb(b.skyNitTop, b.skyDayTop, u), bot: lerpRgb(b.skyNitBot, b.skyDayBot, u), nightAmt: 1 - u };
+    }
+
+    function drawTorch(tx, groundY, glowStrength, nightAmt) {
+      const tw = Math.max(4, Math.round(BLOCK * 0.18));
+      const th = Math.round(BLOCK * 0.55);
+      ctx.fillStyle = '#6b4728';
+      ctx.fillRect(Math.round(tx), Math.round(groundY - th), tw, th);
+      const flicker = 0.85 + 0.15 * Math.sin(simTime * 9.0 + tx);
+      ctx.fillStyle = '#ffd659';
+      ctx.fillRect(Math.round(tx - 1), Math.round(groundY - th - tw), tw + 2, tw + 1);
+      ctx.fillStyle = '#fff8c4';
+      ctx.fillRect(Math.round(tx), Math.round(groundY - th - tw + 1), tw, Math.max(2, tw - 1));
+
+      if (glowSprite && glowStrength > 0.02) {
+        const gRad = BLOCK * (2.6 + nightAmt * 1.4) * flicker;
+        ctx.save();
+        ctx.globalAlpha = clamp((0.35 + nightAmt * 0.55) * glowStrength, 0, 0.95);
+        ctx.drawImage(glowSprite, tx + tw * 0.5 - gRad, groundY - th - gRad, gRad * 2, gRad * 2);
+        ctx.restore();
+      }
+    }
+
+    function draw() {
+      if (!cacheOK) renderTerrainLayer();
+
+      const b = getBiome();
+      const prof = getProfile();
+      const phase = getSkyPhase();
+      const sky = computeSkyColors(b, phase);
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+
+      // 1. Sky backdrop
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.85);
+      skyGrad.addColorStop(0, 'rgb(' + sky.top.join(',') + ')');
+      skyGrad.addColorStop(1, 'rgb(' + sky.bot.join(',') + ')');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      // 2. Twinkling square stars at night
+      if (sky.nightAmt > 0.15 && P.biome !== 'nether') {
+        for (let i = 0; i < stars.length; i++) {
+          const st = stars[i];
+          const tw = 0.5 + 0.5 * Math.sin(simTime * 2.1 + st.phase);
+          ctx.fillStyle = 'rgba(255, 255, 255, ' + (sky.nightAmt * tw * 0.85).toFixed(3) + ')';
+          ctx.fillRect(Math.round(st.nx * W), Math.round(st.ny * H), st.size, st.size);
+        }
+      }
+
+      // 3. Square voxel Sun / Moon
+      if (P.biome !== 'nether') {
+        const sunSize = Math.round(BLOCK * 1.45);
+        const arcAngle = phase * Math.PI * 2;
+        const sunX = Math.round(W * 0.5 + Math.cos(arcAngle - Math.PI * 0.85) * W * 0.36);
+        const sunY = Math.round(H * 0.42 - Math.sin(arcAngle - Math.PI * 0.85) * H * 0.32);
+        const isMoon = sky.nightAmt > 0.55;
+        ctx.fillStyle = isMoon ? '#e8f1ff' : '#fff3a1';
+        ctx.fillRect(sunX, sunY, sunSize, sunSize);
+        if (isMoon) {
+          ctx.fillStyle = '#c5d6f0';
+          ctx.fillRect(sunX + 6, sunY + 6, 8, 8);
+        }
+      }
+
+      // 4. Blocky drifting clouds
+      const cloudCol = P.biome === 'nether'
+        ? 'rgba(255, 92, 42, 0.14)'
+        : ('rgba(255, 255, 255, ' + (0.78 - sky.nightAmt * 0.55).toFixed(3) + ')');
+      ctx.fillStyle = cloudCol;
+      for (let i = 0; i < clouds.length; i++) {
+        const c = clouds[i];
+        const cx = Math.round(c.x);
+        ctx.fillRect(cx, c.y, c.w, c.h);
+        ctx.fillRect(cx + Math.round(c.w * 0.18), c.y - Math.round(c.h * 0.55), Math.round(c.w * 0.64), Math.round(c.h * 0.55));
+      }
+
+      // 5. Distant voxel silhouette hills
+      ctx.fillStyle = sky.nightAmt > 0.5 ? b.hillFarNit : b.hillFar;
+      const farStep = Math.round(BLOCK * 1.6);
+      for (let x = 0; x < W; x += farStep) {
+        const h = Math.round((Math.sin(x * 0.008 + seed) * 0.5 + 0.5) * BLOCK * 3.5 + BLOCK * 3.5);
+        ctx.fillRect(x, H - h - BLOCK * 2, farStep + 1, h + BLOCK * 2);
+      }
+
+      // 6. Cached voxel terrain & forest
+      ctx.drawImage(terrainCanvas, 0, 0, W, H);
+
+      // 7. Animated pond water / Nether lava pool
+      if (pondSpan) {
+        const wx = pondSpan.startCol * BLOCK;
+        const ww = (pondSpan.endCol - pondSpan.startCol + 1) * BLOCK;
+        const wy = pondSpan.waterY - Math.round(BLOCK * 0.22);
+        const wh = Math.round(BLOCK * 1.22);
+        ctx.fillStyle = b.water[0];
+        ctx.fillRect(wx, wy, ww, wh);
+        ctx.fillStyle = b.water[1];
+        ctx.fillRect(wx, wy, ww, Math.max(4, Math.round(BLOCK * 0.25)));
+        const glintX = wx + Math.round(((simTime * 28) % Math.max(20, ww - 18)));
+        ctx.fillStyle = b.water[2];
+        ctx.fillRect(glintX, wy + 2, 14, 3);
+      }
+
+      // 8. Ground torches & glow
+      const tGlow = clamp(P.torchGlow, 0, 1.8);
+      for (let i = 0; i < torches.length; i++) {
+        drawTorch(torches[i].x, torches[i].y, tGlow, sky.nightAmt);
+      }
+
+      // 9. Weather particles (fireflies / petals / snow / embers)
+      for (let i = 0; i < weather.length; i++) {
+        const w = weather[i];
+        if (b.weatherKind === 'firefly') {
+          const pulse = (0.35 + 0.65 * Math.sin(simTime * 3.2 + w.phase)) * (0.25 + sky.nightAmt * 0.75);
+          if (pulse <= 0.05) continue;
+          ctx.fillStyle = 'rgba(204, 255, 118, ' + pulse.toFixed(3) + ')';
+        } else if (b.weatherKind === 'petal') {
+          ctx.fillStyle = 'rgba(255, 184, 214, 0.85)';
+        } else if (b.weatherKind === 'ember') {
+          ctx.fillStyle = 'rgba(255, 138, 48, 0.85)';
+        } else {
+          ctx.fillStyle = 'rgba(244, 249, 255, 0.88)';
+        }
+        ctx.fillRect(Math.round(w.x), Math.round(w.y), w.size, w.size);
+      }
+
+      // 10. Cute pixel bees / critters
+      for (let i = 0; i < critters.length; i++) {
+        const cr = critters[i];
+        const bx = Math.round(cr.x);
+        const by = Math.round(cr.y + Math.sin(simTime * 6 + cr.phase) * 3);
+        if (P.biome === 'nether') {
+          ctx.fillStyle = '#ff9c47';
+          ctx.fillRect(bx - 5, by - 4, 10, 8);
+          ctx.fillStyle = '#fff5b8';
+          ctx.fillRect(bx + (cr.dir > 0 ? 1 : -4), by - 2, 3, 2);
+        } else {
+          ctx.fillStyle = '#ffd644';
+          ctx.fillRect(bx - 6, by - 4, 12, 8);
+          ctx.fillStyle = '#382a1e';
+          ctx.fillRect(bx - 2, by - 4, 3, 8);
+          ctx.fillRect(bx + 3, by - 4, 3, 8);
+          ctx.fillStyle = 'rgba(240, 250, 255, 0.85)';
+          const wingLift = Math.sin(simTime * 24 + cr.phase) > 0 ? -3 : -1;
+          ctx.fillRect(bx - 3, by - 4 + wingLift, 6, 3);
+        }
+      }
+
+      // 11. Adaptive desktop icon voxel platforms
+      if (P.adaptive !== 0) {
+        const tileS = Math.max(18, Math.round(BLOCK * 0.82));
+        for (let i = 0; i < iconStates.length; i++) {
+          const st = iconStates[i];
+          if (st.opacity <= 0.01) continue;
+          ctx.save();
+          ctx.globalAlpha = st.opacity;
+
+          const baseY = Math.round(st.y + st.h + 4 + st.bounce);
+          if (P.iconBlockStyle === 'frame') {
+            const fw = Math.round(st.w + 14);
+            const fh = Math.round(st.h + 10);
+            const fx = Math.round(st.x - 7);
+            const fy = Math.round(st.y - 5 + st.bounce);
+            ctx.fillStyle = 'rgba(24, 30, 44, 0.36)';
+            ctx.fillRect(fx, fy, fw, fh);
+            ctx.strokeStyle = b.grassTop;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(fx, fy, fw, fh);
+          } else {
+            const count = Math.max(3, Math.ceil((st.w + 16) / tileS));
+            const totalW = count * tileS;
+            const startX = Math.round(st.x + st.w * 0.5 - totalW * 0.5);
+            const tex = P.iconBlockStyle === 'planks' ? atlas.planks : atlas.grass;
+            for (let k = 0; k < count; k++) {
+              ctx.drawImage(tex, startX + k * tileS, baseY - Math.round(tileS * 0.55), tileS, tileS);
+            }
+            if (st.hasTorch && P.iconBlockStyle === 'island') {
+              drawTorch(startX + totalW - 8, baseY - Math.round(tileS * 0.55), tGlow * 0.75, sky.nightAmt);
+            }
+          }
+          ctx.restore();
+        }
+      }
+
+      // 12. Cursor lantern glow at night
+      if (pointer.active && glowSprite && (sky.nightAmt > 0.25 || P.biome === 'nether') && tGlow > 0.05) {
+        const pr = BLOCK * 3.0;
+        ctx.save();
+        ctx.globalAlpha = clamp((0.25 + sky.nightAmt * 0.45) * tGlow, 0, 0.75);
+        ctx.drawImage(glowSprite, pointer.x - pr, pointer.y - pr, pr * 2, pr * 2);
+        ctx.restore();
+      }
+
+      // 13. Block-break debris & bouncy XP orbs
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        ctx.globalAlpha = clamp(1 - p.life / p.maxLife, 0, 1);
+        ctx.fillStyle = p.col;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      }
+      ctx.globalAlpha = 1.0;
+    }
+
+    // =========================================================================
+    // 8. RESIZE, LIFECYCLE & HOST PROTOCOL
+    // =========================================================================
+    function resize() {
+      const box = cv.getBoundingClientRect();
+      W = box.width || innerWidth || 1920;
+      H = box.height || innerHeight || 1080;
+      const prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+
+      BLOCK = clamp(Math.round((Math.min(W, H) / 30) * clamp(P.blockSize, 0.7, 1.5)), 16, 48);
+      cacheOK = false;
+      buildSkyObjects();
+    }
+
+    function _scheduleFrame() {
+      if (!paused && !_rafId) _rafId = requestAnimationFrame(frame);
+    }
+
+    function _setPaused(v) {
+      paused = PREVIEW ? false : !!v;
+      if (paused) {
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+        lastT = 0;
+      } else {
+        _scheduleFrame();
+      }
+    }
+
+    function frame(now) {
+      _rafId = 0;
+      if (paused || document.hidden) { lastT = 0; return; }
+      _scheduleFrame();
+      const maxDt = window.__desklandLowMode ? 0.12 : 0.08;
+      const dt = lastT ? Math.min((now - lastT) / 1000, maxDt) : 0.03;
+      lastT = now;
+
+      stepSimulation(dt);
+      draw();
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      let needTerrain = false;
+      let needSkyObjs = false;
+
+      if (typeof v.seed === 'number' && v.seed !== seed) {
+        seed = (v.seed >>> 0) || 20261118;
+        needTerrain = true;
+        needSkyObjs = true;
+      }
+      if (typeof v.biome === 'string' && v.biome in BIOMES && v.biome !== P.biome) {
+        P.biome = v.biome;
+        atlasKey = '';
+        needTerrain = true;
+      }
+      if (typeof v.timeOfDay === 'string' && (v.timeOfDay === 'auto' || v.timeOfDay === 'day' || v.timeOfDay === 'sunset' || v.timeOfDay === 'night')) {
+        P.timeOfDay = v.timeOfDay;
+      }
+      if (typeof v.iconBlockStyle === 'string' && (v.iconBlockStyle === 'island' || v.iconBlockStyle === 'planks' || v.iconBlockStyle === 'frame')) {
+        P.iconBlockStyle = v.iconBlockStyle;
+      }
+      if (typeof v.quality === 'string' && v.quality in QUALITY_PROFILES && v.quality !== P.quality) {
+        P.quality = v.quality;
+        resize();
+      }
+
+      const numKeys = ['blockSize', 'cloudDensity', 'weatherAmount', 'critterAmount', 'torchGlow', 'animSpeed', 'adaptive'];
+      for (let i = 0; i < numKeys.length; i++) {
+        const k = numKeys[i];
+        if (v[k] !== undefined) {
+          const n = Number(v[k]);
+          if (Number.isFinite(n) && P[k] !== n) {
+            P[k] = n;
+            if (k === 'blockSize') { resize(); }
+            if (k === 'cloudDensity' || k === 'weatherAmount' || k === 'critterAmount') { needSkyObjs = true; }
+          }
+        }
+      }
+
+      if (needTerrain) cacheOK = false;
+      if (needSkyObjs) buildSkyObjects();
+    }
+
+    function drawGhosts() {
+      const box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(ic =>
+        `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`
+      ).join('');
+    }
+
+    function handleMessage(ev) {
+      let m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      const kind = m.t || m.type;
+      if (kind === 'pause') {
+        _setPaused(m.v);
+        if (paused) draw();
+        return;
+      }
+      if (kind === 'resume') {
+        _setPaused(false);
+        return;
+      }
+      if (kind === 'settings') { applySettings(m.v || m.params || m); return; }
+      if (kind === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+      if (kind === 'icons') {
+        const k = window.devicePixelRatio || 1;
+        const rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k }))
+          : [];
+        syncIncomingIcons(rects);
+        if (PREVIEW) drawGhosts();
+        if (paused) draw();
+      }
+    }
+
+    function buildDemoIcons() {
+      const cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.44, 0.68], [0.54, 0.68], [0.80, 0.72]
+      ];
+      return cells.map(([fx, fy], i) => ({
+        x: Math.round(fx * W),
+        y: Math.round(fy * H),
+        w: i % 3 === 0 ? 80 : 72,
+        h: 86
+      }));
+    }
+
+    function init() {
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', resize);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !paused) lastT = 0;
+      });
+
+      window.addEventListener('pointermove', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+      }, { passive: true });
+
+      window.addEventListener('pointerdown', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+        pointer.down = true;
+        popBlockBreak(pointer.x, pointer.y);
+      }, { passive: true });
+
+      window.addEventListener('pointerup', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointercancel', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointer.down = false; pointer.active = false; }, { passive: true });
+
+      if (PREVIEW) {
+        document.body.classList.add('preview');
+        const g = document.createElement('div');
+        g.id = 'ghosts';
+        document.body.appendChild(g);
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      } else {
+        syncIncomingIcons(buildDemoIcons());
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            const k = window.devicePixelRatio || 1;
+            const rects = vList.map(v => ({ x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k }));
+            syncIncomingIcons(rects);
+          }
+        });
+      }
+
+      Object.defineProperty(window, 'cv', { get: () => cv });
+      Object.defineProperty(window, 'W', { get: () => W });
+      Object.defineProperty(window, 'H', { get: () => H });
+      Object.defineProperty(window, 'WALL', { get: () => WALL });
+      Object.defineProperty(window, 'icons', { get: () => icons });
+      Object.defineProperty(window, 'cacheOK', { get: () => cacheOK, set: v => { cacheOK = !!v; } });
+      window.draw = draw;
+      window.handleMessage = handleMessage;
+
+      _scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

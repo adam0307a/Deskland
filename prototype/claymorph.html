@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claymorphism Tactile World</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #eef1fb; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; }
+    #ghosts { position: fixed; inset: 0; pointer-events: none; }
+    .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .28; }
+    .ghost i { width: 40px; height: 40px; border-radius: 12px; background: #fff; box-shadow: 0 3px 8px rgba(45, 58, 92, .22); }
+    .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 3px; background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // 1. CONFIGURATION, CLAY PALETTES & QUALITY PROFILES
+    // =========================================================================
+    const QS = new URLSearchParams(location.search || '');
+    const WALL = QS.has('wallpaper');
+    const PREVIEW = QS.has('preview');
+
+    const DEFAULTS = {
+      palette: 'pastel',
+      puffiness: 1.0,
+      squishStrength: 1.0,
+      blobCount: 1.0,
+      floatSpeed: 0.8,
+      cursorRepel: 1.0,
+      iconCradle: 'puffy',
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    const P = Object.assign({}, DEFAULTS);
+
+    const PALETTES = {
+      pastel: {
+        bgTop: '#f3f5fc',
+        bgBot: '#e1e7f7',
+        shadowRgb: '118, 134, 178',
+        labelPill: 'rgba(38, 48, 82, 0.22)',
+        isDark: false,
+        neutral: { hi: '#ffffff', mid: '#f3f6ff', lo: '#cfd9f2', spec: '255, 255, 255', rim: '166, 182, 224', drop: '122, 138, 184' },
+        clays: [
+          { hi: '#b8c8ff', mid: '#8fa8ff', lo: '#6580e6', spec: '255, 255, 255', rim: '88, 114, 214', drop: '110, 128, 196' },
+          { hi: '#ffc2b6', mid: '#ff9b89', lo: '#e5725f', spec: '255, 248, 245', rim: '214, 96, 78', drop: '188, 116, 112' },
+          { hi: '#aaf2da', mid: '#76e0be', lo: '#48bd97', spec: '248, 255, 252', rim: '56, 168, 132', drop: '96, 168, 152' },
+          { hi: '#ffeaa8', mid: '#ffd573', lo: '#e6b244', spec: '255, 253, 242', rim: '212, 156, 48', drop: '178, 152, 108' },
+          { hi: '#dfc8ff', mid: '#c39eff', lo: '#9872e3', spec: '255, 250, 255', rim: '134, 94, 212', drop: '142, 122, 192' }
+        ]
+      },
+      candy: {
+        bgTop: '#fdf2f6',
+        bgBot: '#f5e2ec',
+        shadowRgb: '168, 118, 146',
+        labelPill: 'rgba(68, 36, 56, 0.22)',
+        isDark: false,
+        neutral: { hi: '#ffffff', mid: '#fff5f8', lo: '#efd4df', spec: '255, 255, 255', rim: '216, 174, 194', drop: '176, 128, 152' },
+        clays: [
+          { hi: '#ffadc6', mid: '#ff7ca4', lo: '#e0517e', spec: '255, 248, 252', rim: '208, 66, 112', drop: '196, 112, 142' },
+          { hi: '#a7c2ff', mid: '#789eff', lo: '#5278e0', spec: '248, 252, 255', rim: '72, 108, 208', drop: '124, 138, 198' },
+          { hi: '#ffd4a3', mid: '#ffb469', lo: '#e48d3c', spec: '255, 250, 242', rim: '210, 124, 46', drop: '188, 138, 108' },
+          { hi: '#b4f0d3', mid: '#82e0b4', lo: '#52bd8c', spec: '248, 255, 250', rim: '66, 168, 122', drop: '116, 166, 146' },
+          { hi: '#e6c2ff', mid: '#cc94ff', lo: '#a268df', spec: '255, 248, 255', rim: '148, 88, 208', drop: '156, 118, 186' }
+        ]
+      },
+      matcha: {
+        bgTop: '#f1f5ed',
+        bgBot: '#e1eadb',
+        shadowRgb: '124, 142, 118',
+        labelPill: 'rgba(38, 52, 40, 0.22)',
+        isDark: false,
+        neutral: { hi: '#ffffff', mid: '#f6faf2', lo: '#d6e2cf', spec: '255, 255, 255', rim: '176, 194, 168', drop: '128, 148, 122' },
+        clays: [
+          { hi: '#b7e6bf', mid: '#8ad198', lo: '#5ead6e', spec: '248, 255, 250', rim: '74, 152, 92', drop: '112, 158, 122' },
+          { hi: '#fabaa6', mid: '#ef9278', lo: '#cf6b50', spec: '255, 248, 245', rim: '192, 92, 66', drop: '176, 122, 108' },
+          { hi: '#fae0a2', mid: '#f2c76b', lo: '#d4a342', spec: '255, 252, 242', rim: '196, 144, 48', drop: '168, 148, 104' },
+          { hi: '#b6ddf5', mid: '#89c2e8', lo: '#5b9ac7', spec: '248, 253, 255', rim: '74, 136, 182', drop: '116, 148, 174' },
+          { hi: '#e8d7c6', mid: '#d4bca4', lo: '#b5997e', spec: '255, 251, 246', rim: '164, 138, 112', drop: '152, 136, 120' }
+        ]
+      },
+      dusk: {
+        bgTop: '#242136',
+        bgBot: '#181626',
+        shadowRgb: '8, 7, 16',
+        labelPill: 'rgba(10, 9, 18, 0.28)',
+        isDark: true,
+        neutral: { hi: '#413c5e', mid: '#312d4a', lo: '#211e35', spec: '158, 150, 212', rim: '18, 15, 32', drop: '8, 7, 16' },
+        clays: [
+          { hi: '#a99bf5', mid: '#8674e2', lo: '#5d4bb8', spec: '226, 220, 255', rim: '68, 52, 156', drop: '12, 10, 26' },
+          { hi: '#ffa399', mid: '#f2796e', lo: '#c45046', spec: '255, 224, 220', rim: '164, 56, 48', drop: '18, 10, 16' },
+          { hi: '#7be8d3', mid: '#4bcab2', lo: '#2b9c87', spec: '218, 255, 248', rim: '32, 132, 114', drop: '10, 16, 20' },
+          { hi: '#ffd182', mid: '#f2b150', lo: '#c4862b', spec: '255, 242, 212', rim: '168, 112, 32', drop: '18, 12, 10' },
+          { hi: '#efa8e8', mid: '#d67dcf', lo: '#a652a0', spec: '255, 224, 252', rim: '142, 62, 136', drop: '16, 10, 22' }
+        ]
+      }
+    };
+
+    const QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, shadowSteps: 7,  blobScale: 0.55, enableSparkles: false },
+      Medium: { maxDpr: 1.25, shadowSteps: 11, blobScale: 0.85, enableSparkles: true },
+      High:   { maxDpr: 1.50, shadowSteps: 14, blobScale: 1.00, enableSparkles: true }
+    };
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    function getPalette() {
+      return PALETTES[P.palette] || PALETTES.pastel;
+    }
+
+    // =========================================================================
+    // 2. CANVAS STATE, UTILITIES & PRNG
+    // =========================================================================
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d', { alpha: false });
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+
+    let W = innerWidth || 1920;
+    let H = innerHeight || 1080;
+    let scale = 1;
+    let cacheOK = false;
+    let paused = false;
+    let _rafId = 0;
+    let lastT = 0;
+    let simTime = 0;
+    let seed = 20261118;
+    let icons = [];
+    let iconsSeen = false;
+
+    const pointer = { x: -9999, y: -9999, active: false, down: false };
+
+    function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function mulberry32(a) {
+      let s = a >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function addRoundRectPath(c, x, y, w, h, r) {
+      const rr = Math.min(r, w * 0.5, h * 0.5);
+      c.moveTo(x + rr, y);
+      c.arcTo(x + w, y, x + w, y + h, rr);
+      c.arcTo(x + w, y + h, x, y + h, rr);
+      c.arcTo(x, y + h, x, y, rr);
+      c.arcTo(x, y, x + w, y, rr);
+      c.closePath();
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      addRoundRectPath(c, x, y, w, h, r);
+    }
+
+    // =========================================================================
+    // 3. ZERO-SHADOWBLUR CLAYMORPHISM SPRITE BAKER
+    //    Bakes inflated 3D clay bodies: outer drop shadow + 3D volume fill +
+    //    inner top-left glossy highlight + inner bottom-right bounce shadow.
+    // =========================================================================
+    const spriteCache = new Map();
+    let spriteGenKey = '';
+
+    function drawClayDropShadow(s, x, y, w, h, r, dy, blurR, steps, rgb, totalAlpha) {
+      const n = Math.max(4, steps | 0);
+      for (let i = n; i >= 1; i--) {
+        const frac = i / n;
+        const spread = blurR * frac;
+        const weight = Math.pow(1 - frac * 0.88, 1.9);
+        const alpha = (totalAlpha / n) * weight * 2.3;
+        if (alpha <= 0.002) continue;
+        s.fillStyle = 'rgba(' + rgb + ', ' + Math.min(0.45, alpha).toFixed(4) + ')';
+        roundRect(
+          s,
+          x + dy * 0.25 * frac - spread * 0.5,
+          y + dy * (0.35 + 0.65 * frac) - spread * 0.45,
+          w + spread,
+          h + spread,
+          r + spread * 0.48
+        );
+        s.fill();
+      }
+    }
+
+    function bakeClayRoundedSprite(w, h, r, colorSet, puff, steps, bakeScale, isRing) {
+      const pad = Math.ceil(28 * puff);
+      const c = document.createElement('canvas');
+      c.width = Math.max(2, Math.ceil((w + pad * 2) * bakeScale));
+      c.height = Math.max(2, Math.ceil((h + pad * 2) * bakeScale));
+      const s = c.getContext('2d');
+      s.setTransform(bakeScale, 0, 0, bakeScale, 0, 0);
+
+      // 1. Soft tinted outer drop shadow lifting clay off the canvas
+      drawClayDropShadow(s, pad, pad, w, h, r, 11 * puff, 18 * puff, steps, colorSet.drop, 0.36);
+
+      // 2. Puffy 3D clay body gradient (bright upper-left to rich deeper bottom-right)
+      const g = s.createLinearGradient(pad, pad, pad + w, pad + h);
+      g.addColorStop(0.0, colorSet.hi);
+      g.addColorStop(0.48, colorSet.mid);
+      g.addColorStop(1.0, colorSet.lo);
+
+      if (isRing) {
+        const ringThick = Math.max(8, Math.min(w, h) * 0.14);
+        s.strokeStyle = g;
+        s.lineWidth = ringThick;
+        roundRect(s, pad + ringThick * 0.5, pad + ringThick * 0.5, w - ringThick, h - ringThick, Math.max(6, r - ringThick * 0.5));
+        s.stroke();
+
+        // Top-left glossy arc on ring
+        s.strokeStyle = 'rgba(' + colorSet.spec + ', ' + clamp(0.42 * puff, 0.15, 0.65).toFixed(3) + ')';
+        s.lineWidth = 2.4;
+        roundRect(s, pad + ringThick * 0.35, pad + ringThick * 0.35, w - ringThick * 0.7, h - ringThick * 0.7, Math.max(6, r - ringThick * 0.35));
+        s.stroke();
+        return { canvas: c, pad: pad, w: w, h: h };
+      }
+
+      s.fillStyle = g;
+      roundRect(s, pad, pad, w, h, r);
+      s.fill();
+
+      // 3. Clipped inner Claymorphism signature: bright top-left highlight & deeper bottom-right rim
+      s.save();
+      roundRect(s, pad, pad, w, h, r);
+      s.clip();
+
+      const innerPasses = Math.max(4, Math.round(steps * 0.7));
+      const off = 5.5 * puff;
+      for (let i = innerPasses; i >= 1; i--) {
+        const frac = i / innerPasses;
+        const lw = 1.6 + off * 2.1 * frac;
+        const wgt = Math.pow(1 - frac * 0.85, 1.85);
+        const sa = clamp((0.52 * puff / innerPasses) * wgt * 2.4, 0, 0.45);
+        const ra = clamp((0.46 * puff / innerPasses) * wgt * 2.4, 0, 0.42);
+
+        // Top-left inner cushion highlight
+        s.strokeStyle = 'rgba(' + colorSet.spec + ', ' + sa.toFixed(4) + ')';
+        s.lineWidth = lw;
+        roundRect(s, pad + off * 0.75 * frac, pad + off * 0.75 * frac, w, h, r);
+        s.stroke();
+
+        // Bottom-right inner ambient bounce shadow
+        s.strokeStyle = 'rgba(' + colorSet.rim + ', ' + ra.toFixed(4) + ')';
+        s.lineWidth = lw;
+        roundRect(s, pad - off * 0.75 * frac, pad - off * 0.75 * frac, w, h, r);
+        s.stroke();
+      }
+
+      // Soft pill-shaped glossy bean reflection at top-left shoulder
+      const gx = pad + w * 0.24;
+      const gy = pad + h * 0.20;
+      const gSpec = s.createRadialGradient(gx, gy, 0, gx, gy, Math.min(w, h) * 0.42);
+      gSpec.addColorStop(0.0, 'rgba(' + colorSet.spec + ', ' + clamp(0.32 * puff, 0.1, 0.48).toFixed(3) + ')');
+      gSpec.addColorStop(1.0, 'rgba(' + colorSet.spec + ', 0)');
+      s.fillStyle = gSpec;
+      s.fillRect(pad, pad, w, h);
+
+      s.restore();
+      return { canvas: c, pad: pad, w: w, h: h };
+    }
+
+    function bakeClayOrbSprite(radius, colorSet, puff, steps, bakeScale) {
+      const d = radius * 2;
+      const pad = Math.ceil(26 * puff);
+      const c = document.createElement('canvas');
+      c.width = Math.max(2, Math.ceil((d + pad * 2) * bakeScale));
+      c.height = Math.max(2, Math.ceil((d + pad * 2) * bakeScale));
+      const s = c.getContext('2d');
+      s.setTransform(bakeScale, 0, 0, bakeScale, 0, 0);
+
+      drawClayDropShadow(s, pad, pad, d, d, radius, 10 * puff, 16 * puff, steps, colorSet.drop, 0.34);
+
+      const cx = pad + radius;
+      const cy = pad + radius;
+      const rg = s.createRadialGradient(
+        cx - radius * 0.34, cy - radius * 0.34, radius * 0.08,
+        cx + radius * 0.12, cy + radius * 0.12, radius * 1.15
+      );
+      rg.addColorStop(0.0, colorSet.hi);
+      rg.addColorStop(0.55, colorSet.mid);
+      rg.addColorStop(1.0, colorSet.lo);
+      s.fillStyle = rg;
+      s.beginPath();
+      s.arc(cx, cy, radius, 0, Math.PI * 2);
+      s.fill();
+
+      // Clipped inner rim & bouncy specular bean
+      s.save();
+      s.beginPath();
+      s.arc(cx, cy, radius, 0, Math.PI * 2);
+      s.clip();
+
+      const n = Math.max(4, Math.round(steps * 0.65));
+      for (let i = n; i >= 1; i--) {
+        const frac = i / n;
+        const lw = 1.4 + 4.5 * puff * frac;
+        const wgt = Math.pow(1 - frac * 0.85, 1.85);
+        s.strokeStyle = 'rgba(' + colorSet.spec + ', ' + clamp((0.48 * puff / n) * wgt * 2.2, 0, 0.42).toFixed(4) + ')';
+        s.lineWidth = lw;
+        s.beginPath();
+        s.arc(cx + 4 * puff * frac, cy + 4 * puff * frac, radius, 0, Math.PI * 2);
+        s.stroke();
+
+        s.strokeStyle = 'rgba(' + colorSet.rim + ', ' + clamp((0.44 * puff / n) * wgt * 2.2, 0, 0.40).toFixed(4) + ')';
+        s.beginPath();
+        s.arc(cx - 4 * puff * frac, cy - 4 * puff * frac, radius, 0, Math.PI * 2);
+        s.stroke();
+      }
+
+      // Glossy top-left clay highlight dot
+      s.translate(cx - radius * 0.36, cy - radius * 0.38);
+      s.rotate(-0.55);
+      s.fillStyle = 'rgba(' + colorSet.spec + ', ' + clamp(0.46 * puff, 0.15, 0.65).toFixed(3) + ')';
+      s.beginPath();
+      s.ellipse(0, 0, radius * 0.24, radius * 0.12, 0, 0, Math.PI * 2);
+      s.fill();
+      s.restore();
+
+      return { canvas: c, pad: pad, w: d, h: d };
+    }
+
+    function ensureSpriteGenKey() {
+      const prof = getProfile();
+      const puff = clamp(P.puffiness, 0.4, 1.6);
+      const bakeScale = clamp(scale, 0.75, 1.5);
+      const nextKey = [P.palette, puff.toFixed(2), prof.shadowSteps, bakeScale.toFixed(2), P.iconCradle].join('|');
+      if (nextKey !== spriteGenKey) {
+        spriteGenKey = nextKey;
+        spriteCache.clear();
+      }
+    }
+
+    function getOrbSprite(radiusBucket, colorIdx) {
+      ensureSpriteGenKey();
+      const key = 'orb:' + radiusBucket + ':' + colorIdx;
+      let sp = spriteCache.get(key);
+      if (sp) return sp;
+      const pal = getPalette();
+      const prof = getProfile();
+      const colorSet = pal.clays[colorIdx % pal.clays.length];
+      sp = bakeClayOrbSprite(radiusBucket, colorSet, clamp(P.puffiness, 0.4, 1.6), prof.shadowSteps, clamp(scale, 0.75, 1.5));
+      if (spriteCache.size > 64) spriteCache.clear();
+      spriteCache.set(key, sp);
+      return sp;
+    }
+
+    function getPillSprite(wBucket, hBucket, rBucket, colorIdx, isRing, useNeutral) {
+      ensureSpriteGenKey();
+      const key = (isRing ? 'ring:' : 'pill:') + wBucket + 'x' + hBucket + ':' + (useNeutral ? 'n' : colorIdx);
+      let sp = spriteCache.get(key);
+      if (sp) return sp;
+      const pal = getPalette();
+      const prof = getProfile();
+      const colorSet = useNeutral ? pal.neutral : pal.clays[colorIdx % pal.clays.length];
+      sp = bakeClayRoundedSprite(wBucket, hBucket, rBucket, colorSet, clamp(P.puffiness, 0.4, 1.6), prof.shadowSteps, clamp(scale, 0.75, 1.5), isRing);
+      if (spriteCache.size > 64) spriteCache.clear();
+      spriteCache.set(key, sp);
+      return sp;
+    }
+
+    // =========================================================================
+    // 4. STATIC BACKGROUND & FLOATING CLAY SCULPTURES
+    // =========================================================================
+    const blobs = [];
+    const ripples = [];
+
+    function buildBlobs() {
+      const prof = getProfile();
+      const count = clamp(Math.round(14 * P.blobCount * prof.blobScale), 0, 26);
+      const rng = mulberry32(seed ^ 0x434C4159);
+      blobs.length = 0;
+
+      const orbBuckets = [24, 32, 42, 54, 68];
+      const pillBuckets = [
+        [108, 48, 24],
+        [136, 56, 28],
+        [92, 92, 30],
+        [124, 64, 32]
+      ];
+
+      for (let i = 0; i < count; i++) {
+        const isPill = rng() > 0.55;
+        const colorIdx = Math.floor(rng() * 5);
+        const homeX = (0.08 + rng() * 0.84) * W;
+        const homeY = (0.08 + rng() * 0.84) * H;
+        let w, h, r, kind;
+        if (isPill) {
+          const pb = pillBuckets[Math.floor(rng() * pillBuckets.length)];
+          w = pb[0]; h = pb[1]; r = pb[2];
+          kind = 'pill';
+        } else {
+          const rad = orbBuckets[Math.floor(rng() * orbBuckets.length)];
+          w = rad * 2; h = rad * 2; r = rad;
+          kind = 'orb';
+        }
+        blobs.push({
+          kind: kind,
+          w: w,
+          h: h,
+          r: r,
+          colorIdx: colorIdx,
+          homeX: homeX,
+          homeY: homeY,
+          x: homeX,
+          y: homeY,
+          vx: 0,
+          vy: 0,
+          bobAmpX: 8 + rng() * 16,
+          bobAmpY: 10 + rng() * 18,
+          bobFreqX: 0.35 + rng() * 0.45,
+          bobFreqY: 0.42 + rng() * 0.48,
+          phase: rng() * Math.PI * 2,
+          rot: (rng() - 0.5) * 0.45,
+          rotSpeed: (rng() - 0.5) * 0.14,
+          squash: 0,
+          squashVel: 0,
+          depthAlpha: 0.72 + rng() * 0.28
+        });
+      }
+    }
+
+    function renderStaticBackground() {
+      bgCanvas.width = Math.max(1, Math.round(W * scale));
+      bgCanvas.height = Math.max(1, Math.round(H * scale));
+      bgCtx.setTransform(scale, 0, 0, scale, 0, 0);
+
+      const pal = getPalette();
+      document.documentElement.style.background = pal.bgTop;
+      document.body.style.background = pal.bgTop;
+
+      const g = bgCtx.createLinearGradient(0, 0, W * 0.35, H);
+      g.addColorStop(0.0, pal.bgTop);
+      g.addColorStop(1.0, pal.bgBot);
+      bgCtx.fillStyle = g;
+      bgCtx.fillRect(0, 0, W, H);
+
+      // Soft ambient corner wash in two clay hues for depth
+      const c0 = pal.clays[0];
+      const c1 = pal.clays[1];
+      const wash1 = bgCtx.createRadialGradient(W * 0.18, H * 0.22, 0, W * 0.18, H * 0.22, Math.max(W, H) * 0.46);
+      wash1.addColorStop(0.0, 'rgba(' + c0.drop + ', ' + (pal.isDark ? '0.14' : '0.10') + ')');
+      wash1.addColorStop(1.0, 'rgba(' + c0.drop + ', 0)');
+      bgCtx.fillStyle = wash1;
+      bgCtx.fillRect(0, 0, W, H);
+
+      const wash2 = bgCtx.createRadialGradient(W * 0.82, H * 0.78, 0, W * 0.82, H * 0.78, Math.max(W, H) * 0.44);
+      wash2.addColorStop(0.0, 'rgba(' + c1.drop + ', ' + (pal.isDark ? '0.12' : '0.09') + ')');
+      wash2.addColorStop(1.0, 'rgba(' + c1.drop + ', 0)');
+      bgCtx.fillStyle = wash2;
+      bgCtx.fillRect(0, 0, W, H);
+
+      cacheOK = true;
+    }
+
+    // =========================================================================
+    // 5. ADAPTIVE DESKTOP ICON CLAY CRADLES
+    // =========================================================================
+    const iconStates = [];
+
+    function syncIncomingIcons(rects) {
+      icons = Array.isArray(rects) ? rects : [];
+      iconsSeen = true;
+
+      const matched = new Set();
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        let bestIdx = -1;
+        let bestDist = 48;
+        for (let s = 0; s < iconStates.length; s++) {
+          if (matched.has(s)) continue;
+          const st = iconStates[s];
+          const d = Math.hypot(ic.x - st.tx, ic.y - st.ty);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = s;
+          }
+        }
+        if (bestIdx >= 0) {
+          const st = iconStates[bestIdx];
+          st.tx = ic.x; st.ty = ic.y; st.tw = ic.w; st.th = ic.h;
+          st.removing = false;
+          matched.add(bestIdx);
+        } else {
+          const colorSeed = Math.abs(Math.round(ic.x / 40) * 7 + Math.round(ic.y / 40) * 13 + i) % 5;
+          iconStates.push({
+            x: ic.x, y: ic.y, w: ic.w, h: ic.h,
+            tx: ic.x, ty: ic.y, tw: ic.w, th: ic.h,
+            opacity: 0,
+            colorIdx: colorSeed,
+            squash: 0,
+            squashVel: 0,
+            phase: (i * 1.29) % (Math.PI * 2),
+            removing: false
+          });
+          matched.add(iconStates.length - 1);
+        }
+      }
+
+      for (let s = 0; s < iconStates.length; s++) {
+        if (!matched.has(s)) iconStates[s].removing = true;
+      }
+    }
+
+    // =========================================================================
+    // 6. SPRING SQUISH PHYSICS & SIMULATION
+    // =========================================================================
+    function spawnRipple(x, y) {
+      if (ripples.length >= 5) ripples.shift();
+      ripples.push({
+        x: x,
+        y: y,
+        r: 14,
+        speed: 380,
+        maxR: Math.hypot(W, H) * 0.5,
+        life: 0
+      });
+    }
+
+    function applyClickSquish(x, y) {
+      const sqStr = clamp(P.squishStrength, 0, 2.0);
+      if (sqStr <= 0.01) return;
+      spawnRipple(x, y);
+
+      for (let i = 0; i < blobs.length; i++) {
+        const b = blobs[i];
+        const dx = b.x - x;
+        const dy = b.y - y;
+        const dist = Math.hypot(dx, dy) || 1;
+        if (dist < 280) {
+          const inf = 1 - dist / 280;
+          b.squashVel += (inf * 1.45 * sqStr);
+          b.vx += (dx / dist) * inf * 130 * sqStr;
+          b.vy += (dy / dist) * inf * 130 * sqStr;
+        }
+      }
+
+      for (let i = 0; i < iconStates.length; i++) {
+        const st = iconStates[i];
+        const icx = st.x + st.w * 0.5;
+        const icy = st.y + st.h * 0.5;
+        const dist = Math.hypot(icx - x, icy - y);
+        if (dist < 220) {
+          const inf = 1 - dist / 220;
+          st.squashVel += inf * 1.25 * sqStr;
+        }
+      }
+    }
+
+    function stepSimulation(dt) {
+      const fSpeed = clamp(P.floatSpeed, 0, 2.5);
+      simTime += dt * (0.25 + fSpeed * 0.9);
+
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        rp.r += rp.speed * dt;
+        rp.life += dt;
+        if (rp.r >= rp.maxR) ripples.splice(i, 1);
+      }
+
+      // Floating clay blobs: harmonic drift + cursor cushion push + spring-damper squish
+      const repelRadius = 155;
+      const repelStrength = clamp(P.cursorRepel, 0, 2.0);
+      const kSq = 82.0;
+      const dSq = 7.2;
+
+      for (let i = 0; i < blobs.length; i++) {
+        const b = blobs[i];
+        const targetX = b.homeX + Math.sin(simTime * b.bobFreqX + b.phase) * b.bobAmpX;
+        const targetY = b.homeY + Math.cos(simTime * b.bobFreqY + b.phase * 1.3) * b.bobAmpY;
+
+        let pushX = 0, pushY = 0;
+        if (pointer.active && repelStrength > 0.01) {
+          const dx = b.x - pointer.x;
+          const dy = b.y - pointer.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d < repelRadius + b.r) {
+            const inf = 1 - d / (repelRadius + b.r);
+            const force = inf * inf * 420 * repelStrength * (pointer.down ? 1.45 : 1.0);
+            pushX = (dx / d) * force;
+            pushY = (dy / d) * force;
+            b.squash = clamp(b.squash + inf * 0.35 * dt * 10 * clamp(P.squishStrength, 0.2, 2.0), -0.22, 0.24);
+          }
+        }
+
+        // Gentle avoidance from desktop icon rects so floating clay stays clear
+        if (P.adaptive !== 0) {
+          for (let j = 0; j < icons.length; j++) {
+            const ic = icons[j];
+            const icx = ic.x + ic.w * 0.5;
+            const icy = ic.y + ic.h * 0.5;
+            const dx = b.x - icx;
+            const dy = b.y - icy;
+            const minSep = Math.max(ic.w, ic.h) * 0.65 + b.r + 14;
+            const d = Math.hypot(dx, dy) || 1;
+            if (d < minSep) {
+              const inf = 1 - d / minSep;
+              pushX += (dx / d) * inf * 260;
+              pushY += (dy / d) * inf * 260;
+            }
+          }
+        }
+
+        const ax = (targetX - b.x) * 14.0 + pushX - b.vx * 4.5;
+        const ay = (targetY - b.y) * 14.0 + pushY - b.vy * 4.5;
+        b.vx += ax * dt;
+        b.vy += ay * dt;
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.rot += b.rotSpeed * dt * (0.3 + fSpeed);
+
+        const sqAccel = -b.squash * kSq - b.squashVel * dSq;
+        b.squashVel += sqAccel * dt;
+        b.squash = clamp(b.squash + b.squashVel * dt, -0.25, 0.28);
+      }
+
+      // Adaptive icon cradles
+      const posAlpha = 1 - Math.exp(-10 * dt);
+      for (let i = iconStates.length - 1; i >= 0; i--) {
+        const st = iconStates[i];
+        st.x = lerp(st.x, st.tx, posAlpha);
+        st.y = lerp(st.y, st.ty, posAlpha);
+        st.w = lerp(st.w, st.tw, posAlpha);
+        st.h = lerp(st.h, st.th, posAlpha);
+
+        if (st.removing) {
+          st.opacity = Math.max(0, st.opacity - dt * 2.5);
+          if (st.opacity <= 0.005) { iconStates.splice(i, 1); continue; }
+        } else {
+          st.opacity = Math.min(1, st.opacity + dt * 3.0);
+        }
+
+        if (pointer.active && P.squishStrength > 0.01) {
+          const icx = st.x + st.w * 0.5;
+          const icy = st.y + st.h * 0.5;
+          const d = Math.hypot(icx - pointer.x, icy - pointer.y);
+          if (d < 68) {
+            const inf = (1 - d / 68) * (pointer.down ? 0.14 : 0.06) * clamp(P.squishStrength, 0, 1.8);
+            st.squashVel += (inf - st.squash) * 32 * dt;
+          }
+        }
+
+        const sqAccel = -st.squash * kSq - st.squashVel * dSq;
+        st.squashVel += sqAccel * dt;
+        st.squash = clamp(st.squash + st.squashVel * dt, -0.18, 0.22);
+      }
+    }
+
+    // =========================================================================
+    // 7. RENDERING PIPELINE
+    // =========================================================================
+    function draw() {
+      if (!cacheOK) renderStaticBackground();
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+      const pal = getPalette();
+
+      // 1. Floating 3D clay sculptures (squish volume-preserving transform)
+      for (let i = 0; i < blobs.length; i++) {
+        const b = blobs[i];
+        const sp = b.kind === 'orb'
+          ? getOrbSprite(b.r, b.colorIdx)
+          : getPillSprite(b.w, b.h, b.r, b.colorIdx, false, false);
+
+        const sx = 1 + b.squash;
+        const sy = 1 / Math.max(0.74, 1 + b.squash);
+
+        ctx.save();
+        ctx.globalAlpha = b.depthAlpha;
+        ctx.translate(b.x, b.y);
+        if (b.kind === 'pill') ctx.rotate(b.rot);
+        ctx.scale(sx, sy);
+        ctx.drawImage(
+          sp.canvas,
+          -sp.w * 0.5 - sp.pad,
+          -sp.h * 0.5 - sp.pad,
+          sp.w + sp.pad * 2,
+          sp.h + sp.pad * 2
+        );
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1.0;
+
+      // 2. Soft expanding click ripples
+      for (let i = 0; i < ripples.length; i++) {
+        const rp = ripples[i];
+        const fade = (1 - rp.r / rp.maxR) * clamp(P.squishStrength, 0, 1.4);
+        if (fade <= 0.01) continue;
+        ctx.lineWidth = 4.5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, ' + (fade * (pal.isDark ? 0.14 : 0.34)).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(rp.x - 1.5, rp.y - 1.5, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(' + pal.shadowRgb + ', ' + (fade * 0.24).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(rp.x + 1.5, rp.y + 1.5, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 3. Adaptive desktop icon clay cradles
+      if (P.adaptive !== 0) {
+        const isRing = P.iconCradle === 'ring';
+        const useNeutral = P.iconCradle === 'cloud';
+
+        for (let i = 0; i < iconStates.length; i++) {
+          const st = iconStates[i];
+          if (st.opacity <= 0.01) continue;
+
+          const cw = Math.round(st.w + 20);
+          const ch = Math.round(st.h + 16);
+          const cr = clamp(Math.round(Math.min(cw, ch) * 0.28), 16, 28);
+          const sp = getPillSprite(cw, ch, cr, st.colorIdx, isRing, useNeutral);
+
+          const midX = st.x + st.w * 0.5;
+          const midY = st.y + st.h * 0.5;
+          const sx = 1 + st.squash;
+          const sy = 1 / Math.max(0.80, 1 + st.squash);
+
+          ctx.save();
+          ctx.globalAlpha = st.opacity;
+          ctx.translate(midX, midY);
+          ctx.scale(sx, sy);
+          ctx.drawImage(
+            sp.canvas,
+            -sp.w * 0.5 - sp.pad,
+            -sp.h * 0.5 - sp.pad,
+            sp.w + sp.pad * 2,
+            sp.h + sp.pad * 2
+          );
+
+          // Soft contrast pill beneath white OS icon label on light backdrops
+          if (!pal.isDark && !isRing) {
+            const lblW = Math.min(cw - 14, Math.max(44, st.w * 0.84));
+            const lblH = 14;
+            ctx.fillStyle = pal.labelPill;
+            roundRect(ctx, -lblW * 0.5, ch * 0.5 - lblH - 7, lblW, lblH, lblH * 0.5);
+            ctx.fill();
+          }
+
+          // Pastel clay bead accent on 'cloud' pillow mode
+          if (useNeutral) {
+            const beadColor = pal.clays[st.colorIdx % pal.clays.length];
+            const breath = 0.72 + 0.25 * Math.sin(simTime * 1.4 + st.phase);
+            ctx.fillStyle = beadColor.mid;
+            ctx.globalAlpha = st.opacity * breath;
+            ctx.beginPath();
+            ctx.arc(cw * 0.5 - 12, -ch * 0.5 + 12, 3.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.restore();
+        }
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    // =========================================================================
+    // 8. RESIZE, LIFECYCLE & HOST PROTOCOL
+    // =========================================================================
+    function resize() {
+      const box = cv.getBoundingClientRect();
+      W = box.width || innerWidth || 1920;
+      H = box.height || innerHeight || 1080;
+      const prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+
+      spriteGenKey = '';
+      cacheOK = false;
+      buildBlobs();
+    }
+
+    function _scheduleFrame() {
+      if (!paused && !_rafId) _rafId = requestAnimationFrame(frame);
+    }
+
+    function _setPaused(v) {
+      paused = PREVIEW ? false : !!v;
+      if (paused) {
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+        lastT = 0;
+      } else {
+        _scheduleFrame();
+      }
+    }
+
+    function frame(now) {
+      _rafId = 0;
+      if (paused || document.hidden) { lastT = 0; return; }
+      _scheduleFrame();
+      const maxDt = window.__desklandLowMode ? 0.12 : 0.08;
+      const dt = lastT ? Math.min((now - lastT) / 1000, maxDt) : 0.03;
+      lastT = now;
+
+      stepSimulation(dt);
+      draw();
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      let needBlobs = false;
+      let needBg = false;
+      let needRebake = false;
+
+      if (typeof v.seed === 'number' && v.seed !== seed) {
+        seed = (v.seed >>> 0) || 20261118;
+        needBlobs = true;
+      }
+      if (typeof v.palette === 'string' && v.palette in PALETTES && v.palette !== P.palette) {
+        P.palette = v.palette;
+        needRebake = true;
+        needBg = true;
+      }
+      if (typeof v.iconCradle === 'string' && (v.iconCradle === 'puffy' || v.iconCradle === 'cloud' || v.iconCradle === 'ring')) {
+        if (P.iconCradle !== v.iconCradle) {
+          P.iconCradle = v.iconCradle;
+          needRebake = true;
+        }
+      }
+      if (typeof v.quality === 'string' && v.quality in QUALITY_PROFILES && v.quality !== P.quality) {
+        P.quality = v.quality;
+        resize();
+      }
+
+      const numKeys = ['puffiness', 'squishStrength', 'blobCount', 'floatSpeed', 'cursorRepel', 'adaptive'];
+      for (let i = 0; i < numKeys.length; i++) {
+        const k = numKeys[i];
+        if (v[k] !== undefined) {
+          const n = Number(v[k]);
+          if (Number.isFinite(n) && P[k] !== n) {
+            P[k] = n;
+            if (k === 'puffiness') needRebake = true;
+            if (k === 'blobCount') needBlobs = true;
+          }
+        }
+      }
+
+      if (needRebake) spriteGenKey = '';
+      if (needBlobs) buildBlobs();
+      if (needBg) cacheOK = false;
+    }
+
+    function drawGhosts() {
+      const box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(ic =>
+        `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`
+      ).join('');
+    }
+
+    function handleMessage(ev) {
+      let m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      const kind = m.t || m.type;
+      if (kind === 'pause') {
+        _setPaused(m.v);
+        if (paused) draw();
+        return;
+      }
+      if (kind === 'resume') {
+        _setPaused(false);
+        return;
+      }
+      if (kind === 'settings') { applySettings(m.v || m.params || m); return; }
+      if (kind === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+      if (kind === 'icons') {
+        const k = window.devicePixelRatio || 1;
+        const rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k }))
+          : [];
+        syncIncomingIcons(rects);
+        if (PREVIEW) drawGhosts();
+        if (paused) draw();
+      }
+    }
+
+    function buildDemoIcons() {
+      const cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.44, 0.68], [0.54, 0.68], [0.80, 0.72]
+      ];
+      return cells.map(([fx, fy], i) => ({
+        x: Math.round(fx * W),
+        y: Math.round(fy * H),
+        w: i % 3 === 0 ? 80 : 72,
+        h: 86
+      }));
+    }
+
+    function init() {
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', resize);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !paused) lastT = 0;
+      });
+
+      window.addEventListener('pointermove', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+      }, { passive: true });
+
+      window.addEventListener('pointerdown', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+        pointer.down = true;
+        applyClickSquish(pointer.x, pointer.y);
+      }, { passive: true });
+
+      window.addEventListener('pointerup', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointercancel', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointer.down = false; pointer.active = false; }, { passive: true });
+
+      if (PREVIEW) {
+        document.body.classList.add('preview');
+        const g = document.createElement('div');
+        g.id = 'ghosts';
+        document.body.appendChild(g);
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      } else {
+        syncIncomingIcons(buildDemoIcons());
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            const k = window.devicePixelRatio || 1;
+            const rects = vList.map(v => ({ x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k }));
+            syncIncomingIcons(rects);
+          }
+        });
+      }
+
+      Object.defineProperty(window, 'cv', { get: () => cv });
+      Object.defineProperty(window, 'W', { get: () => W });
+      Object.defineProperty(window, 'H', { get: () => H });
+      Object.defineProperty(window, 'WALL', { get: () => WALL });
+      Object.defineProperty(window, 'icons', { get: () => icons });
+      Object.defineProperty(window, 'cacheOK', { get: () => cacheOK, set: v => { cacheOK = !!v; } });
+      window.draw = draw;
+      window.handleMessage = handleMessage;
+
+      _scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

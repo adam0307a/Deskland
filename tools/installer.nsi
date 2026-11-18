@@ -34,20 +34,28 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright 2026 DiyarDesk & Deskland
 !insertmacro MUI_UNPAGE_FINISH
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
+!insertmacro MUI_LANGUAGE "Turkish"
 LangString LaunchDeskland ${LANG_SIMPCHINESE} "启动 DiyarDesk"
 LangString LaunchDeskland ${LANG_ENGLISH} "Launch DiyarDesk"
+LangString LaunchDeskland ${LANG_TURKISH} "DiyarDesk'i Başlat"
 LangString AppFiles ${LANG_SIMPCHINESE} "DiyarDesk 主程序与主题"
 LangString AppFiles ${LANG_ENGLISH} "DiyarDesk application and themes"
+LangString AppFiles ${LANG_TURKISH} "DiyarDesk uygulaması ve temalar"
 LangString DesktopShortcut ${LANG_SIMPCHINESE} "桌面快捷方式"
 LangString DesktopShortcut ${LANG_ENGLISH} "Desktop shortcut"
+LangString DesktopShortcut ${LANG_TURKISH} "Masaüstü kısayolu"
 LangString NeedX64 ${LANG_SIMPCHINESE} "需要 64 位 Windows 10 或更高版本。"
 LangString NeedX64 ${LANG_ENGLISH} "64-bit Windows 10 or later is required."
+LangString NeedX64 ${LANG_TURKISH} "64-bit Windows 10 veya üzeri gereklidir."
 LangString CloseFailed ${LANG_SIMPCHINESE} "请退出正在运行的 DiyarDesk 后重试。"
 LangString CloseFailed ${LANG_ENGLISH} "Please exit DiyarDesk and retry."
+LangString CloseFailed ${LANG_TURKISH} "Lütfen DiyarDesk'ten çıkın ve yeniden deneyin."
 LangString RuntimeFailed ${LANG_SIMPCHINESE} "WebView2 安装未完成。请连接网络，安装 Microsoft Edge WebView2 Runtime 后重试。"
 LangString RuntimeFailed ${LANG_ENGLISH} "WebView2 setup did not complete. Connect to the internet, install Microsoft Edge WebView2 Runtime, and retry."
+LangString RuntimeFailed ${LANG_TURKISH} "WebView2 kurulumu tamamlanamadı. İnternete bağlanın, Microsoft Edge WebView2 Runtime'ı yükleyin ve yeniden deneyin."
 LangString InstallingRuntime ${LANG_SIMPCHINESE} "正在安装 Microsoft Edge WebView2 Runtime（需要联网）..."
 LangString InstallingRuntime ${LANG_ENGLISH} "Installing Microsoft Edge WebView2 Runtime (internet required)..."
+LangString InstallingRuntime ${LANG_TURKISH} "Microsoft Edge WebView2 Runtime yükleniyor (internet gerekir)..."
 
 Function .onInit
   ${IfNot} ${RunningX64}

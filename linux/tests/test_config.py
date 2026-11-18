@@ -29,7 +29,7 @@ def test_settings_tolerates_broken_json(tmp_path):
     (tmp_path / "settings.json").write_text("{broken", encoding="utf-8")
     store = SettingsStore(tmp_path)
     store.load()
-    assert store.theme == "beach"
+    assert store.theme == "software-world"
 
 
 def test_theme_registry_free_only(tmp_path):
@@ -108,3 +108,21 @@ def test_low_mode_setting_roundtrip(tmp_path):
     loaded = SettingsStore(tmp_path)
     loaded.load()
     assert loaded.low_mode is True
+
+
+def test_turkish_system_detection_and_i18n(tmp_path, monkeypatch):
+    (tmp_path / "i18n").mkdir()
+    (tmp_path / "i18n" / "en.json").write_text(
+        json.dumps({"host": {"traySettings": "Settings…"}}), encoding="utf-8"
+    )
+    (tmp_path / "i18n" / "tr.json").write_text(
+        json.dumps({"host": {"traySettings": "Ayarlar…"}}), encoding="utf-8"
+    )
+    for var in ("LANGUAGE", "LC_ALL", "LC_MESSAGES", "LANG"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("LC_ALL", "tr_TR.UTF-8")
+
+    assert I18n.detect_system() == "tr"
+    i18n = I18n(tmp_path, "auto", DummyLog())
+    assert i18n.code == "tr"
+    assert i18n.t("traySettings") == "Ayarlar…"

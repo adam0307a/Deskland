@@ -890,6 +890,344 @@
           ]
         }
       }
+    },
+    "neumorph": {
+      "name": "Neumorphic Tactile Surface",
+      "desc": "Soft UI molded surface with spring-physics tactile tiles, subtle rotary dials, click ripples, and extruded cradles around desktop icons",
+      "groups": [
+        "Surface & Lighting",
+        "Tactile Motion",
+        "Icons & Performance"
+      ],
+      "params": {
+        "palette": {
+          "label": "Surface palette",
+          "options": [
+            "Alabaster",
+            "Warm Sand",
+            "Midnight Slate",
+            "Sage Mist"
+          ]
+        },
+        "accentColor": {
+          "label": "Accent LED",
+          "options": [
+            "Cobalt",
+            "Coral",
+            "Emerald",
+            "Amber"
+          ]
+        },
+        "reliefDepth": {
+          "label": "Relief depth"
+        },
+        "lightFollowCursor": {
+          "label": "Cursor lighting",
+          "options": [
+            "Off",
+            "On"
+          ]
+        },
+        "waveSpeed": {
+          "label": "Breathing wave speed"
+        },
+        "tileDensity": {
+          "label": "Tile density"
+        },
+        "rippleStrength": {
+          "label": "Click ripple strength"
+        },
+        "iconStyle": {
+          "label": "Icon mold style",
+          "options": [
+            "Raised cradle",
+            "Debossed well",
+            "Minimal ring"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
+    },
+    "claymorph": {
+      "name": "Claymorphism Tactile World",
+      "desc": "Puffy 3D pastel clay spheres and capsules with jelly-like squish physics, cushion cursor push, and soft inflated cradles under desktop icons",
+      "groups": [
+        "Clay & Palette",
+        "Floating Sculptures",
+        "Icons & Performance"
+      ],
+      "params": {
+        "palette": {
+          "label": "Clay palette",
+          "options": [
+            "Pastel Studio",
+            "Berry & Cream",
+            "Matcha Clay",
+            "Twilight Clay"
+          ]
+        },
+        "puffiness": {
+          "label": "Puffiness"
+        },
+        "squishStrength": {
+          "label": "Squish & bounce"
+        },
+        "blobCount": {
+          "label": "Sculpture density"
+        },
+        "floatSpeed": {
+          "label": "Drift speed"
+        },
+        "cursorRepel": {
+          "label": "Cursor cushion push"
+        },
+        "iconCradle": {
+          "label": "Icon cradle style",
+          "options": [
+            "Puffy pastel",
+            "Cream pillow",
+            "Clay ring"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
+    },
+    "neobrutalism": {
+      "name": "Neo-Brutalism Kinetic Poster",
+      "desc": "High-contrast color-blocked shapes with crisp heavy ink borders, zero-blur hard offset shadows, mechanical click snap, and framed desktop icon cards",
+      "groups": [
+        "Palette & Ink",
+        "Motion & Interaction",
+        "Icons & Performance"
+      ],
+      "params": {
+        "palette": {
+          "label": "Poster palette",
+          "options": [
+            "Bauhaus Pop",
+            "Acid Poster",
+            "Retro Zine",
+            "Midnight Zine"
+          ]
+        },
+        "borderWeight": {
+          "label": "Border weight"
+        },
+        "shadowDepth": {
+          "label": "Hard shadow offset"
+        },
+        "halftonePattern": {
+          "label": "Halftone dots",
+          "options": [
+            "Off",
+            "On"
+          ]
+        },
+        "shapeCount": {
+          "label": "Block density"
+        },
+        "motionSpeed": {
+          "label": "Drift speed"
+        },
+        "cursorPush": {
+          "label": "Cursor push"
+        },
+        "iconFrame": {
+          "label": "Icon frame style",
+          "options": [
+            "Color card",
+            "Tilted sticker",
+            "Blueprint line"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
+    },
+    "voxelcraft": {
+      "name": "Voxel Craft World",
+      "desc": "Pixel-art voxel ecosystem with switchable biomes, blocky day-night sky cycle, warm torches, pixel bees, XP block-break bursts, and floating voxel ledges under desktop icons",
+      "groups": [
+        "World & Sky",
+        "Life & Atmosphere",
+        "Icons & Performance"
+      ],
+      "params": {
+        "biome": {
+          "label": "Biome",
+          "options": [
+            "Plains Overworld",
+            "Cherry Grove",
+            "Snowy Taiga",
+            "Crimson Nether"
+          ]
+        },
+        "timeOfDay": {
+          "label": "Time of day",
+          "options": [
+            "Auto cycle",
+            "Daylight",
+            "Sunset",
+            "Starry night"
+          ]
+        },
+        "blockSize": {
+          "label": "Block scale"
+        },
+        "cloudDensity": {
+          "label": "Blocky clouds"
+        },
+        "weatherAmount": {
+          "label": "Particles & fireflies"
+        },
+        "critterAmount": {
+          "label": "Pixel bees"
+        },
+        "torchGlow": {
+          "label": "Torch glow"
+        },
+        "animSpeed": {
+          "label": "Cycle speed"
+        },
+        "iconBlockStyle": {
+          "label": "Icon voxel platform",
+          "options": [
+            "Floating island",
+            "Wood planks",
+            "Pixel frame"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
+    },
+    "liquidglass": {
+      "name": "Liquid Glass Refractive Surface",
+      "desc": "Flowing silk-mesh light behind translucent optical-refraction liquid glass droplets, prismatic dispersion rims, cursor lens, and frosted glass cradles around desktop icons",
+      "groups": [
+        "Glass & Light",
+        "Liquid Motion",
+        "Icons & Performance"
+      ],
+      "params": {
+        "palette": {
+          "label": "Silk palette",
+          "options": [
+            "Tahoe Azure",
+            "Aurora Prism",
+            "Sunset Silk",
+            "Obsidian Glass"
+          ]
+        },
+        "refraction": {
+          "label": "Optical refraction"
+        },
+        "frostAmount": {
+          "label": "Frost diffusion"
+        },
+        "dispersion": {
+          "label": "Chromatic edge"
+        },
+        "dropletCount": {
+          "label": "Droplet count"
+        },
+        "flowSpeed": {
+          "label": "Flow speed"
+        },
+        "cursorLens": {
+          "label": "Cursor glass lens",
+          "options": [
+            "Off",
+            "On"
+          ]
+        },
+        "iconGlassStyle": {
+          "label": "Icon glass style",
+          "options": [
+            "Frosted capsule",
+            "Clear droplet",
+            "Prism rim"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
+            "High"
+          ]
+        }
+      }
+    },
+    "software-world": {
+      "name": "Software World",
+      "desc": "Living software ecosystem where desktop icons become interactive nodes with data flows, packets, git branches, and subtle terminal atmosphere.",
+      "groups": [
+        "Ecosystem",
+        "Atmosphere",
+        "Performance"
+      ],
+      "params": {
+        "animSpeed": {
+          "label": "Animation Speed",
+          "hint": "Overall speed of packets, node pulses, git branches, and ambient drift"
+        },
+        "networkActivity": {
+          "label": "Network Activity",
+          "hint": "Frequency and throughput of data packets along connections"
+        },
+        "connectionIntensity": {
+          "label": "Connection Intensity",
+          "hint": "Visibility and reach of dependency and data-flow links between nodes"
+        },
+        "particleDensity": {
+          "label": "Particle Density",
+          "hint": "Density of ambient network and background system particles"
+        },
+        "codeParticleDensity": {
+          "label": "Code Particle Density",
+          "hint": "Density of subtle programming symbol particles in background"
+        },
+        "envDetail": {
+          "label": "Environment Detail",
+          "hint": "Detail level of git branches, terminal logs, build arcs, and grid"
+        },
+        "quality": {
+          "label": "Quality",
+          "hint": "Rendering resolution scaling and ecosystem budget",
+          "options": [
+            "Low",
+            "Balanced",
+            "High"
+          ]
+        }
+      }
     }
   }
 }

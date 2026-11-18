@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Software World — DiyarDesk</title>
+  <script src="low-mode.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b0e14;
+      color: #c9d1d9;
+      font-family: ui-monospace, "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #art {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #ghosts {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: none;
+    }
+    body.preview #ghosts {
+      display: block;
+    }
+    .ghost {
+      position: absolute;
+      border: 1px solid rgba(139, 148, 158, 0.28);
+      background: rgba(22, 27, 34, 0.25);
+      border-radius: 6px;
+    }
+    #demo-hud {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      display: none;
+      gap: 6px;
+      align-items: center;
+      background: rgba(15, 19, 27, 0.85);
+      border: 1px solid rgba(139, 148, 158, 0.2);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: #8b949e;
+      z-index: 10;
+    }
+    body.standalone #demo-hud {
+      display: flex;
+    }
+    #demo-hud button {
+      background: rgba(255, 255, 255, 0.06);
+      color: #c9d1d9;
+      border: 1px solid rgba(139, 148, 158, 0.25);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    #demo-hud button:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="art"></canvas>
+  <div id="ghosts"></div>
+  <div id="demo-hud">
+    <span>Software World (Demo: drag nodes)</span>
+    <button id="btn-spawn" type="button">+ Node</button>
+    <button id="btn-remove" type="button">- Node</button>
+    <button id="btn-reset" type="button">Reset</button>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // -------------------------------------------------------------------------
+    // 1. Environment & DiyarDesk Query Flags
+    // -------------------------------------------------------------------------
+    var qs = new URLSearchParams(window.location.search);
+    var PREVIEW = qs.get('preview') === '1' || qs.has('preview');
+    var WALLPAPER = qs.get('wallpaper') === '1' || qs.has('wallpaper');
+    var HOST = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
+    var STANDALONE = !PREVIEW && !WALLPAPER && !HOST && (window.self === window.top);
+
+    if (PREVIEW) document.body.classList.add('wall', 'preview');
+    else if (WALLPAPER || HOST) document.body.classList.add('wall');
+    else document.body.classList.add('standalone');
+
+    // -------------------------------------------------------------------------
+    // 2. Settings & Defaults (Synced with manifest.json)
+    // -------------------------------------------------------------------------
+    var P = {
+      adaptive: 1,
+      animSpeed: 1.0,
+      networkActivity: 0.65,
+      connectionIntensity: 0.55,
+      particleDensity: 0.55,
+      codeParticleDensity: 0.45,
+      envDetail: 0.70,
+      quality: 1,
+      seed: 42
+    };
+    var DEFAULTS = Object.assign({}, P);
+
+    var VALID_KEYS = [
+      'adaptive', 'animSpeed', 'networkActivity', 'connectionIntensity',
+      'particleDensity', 'codeParticleDensity', 'envDetail', 'quality', 'seed'
+    ];
+
+    function clamp(v, lo, hi) {
+      return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      var needBgRebuild = false;
+      var needReseed = false;
+
+      for (var i = 0; i < VALID_KEYS.length; i++) {
+        var k = VALID_KEYS[i];
+        if (v[k] === undefined || v[k] === null) continue;
+        var val = Number(v[k]);
+        if (!Number.isFinite(val)) continue;
+        if (k === 'adaptive') val = val ? 1 : 0;
+        else if (k === 'animSpeed') val = clamp(val, 0.25, 2.5);
+        else if (k === 'quality') val = clamp(Math.round(val), 0, 2);
+        else if (k === 'seed') {
+          if (val !== P.seed) needReseed = true;
+        } else {
+          val = clamp(val, 0, 1);
+        }
+        if ((k === 'envDetail' || k === 'quality') && P[k] !== val) {
+          needBgRebuild = true;
+        }
+        P[k] = val;
+      }
+
+      if (needReseed) reseed(P.seed);
+      if (needBgRebuild) {
+        updateCanvasMetrics();
+        rebuildBackgroundLayer();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. Deterministic Fast PRNG (xorshift32) — zero Math.random() in render loop
+    // -------------------------------------------------------------------------
+    var rngState = 0x2F6E2B1;
+    function reseed(s) {
+      rngState = ((s | 0) ^ 0x9E3779B9) || 0x2F6E2B1;
+    }
+    function rand() {
+      var x = rngState;
+      x ^= x << 13;
+      x ^= x >>> 17;
+      x ^= x << 5;
+      rngState = x;
+      return (x >>> 0) / 4294967296;
+    }
+    reseed(P.seed);
+
+    // -------------------------------------------------------------------------
+    // 4. Palette & Software Domain Vocabulary
+    // -------------------------------------------------------------------------
+    var PALETTE = {
+      bgTop: '#0a0d13',
+      bgBottom: '#0f141d',
+      gridLine: 'rgba(130, 160, 200, 0.088)',
+      gridCross: 'rgba(140, 178, 226, 0.22)',
+      linkBase: [130, 175, 235],
+      textMuted: 'rgba(182, 202, 226, 0.56)',
+      accents: [
+        { name: 'blue',   rgb: [96, 165, 250],  hex: '#60a5fa' }, // application / api
+        { name: 'green',  rgb: [74, 222, 128],  hex: '#4ade80' }, // service / server
+        { name: 'amber',  rgb: [217, 160, 75],  hex: '#d9a04b' }, // package / container
+        { name: 'purple', rgb: [155, 135, 215], hex: '#9b87d7' }  // module / repository
+      ]
+    };
+
+    var ROLES = [
+      { tag: 'APP',   kind: 'application', accentIdx: 0, badge: '<>' },
+      { tag: 'SVC',   kind: 'service',     accentIdx: 1, badge: '::' },
+      { tag: 'PKG',   kind: 'package',     accentIdx: 2, badge: '{}' },
+      { tag: 'REPO',  kind: 'repository',  accentIdx: 3, badge: 'git' },
+      { tag: 'SRV',   kind: 'server',      accentIdx: 1, badge: '$' },
+      { tag: 'CTR',   kind: 'container',   accentIdx: 2, badge: '[]' },
+      { tag: 'MOD',   kind: 'module',      accentIdx: 3, badge: 'λ' }
+    ];
+
+    var LINK_PROTOS = ['HTTP', 'RPC', 'SQL', 'EVT', 'IPC', 'TCP'];
+    var CODE_GLYPHS = ['{}', '<>', '()', ';', '=>', '::', './', '~/', 'λ', '#', '$'];
+    var LOG_LINES = [
+      '$ build  compiling modules...',
+      '✓ module  linked (14ms)',
+      '→ deploy  worker-pool ready',
+      '[ok] 200  GET /api/v2/health',
+      'git: rebase origin/main clean',
+      'cache: hit ratio 98.4%',
+      'rpc: stream channel open',
+      '✓ tests  42 passed, 0 failed'
+    ];
+
+    // -------------------------------------------------------------------------
+    // 5. Canvas & Responsive Metrics (1366x768 -> 3840x2160 & Ultrawide)
+    // -------------------------------------------------------------------------
+    var canvas = document.getElementById('art');
+    var ctx = canvas.getContext('2d', { alpha: false });
+    var bgCanvas = document.createElement('canvas');
+    var bgCtx = bgCanvas.getContext('2d', { alpha: false });
+
+    var W = 1920;
+    var H = 1080;
+    var DPR = 1;
+    var SCALE = 1;
+
+    function getMaxDpr() {
+      if (P.quality === 0) return 1.0;
+      if (P.quality === 1) return 1.5;
+      return 2.0;
+    }
+
+    function updateCanvasMetrics() {
+      W = Math.max(320, window.innerWidth || 1280);
+      H = Math.max(240, window.innerHeight || 720);
+      var rawDpr = window.devicePixelRatio || 1;
+      var maxDpr = getMaxDpr();
+      DPR = (typeof window.__desklandScale === 'function')
+        ? window.__desklandScale(maxDpr, 0.75)
+        : Math.min(rawDpr, maxDpr);
+      SCALE = clamp(Math.min(W, H) / 1080, 0.72, 1.85);
+
+      canvas.width = Math.round(W * DPR);
+      canvas.height = Math.round(H * DPR);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+      bgCanvas.width = canvas.width;
+      bgCanvas.height = canvas.height;
+      bgCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    }
+
+    function rebuildBackgroundLayer() {
+      // Static dark gradient + subtle developer grid (cached offscreen)
+      var grad = bgCtx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, PALETTE.bgTop);
+      grad.addColorStop(1, PALETTE.bgBottom);
+      bgCtx.fillStyle = grad;
+      bgCtx.fillRect(0, 0, W, H);
+
+      if (P.envDetail < 0.05) return;
+
+      var step = Math.round(48 * SCALE);
+      if (step < 28) step = 28;
+
+      bgCtx.strokeStyle = PALETTE.gridLine;
+      bgCtx.lineWidth = 1;
+      bgCtx.beginPath();
+      for (var x = step * 0.5; x < W; x += step) {
+        var px = (x | 0) + 0.5;
+        bgCtx.moveTo(px, 0);
+        bgCtx.lineTo(px, H);
+      }
+      for (var y = step * 0.5; y < H; y += step) {
+        var py = (y | 0) + 0.5;
+        bgCtx.moveTo(0, py);
+        bgCtx.lineTo(W, py);
+      }
+      bgCtx.stroke();
+
+      // Subtle coordinate crosshairs at every 4th intersection
+      if (P.envDetail >= 0.35) {
+        bgCtx.strokeStyle = PALETTE.gridCross;
+        bgCtx.beginPath();
+        var major = step * 4;
+        for (var gx = step * 0.5; gx < W; gx += major) {
+          for (var gy = step * 0.5; gy < H; gy += major) {
+            var cx = (gx | 0) + 0.5;
+            var cy = (gy | 0) + 0.5;
+            bgCtx.moveTo(cx - 3, cy);
+            bgCtx.lineTo(cx + 3, cy);
+            bgCtx.moveTo(cx, cy - 3);
+            bgCtx.lineTo(cx, cy + 3);
+          }
+        }
+        bgCtx.stroke();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. Node System with Persistent Spatial ID Tracking & Lifecycle
+    // -------------------------------------------------------------------------
+    var nextNodeId = 1;
+    var nodes = new Map(); // id -> Node
+    var nodeList = [];     // cached array view updated on structural change
+    var links = [];        // active connections between running nodes
+    var linksDirty = true;
+
+    function syncNodeList() {
+      nodeList.length = 0;
+      nodes.forEach(function (n) { nodeList.push(n); });
+      linksDirty = true;
+    }
+
+    function createNode(cx, cy, w, h) {
+      var id = nextNodeId++;
+      var role = ROLES[(id - 1) % ROLES.length];
+      var accent = PALETTE.accents[role.accentIdx];
+      return {
+        id: id,
+        role: role,
+        accent: accent,
+        x: cx,
+        y: cy,
+        targetX: cx,
+        targetY: cy,
+        w: w,
+        h: h,
+        targetW: w,
+        targetH: h,
+        // Lifecycle: 'boot' -> 'initialize' -> 'connect' -> 'running' -> 'disconnect' -> 'shutdown' -> 'offline'
+        state: 'boot',
+        stateTime: 0,
+        alpha: 0.01,
+        scale: 0.72,
+        pulsePhase: rand() * Math.PI * 2,
+        buildTimer: -1, // >= 0 when running a subtle SOURCE->COMPILE->BUILD->RUN cycle
+        buildDur: 4.5
+      };
+    }
+
+    var MATCH_RADIUS = 210; // logical px threshold for spatial identity preservation
+
+    function updateIconsFromRects(rects, vis) {
+      if (!vis || !Array.isArray(rects) || P.adaptive === 0) {
+        // Transition all active nodes to disconnect/shutdown
+        nodes.forEach(function (n) {
+          if (n.state !== 'disconnect' && n.state !== 'shutdown' && n.state !== 'offline') {
+            n.state = 'disconnect';
+            n.stateTime = 0;
+          }
+        });
+        linksDirty = true;
+        return;
+      }
+
+      var rawDpr = window.devicePixelRatio || 1;
+      var incoming = [];
+      for (var i = 0; i < rects.length; i++) {
+        var r = rects[i];
+        if (!r || r.length < 4) continue;
+        var l = r[0] / rawDpr;
+        var t = r[1] / rawDpr;
+        var ri = r[2] / rawDpr;
+        var b = r[3] / rawDpr;
+        var w = Math.max(24, ri - l);
+        var h = Math.max(24, b - t);
+        incoming.push({ cx: l + w * 0.5, cy: t + h * 0.5, w: w, h: h, x: l, y: t });
+      }
+
+      // Spatial nearest-neighbor matching (independent of array order!)
+      var existingCandidates = [];
+      nodes.forEach(function (n) {
+        if (n.state !== 'shutdown' && n.state !== 'offline') {
+          existingCandidates.push(n);
+        }
+      });
+
+      var matchedNodeIds = new Set();
+      var matchedIncoming = new Set();
+      var pairs = [];
+
+      for (var ei = 0; ei < existingCandidates.length; ei++) {
+        var en = existingCandidates[ei];
+        for (var ii = 0; ii < incoming.length; ii++) {
+          var inc = incoming[ii];
+          var dx = en.targetX - inc.cx;
+          var dy = en.targetY - inc.cy;
+          var d2 = dx * dx + dy * dy;
+          if (d2 <= MATCH_RADIUS * MATCH_RADIUS) {
+            pairs.push({ ei: ei, ii: ii, d2: d2 });
+          }
+        }
+      }
+      pairs.sort(function (a, b) { return a.d2 - b.d2; });
+
+      for (var pi = 0; pi < pairs.length; pi++) {
+        var p = pairs[pi];
+        var node = existingCandidates[p.ei];
+        if (matchedNodeIds.has(node.id) || matchedIncoming.has(p.ii)) continue;
+        matchedNodeIds.add(node.id);
+        matchedIncoming.add(p.ii);
+        var target = incoming[p.ii];
+        node.targetX = target.cx;
+        node.targetY = target.cy;
+        node.targetW = target.w;
+        node.targetH = target.h;
+        if (node.state === 'disconnect') {
+          node.state = 'connect';
+          node.stateTime = 0;
+        }
+      }
+
+      // Unmatched existing nodes -> begin shutdown lifecycle
+      for (var ui = 0; ui < existingCandidates.length; ui++) {
+        var un = existingCandidates[ui];
+        if (!matchedNodeIds.has(un.id) && un.state !== 'disconnect') {
+          un.state = 'disconnect';
+          un.stateTime = 0;
+        }
+      }
+
+      // Unmatched incoming rects -> spawn new software nodes
+      for (var ni = 0; ni < incoming.length; ni++) {
+        if (matchedIncoming.has(ni)) continue;
+        var incNew = incoming[ni];
+        var spawned = createNode(incNew.cx, incNew.cy, incNew.w, incNew.h);
+        nodes.set(spawned.id, spawned);
+      }
+
+      syncNodeList();
+      if (PREVIEW) drawGhosts(incoming);
+    }
+
+    function drawGhosts(logicalRects) {
+      var host = document.getElementById('ghosts');
+      if (!host) return;
+      host.innerHTML = '';
+      for (var i = 0; i < logicalRects.length; i++) {
+        var r = logicalRects[i];
+        var el = document.createElement('div');
+        el.className = 'ghost';
+        el.style.left = r.x + 'px';
+        el.style.top = r.y + 'px';
+        el.style.width = r.w + 'px';
+        el.style.height = r.h + 'px';
+        host.appendChild(el);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Inter-Node Connection Graph
+    // -------------------------------------------------------------------------
+    function rebuildLinks() {
+      links.length = 0;
+      var active = [];
+      for (var i = 0; i < nodeList.length; i++) {
+        var n = nodeList[i];
+        if (n.state === 'connect' || n.state === 'running' || n.state === 'disconnect') {
+          active.push(n);
+        }
+      }
+      if (active.length < 2) {
+        linksDirty = false;
+        return;
+      }
+
+      var maxDist = Math.max(W, H) * 0.42;
+      var maxDist2 = maxDist * maxDist;
+      var edgeKeys = new Set();
+
+      for (var a = 0; a < active.length; a++) {
+        var na = active[a];
+        var neighbors = [];
+        for (var b = 0; b < active.length; b++) {
+          if (a === b) continue;
+          var nb = active[b];
+          var dx = na.x - nb.x;
+          var dy = na.y - nb.y;
+          var d2 = dx * dx + dy * dy;
+          if (d2 <= maxDist2) {
+            neighbors.push({ node: nb, d2: d2 });
+          }
+        }
+        neighbors.sort(function (u, v) { return u.d2 - v.d2; });
+        var limit = Math.min(3, neighbors.length);
+        for (var k = 0; k < limit; k++) {
+          var target = neighbors[k].node;
+          var lo = na.id < target.id ? na.id : target.id;
+          var hi = na.id < target.id ? target.id : na.id;
+          var key = lo + ':' + hi;
+          if (edgeKeys.has(key)) continue;
+          edgeKeys.add(key);
+          links.push({
+            a: na,
+            b: target,
+            proto: LINK_PROTOS[(lo + hi) % LINK_PROTOS.length],
+            curveDir: ((lo + hi) % 2 === 0) ? 1 : -1
+          });
+        }
+      }
+      linksDirty = false;
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. Object Pools: Data Packets, Code Particles, Ambient Nodes/Streams
+    // -------------------------------------------------------------------------
+    var MAX_PACKETS = 120;
+    var packetPool = [];
+    for (var pi = 0; pi < MAX_PACKETS; pi++) {
+      packetPool.push({
+        active: false,
+        linkIdx: 0,
+        t: 0,
+        speed: 0.5,
+        dir: 1,
+        accentIdx: 0,
+        ambientY: 0,
+        isAmbient: false
+      });
+    }
+
+    var MAX_CODE_PARTICLES = 84;
+    var codeParticles = [];
+    for (var ci = 0; ci < MAX_CODE_PARTICLES; ci++) {
+      codeParticles.push({
+        x: rand(),
+        y: rand(),
+        vx: (rand() - 0.5) * 0.008,
+        vy: -0.004 - rand() * 0.008,
+        glyph: CODE_GLYPHS[ci % CODE_GLYPHS.length],
+        alpha: 0.05 + rand() * 0.08,
+        phase: rand() * Math.PI * 2,
+        accentIdx: ci % 4
+      });
+    }
+
+    var MAX_AMBIENT_NODES = 60;
+    var ambientNodes = [];
+    for (var ai = 0; ai < MAX_AMBIENT_NODES; ai++) {
+      ambientNodes.push({
+        x: rand(),
+        y: rand(),
+        vx: (rand() - 0.5) * 0.006,
+        vy: (rand() - 0.5) * 0.006,
+        r: 1.1 + rand() * 1.1,
+        phase: rand() * Math.PI * 2
+      });
+    }
+
+    // Git branch history state (updated calmly, zero per-frame allocations)
+    var gitCommits = [];
+    for (var gi = 0; gi < 14; gi++) {
+      gitCommits.push({
+        lane: (gi % 3 === 0) ? 1 : ((gi % 5 === 0) ? 2 : 0),
+        xNorm: gi / 13,
+        accentIdx: gi % 4
+      });
+    }
+    var gitScroll = 0;
+
+    // Terminal / log atmosphere state
+    var logCursor = 0;
+    var logTimer = 0;
+    var buildTriggerTimer = 4.0;
+    var packetSpawnAccum = 0;
+
+    // -------------------------------------------------------------------------
+    // 9. Update Loop (Smooth Interpolation, Lifecycles, Pooled Ecosystem)
+    // -------------------------------------------------------------------------
+    function update(dt) {
+      var speed = P.animSpeed;
+      var sDt = dt * speed;
+
+      // 9a. Update software nodes (smooth interpolation + lifecycle)
+      var needsCleanup = false;
+      var interpAlpha = 1 - Math.exp(-11.0 * dt);
+
+      for (var i = 0; i < nodeList.length; i++) {
+        var n = nodeList[i];
+        n.x += (n.targetX - n.x) * interpAlpha;
+        n.y += (n.targetY - n.y) * interpAlpha;
+        n.w += (n.targetW - n.w) * interpAlpha;
+        n.h += (n.targetH - n.h) * interpAlpha;
+        n.pulsePhase += sDt * 2.1;
+        n.stateTime += dt;
+
+        if (n.state === 'boot') {
+          var bt = clamp(n.stateTime / 0.4, 0, 1);
+          n.alpha = bt * 0.7;
+          n.scale = 0.72 + bt * 0.22;
+          if (n.stateTime >= 0.4) { n.state = 'initialize'; n.stateTime = 0; }
+        } else if (n.state === 'initialize') {
+          var it = clamp(n.stateTime / 0.5, 0, 1);
+          n.alpha = 0.7 + it * 0.2;
+          n.scale = 0.94 + it * 0.06;
+          if (n.stateTime >= 0.5) { n.state = 'connect'; n.stateTime = 0; linksDirty = true; }
+        } else if (n.state === 'connect') {
+          var ct = clamp(n.stateTime / 0.5, 0, 1);
+          n.alpha = 0.9 + ct * 0.1;
+          n.scale = 1.0;
+          if (n.stateTime >= 0.5) { n.state = 'running'; n.stateTime = 0; }
+        } else if (n.state === 'running') {
+          n.alpha = 1.0;
+          n.scale = 1.0;
+          if (n.buildTimer >= 0) {
+            n.buildTimer += sDt;
+            if (n.buildTimer >= n.buildDur) n.buildTimer = -1;
+          }
+        } else if (n.state === 'disconnect') {
+          var ddt = clamp(n.stateTime / 0.35, 0, 1);
+          n.alpha = 1.0 - ddt * 0.35;
+          if (n.stateTime >= 0.35) { n.state = 'shutdown'; n.stateTime = 0; linksDirty = true; }
+        } else if (n.state === 'shutdown') {
+          var st = clamp(n.stateTime / 0.5, 0, 1);
+          n.alpha = (1 - st) * 0.65;
+          n.scale = 1.0 - st * 0.3;
+          if (n.stateTime >= 0.5) {
+            n.state = 'offline';
+            nodes.delete(n.id);
+            needsCleanup = true;
+          }
+        }
+      }
+      if (needsCleanup) syncNodeList();
+      if (linksDirty) rebuildLinks();
+
+      // 9b. Occasional calm build/compile cycle on one running node
+      if (P.envDetail > 0.25 && nodeList.length > 0) {
+        buildTriggerTimer -= sDt;
+        if (buildTriggerTimer <= 0) {
+          buildTriggerTimer = 7.5 + rand() * 7.0;
+          var pickIdx = (rand() * nodeList.length) | 0;
+          var candidate = nodeList[pickIdx];
+          if (candidate && candidate.state === 'running' && candidate.buildTimer < 0) {
+            candidate.buildTimer = 0;
+          }
+        }
+      }
+
+      // 9c. Spawn & advance data packets (object-pooled)
+      var netRate = P.networkActivity * (P.quality === 0 ? 0.5 : 1.0);
+      if (netRate > 0.02) {
+        var targetRate = (links.length > 0 ? (2.2 + links.length * 1.1) : 1.6) * netRate * speed;
+        packetSpawnAccum += dt * targetRate;
+        while (packetSpawnAccum >= 1.0) {
+          packetSpawnAccum -= 1.0;
+          for (var pIdx = 0; pIdx < MAX_PACKETS; pIdx++) {
+            var pkt = packetPool[pIdx];
+            if (!pkt.active) {
+              pkt.active = true;
+              pkt.t = 0;
+              pkt.speed = (0.45 + rand() * 0.65) * speed;
+              pkt.dir = rand() > 0.5 ? 1 : -1;
+              if (links.length > 0 && rand() > 0.18) {
+                pkt.isAmbient = false;
+                pkt.linkIdx = (rand() * links.length) | 0;
+                var lnk = links[pkt.linkIdx];
+                pkt.accentIdx = lnk ? lnk.a.role.accentIdx : 0;
+              } else {
+                pkt.isAmbient = true;
+                pkt.ambientY = 0.14 + rand() * 0.72;
+                pkt.accentIdx = (rand() * 4) | 0;
+                pkt.speed *= 0.45;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      for (var k = 0; k < MAX_PACKETS; k++) {
+        var pk = packetPool[k];
+        if (!pk.active) continue;
+        pk.t += dt * pk.speed;
+        if (pk.t >= 1.0) {
+          pk.active = false;
+        }
+      }
+
+      // 9d. Drift code particles & ambient nodes
+      var cCount = Math.round(MAX_CODE_PARTICLES * P.codeParticleDensity * (P.quality === 0 ? 0.5 : 1));
+      for (var c = 0; c < cCount; c++) {
+        var cp = codeParticles[c];
+        cp.x += cp.vx * sDt;
+        cp.y += cp.vy * sDt;
+        cp.phase += sDt * 0.8;
+        if (cp.y < -0.04) { cp.y = 1.04; cp.x = rand(); }
+        if (cp.x < -0.04) cp.x = 1.04;
+        else if (cp.x > 1.04) cp.x = -0.04;
+      }
+
+      var aCount = Math.round(MAX_AMBIENT_NODES * P.particleDensity * (P.quality === 0 ? 0.5 : 1));
+      for (var a = 0; a < aCount; a++) {
+        var an = ambientNodes[a];
+        an.x += an.vx * sDt;
+        an.y += an.vy * sDt;
+        an.phase += sDt * 1.4;
+        if (an.x < 0) an.x += 1; else if (an.x > 1) an.x -= 1;
+        if (an.y < 0) an.y += 1; else if (an.y > 1) an.y -= 1;
+      }
+
+      // 9e. Git branch drift & terminal log cycle
+      gitScroll = (gitScroll + sDt * 0.018) % 1;
+      logTimer += sDt;
+      if (logTimer >= 4.2) {
+        logTimer = 0;
+        logCursor = (logCursor + 1) % LOG_LINES.length;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. Render Loop (Canvas2D, Zero Shadow/Blur, Minimal State Changes)
+    // -------------------------------------------------------------------------
+    function render() {
+      // 10a. Blit cached static background
+      ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+      // 10b. Ambient background mesh particles
+      var aCount = Math.round(MAX_AMBIENT_NODES * P.particleDensity * (P.quality === 0 ? 0.5 : 1));
+      if (aCount > 0) {
+        ctx.fillStyle = 'rgba(148, 182, 224, 0.36)';
+        ctx.beginPath();
+        for (var i = 0; i < aCount; i++) {
+          var an = ambientNodes[i];
+          var ax = an.x * W;
+          var ay = an.y * H;
+          ctx.moveTo(ax + an.r, ay);
+          ctx.arc(ax, ay, an.r, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
+      // 10c. Subtle Git Branch Graph (background lower-left/mid-low lane)
+      if (P.envDetail >= 0.2 && P.quality > 0) {
+        drawGitBranchGraph();
+      }
+
+      // 10d. Subtle Terminal / Log Atmosphere (distant corner, ultra-low opacity)
+      if (P.envDetail >= 0.3) {
+        drawTerminalAtmosphere();
+      }
+
+      // 10e. Code Particles (avoiding icon rects for crisp legibility)
+      var cCount = Math.round(MAX_CODE_PARTICLES * P.codeParticleDensity * (P.quality === 0 ? 0.5 : 1));
+      if (cCount > 0) {
+        ctx.font = Math.round(10 * SCALE) + 'px ui-monospace, Consolas, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (var c = 0; c < cCount; c++) {
+          var cp = codeParticles[c];
+          var px = cp.x * W;
+          var py = cp.y * H;
+          var fade = 1.0;
+          for (var ni = 0; ni < nodeList.length; ni++) {
+            var nd = nodeList[ni];
+            var dx = px - nd.x;
+            var dy = py - nd.y;
+            if (dx * dx + dy * dy < 5200 * SCALE) {
+              fade = 0.25;
+              break;
+            }
+          }
+          var rgb = PALETTE.accents[cp.accentIdx].rgb;
+          var alpha = cp.alpha * fade * (0.75 + 0.25 * Math.sin(cp.phase));
+          ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha.toFixed(3) + ')';
+          ctx.fillText(cp.glyph, px, py);
+        }
+      }
+
+      // 10f. Inter-Node Connections (thin, low-opacity architectural traces)
+      var connAlphaBase = P.connectionIntensity * 0.58;
+      if (connAlphaBase > 0.005 && links.length > 0) {
+        ctx.lineWidth = 1.45;
+        for (var li = 0; li < links.length; li++) {
+          var lnk = links[li];
+          var la = Math.min(lnk.a.alpha, lnk.b.alpha);
+          if (la <= 0.02) continue;
+
+          var x1 = lnk.a.x, y1 = lnk.a.y;
+          var x2 = lnk.b.x, y2 = lnk.b.y;
+          var mx = (x1 + x2) * 0.5;
+          var my = (y1 + y2) * 0.5;
+          var dx = x2 - x1;
+          var dy = y2 - y1;
+          var len = Math.hypot(dx, dy) || 1;
+          var bend = Math.min(28 * SCALE, len * 0.14) * lnk.curveDir;
+          var cx = mx - (dy / len) * bend;
+          var cy = my + (dx / len) * bend;
+
+          ctx.strokeStyle = 'rgba(132, 178, 236, ' + (connAlphaBase * la).toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.quadraticCurveTo(cx, cy, x2, y2);
+          ctx.stroke();
+
+          if (P.envDetail >= 0.55 && len > 130 * SCALE && P.quality > 0) {
+            var lx = 0.25 * x1 + 0.5 * cx + 0.25 * x2;
+            var ly = 0.25 * y1 + 0.5 * cy + 0.25 * y2;
+            ctx.font = Math.round(8.5 * SCALE) + 'px ui-monospace, Consolas, monospace';
+            ctx.fillStyle = 'rgba(186, 208, 232, ' + (0.52 * P.connectionIntensity * la).toFixed(3) + ')';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(lnk.proto, lx, ly - 6 * SCALE);
+          }
+        }
+      }
+
+      // 10g. Data Packets traveling along connections & ambient bus lines
+      if (P.networkActivity > 0.02) {
+        for (var k = 0; k < MAX_PACKETS; k++) {
+          var pk = packetPool[k];
+          if (!pk.active) continue;
+          var pRgb = PALETTE.accents[pk.accentIdx].rgb;
+          var pAlpha = Math.sin(pk.t * Math.PI) * 0.94 * (0.45 + 0.55 * P.networkActivity);
+          if (pAlpha <= 0.02) continue;
+
+          var pxPos, pyPos;
+          if (!pk.isAmbient && pk.linkIdx < links.length) {
+            var ln = links[pk.linkIdx];
+            var u = pk.dir > 0 ? pk.t : (1 - pk.t);
+            var ax1 = ln.a.x, ay1 = ln.a.y;
+            var ax2 = ln.b.x, ay2 = ln.b.y;
+            var amx = (ax1 + ax2) * 0.5;
+            var amy = (ay1 + ay2) * 0.5;
+            var adx = ax2 - ax1, ady = ay2 - ay1;
+            var alen = Math.hypot(adx, ady) || 1;
+            var abend = Math.min(28 * SCALE, alen * 0.14) * ln.curveDir;
+            var acx = amx - (ady / alen) * abend;
+            var acy = amy + (adx / alen) * abend;
+            var inv = 1 - u;
+            pxPos = inv * inv * ax1 + 2 * inv * u * acx + u * u * ax2;
+            pyPos = inv * inv * ay1 + 2 * inv * u * acy + u * u * ay2;
+            pAlpha *= Math.min(ln.a.alpha, ln.b.alpha);
+          } else {
+            pxPos = (pk.dir > 0 ? pk.t : (1 - pk.t)) * W;
+            pyPos = pk.ambientY * H;
+            pAlpha *= 0.35;
+          }
+
+          ctx.fillStyle = 'rgba(' + pRgb[0] + ',' + pRgb[1] + ',' + pRgb[2] + ',' + pAlpha.toFixed(3) + ')';
+          ctx.beginPath();
+          ctx.arc(pxPos, pyPos, 2.7 * SCALE, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 10h. Software Nodes (anchored smoothly to desktop icon coordinates)
+      for (var ni2 = 0; ni2 < nodeList.length; ni2++) {
+        drawSoftwareNode(nodeList[ni2]);
+      }
+    }
+
+    function drawGitBranchGraph() {
+      var baseY = H * 0.86;
+      var laneH = 16 * SCALE;
+      var startX = W * 0.04;
+      var spanW = W * 0.28;
+      var alpha = 0.36 * P.envDetail;
+
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(139, 148, 158, ' + alpha.toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.moveTo(startX, baseY);
+      ctx.lineTo(startX + spanW, baseY);
+      ctx.stroke();
+
+      // Secondary feature branch curve
+      ctx.strokeStyle = 'rgba(155, 135, 215, ' + (alpha * 0.9).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.moveTo(startX + spanW * 0.18, baseY);
+      ctx.bezierCurveTo(
+        startX + spanW * 0.25, baseY - laneH,
+        startX + spanW * 0.55, baseY - laneH,
+        startX + spanW * 0.65, baseY
+      );
+      ctx.stroke();
+
+      for (var i = 0; i < gitCommits.length; i++) {
+        var gc = gitCommits[i];
+        var nx = ((gc.xNorm + gitScroll) % 1);
+        var cx = startX + nx * spanW;
+        var cy = baseY;
+        if (gc.lane === 1 && nx > 0.22 && nx < 0.60) cy = baseY - laneH;
+        var edgeFade = Math.sin(nx * Math.PI);
+        var cRgb = PALETTE.accents[gc.accentIdx].rgb;
+        ctx.fillStyle = 'rgba(' + cRgb[0] + ',' + cRgb[1] + ',' + cRgb[2] + ',' + (alpha * 1.4 * edgeFade).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.2 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawTerminalAtmosphere() {
+      var alpha = 0.34 * P.envDetail;
+      var x = W * 0.04;
+      var y = H * 0.93;
+      ctx.font = Math.round(10 * SCALE) + 'px ui-monospace, Consolas, monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(148, 163, 184, ' + alpha.toFixed(3) + ')';
+      ctx.fillText(LOG_LINES[logCursor], x, y);
+      var prev = LOG_LINES[(logCursor + LOG_LINES.length - 1) % LOG_LINES.length];
+      ctx.fillStyle = 'rgba(148, 163, 184, ' + (alpha * 0.55).toFixed(3) + ')';
+      ctx.fillText(prev, x, y - 14 * SCALE);
+    }
+
+    function drawSoftwareNode(n) {
+      if (n.alpha <= 0.01) return;
+      var rgb = n.accent.rgb;
+      var pad = 12 * SCALE;
+      var bw = Math.max(54 * SCALE, n.w + pad * 2) * n.scale;
+      var bh = Math.max(54 * SCALE, n.h + pad * 2) * n.scale;
+      var left = n.x - bw * 0.5;
+      var top = n.y - bh * 0.5;
+      var right = left + bw;
+      var bottom = top + bh;
+      var corner = 8 * SCALE;
+
+      // Subtle dark node backing
+      ctx.fillStyle = 'rgba(16, 22, 34, ' + (0.64 * n.alpha).toFixed(3) + ')';
+      ctx.fillRect(left + 2, top + 2, bw - 4, bh - 4);
+
+      // Technical corner brackets (developer-oriented, non-neon)
+      var bracketAlpha = Math.min(1, (0.76 + 0.14 * Math.sin(n.pulsePhase)) * n.alpha);
+      ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + bracketAlpha.toFixed(3) + ')';
+      ctx.lineWidth = 1.9;
+      ctx.beginPath();
+      // Top-left
+      ctx.moveTo(left, top + corner); ctx.lineTo(left, top); ctx.lineTo(left + corner, top);
+      // Top-right
+      ctx.moveTo(right - corner, top); ctx.lineTo(right, top); ctx.lineTo(right, top + corner);
+      // Bottom-right
+      ctx.moveTo(right, bottom - corner); ctx.lineTo(right, bottom); ctx.lineTo(right - corner, bottom);
+      // Bottom-left
+      ctx.moveTo(left + corner, bottom); ctx.lineTo(left, bottom); ctx.lineTo(left, bottom - corner);
+      ctx.stroke();
+
+      // Subtle inner hairline frame
+      ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + (0.38 * n.alpha).toFixed(3) + ')';
+      ctx.lineWidth = 1.25;
+      ctx.strokeRect(left + 0.5, top + 0.5, bw - 1, bh - 1);
+
+      // Status dot & role tag above/below node
+      if (P.envDetail >= 0.25) {
+        var dotAlpha = (n.state === 'running' ? (0.55 + 0.25 * Math.sin(n.pulsePhase)) : 0.4) * n.alpha;
+        ctx.fillStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + dotAlpha.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(left + 7 * SCALE, top - 6 * SCALE, 2 * SCALE, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = Math.round(8.5 * SCALE) + 'px ui-monospace, Consolas, monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = 'rgba(205, 222, 242, ' + (0.78 * n.alpha * Math.max(0.35, P.envDetail)).toFixed(3) + ')';
+        var label = n.state === 'boot' ? 'BOOT'
+          : (n.state === 'initialize' ? 'INIT'
+          : (n.state === 'disconnect' || n.state === 'shutdown' ? 'STOP' : n.role.tag));
+        ctx.fillText(label + ' ' + n.role.badge, left + 13 * SCALE, top - 6 * SCALE);
+      }
+
+      // Occasional calm SOURCE -> COMPILE -> BUILD -> RUN progress bar
+      if (n.buildTimer >= 0 && n.state === 'running') {
+        var prog = clamp(n.buildTimer / n.buildDur, 0, 1);
+        var stage = prog < 0.25 ? 'SRC' : (prog < 0.55 ? 'CMP' : (prog < 0.85 ? 'BLD' : 'RUN'));
+        var barW = bw * prog;
+        ctx.fillStyle = prog > 0.85
+          ? 'rgba(74, 222, 128, ' + (0.45 * n.alpha).toFixed(3) + ')'
+          : 'rgba(217, 160, 75, ' + (0.40 * n.alpha).toFixed(3) + ')';
+        ctx.fillRect(left, bottom + 4 * SCALE, barW, 1.5);
+        ctx.font = Math.round(8 * SCALE) + 'px ui-monospace, Consolas, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(217, 160, 75, ' + (0.45 * n.alpha).toFixed(3) + ')';
+        ctx.fillText(stage, right, bottom + 11 * SCALE);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 11. Animation Loop, Pause & Visibility Control
+    // -------------------------------------------------------------------------
+    var paused = false;
+    var rafId = 0;
+    var lastTs = 0;
+
+    function tick(ts) {
+      if (paused || document.hidden) {
+        rafId = 0;
+        return;
+      }
+      if (!lastTs) lastTs = ts;
+      var dt = Math.min(0.05, Math.max(0.001, (ts - lastTs) / 1000));
+      lastTs = ts;
+      update(dt);
+      render();
+      rafId = requestAnimationFrame(tick);
+    }
+
+    function setPaused(v) {
+      var next = PREVIEW ? false : !!v;
+      if (paused === next && (paused || rafId)) return;
+      paused = next;
+      if (!paused && !document.hidden && !rafId) {
+        lastTs = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && !paused && !rafId) {
+        lastTs = 0;
+        rafId = requestAnimationFrame(tick);
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // 12. DiyarDesk Host & Preview Message Protocol
+    // -------------------------------------------------------------------------
+    function postToHost(payload) {
+      if (HOST && typeof HOST.postMessage === 'function') {
+        HOST.postMessage(typeof payload === 'string' ? payload : JSON.stringify(payload));
+      } else if (PREVIEW && window.parent && window.parent !== window) {
+        window.parent.postMessage(typeof payload === 'string' ? payload : JSON.stringify(payload), '*');
+      }
+    }
+
+    window.desklandSnapshot = function () {
+      render();
+      var full = canvas.toDataURL('image/png');
+      var tCanvas = document.createElement('canvas');
+      tCanvas.width = 480;
+      tCanvas.height = Math.max(180, Math.round(480 * (H / W)));
+      var tCtx = tCanvas.getContext('2d');
+      tCtx.drawImage(canvas, 0, 0, tCanvas.width, tCanvas.height);
+      var thumb = tCanvas.toDataURL('image/png');
+      return { thumb: thumb, full: full };
+    };
+
+    window.desklandRecord = function () {
+      return null;
+    };
+
+    function handleMessage(m) {
+      if (!m || typeof m !== 'object') return;
+      if (m.t === 'icons') {
+        updateIconsFromRects(m.r || [], m.vis !== false);
+      } else if (m.t === 'settings') {
+        applySettings(m.v || m.params || {});
+      } else if (m.t === 'reset') {
+        applySettings(Object.assign({}, DEFAULTS, m.v || {}));
+      } else if (m.t === 'pause') {
+        setPaused(m.v);
+      } else if (m.t === 'snapshot') {
+        var snap = window.desklandSnapshot();
+        postToHost('snapshot|' + snap.thumb + '|' + snap.full);
+      }
+    }
+
+    window.addEventListener('message', function (ev) {
+      if (PREVIEW && ev.source !== window.parent) return;
+      try {
+        var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+        handleMessage(data);
+      } catch (e) {}
+    });
+
+    if (HOST && typeof HOST.addEventListener === 'function') {
+      HOST.addEventListener('message', function (ev) {
+        try {
+          var data = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+          handleMessage(data);
+        } catch (e) {}
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 13. Standalone Interactive Demo Mode (Drag / Spawn / Remove Nodes)
+    // -------------------------------------------------------------------------
+    var demoRects = [];
+    var dragIdx = -1;
+    var dragOffX = 0;
+    var dragOffY = 0;
+
+    function initDemoIcons() {
+      var dpr = window.devicePixelRatio || 1;
+      var coords = [
+        [0.14, 0.24], [0.32, 0.20], [0.54, 0.28],
+        [0.24, 0.56], [0.48, 0.60], [0.72, 0.42]
+      ];
+      demoRects = coords.map(function (c) {
+        var cx = c[0] * W;
+        var cy = c[1] * H;
+        return [(cx - 30) * dpr, (cy - 30) * dpr, (cx + 30) * dpr, (cy + 30) * dpr];
+      });
+      updateIconsFromRects(demoRects, true);
+    }
+
+    if (STANDALONE) {
+      canvas.addEventListener('pointerdown', function (ev) {
+        var dpr = window.devicePixelRatio || 1;
+        var mx = ev.clientX * dpr;
+        var my = ev.clientY * dpr;
+        for (var i = demoRects.length - 1; i >= 0; i--) {
+          var r = demoRects[i];
+          if (mx >= r[0] - 18 * dpr && mx <= r[2] + 18 * dpr && my >= r[1] - 18 * dpr && my <= r[3] + 18 * dpr) {
+            dragIdx = i;
+            dragOffX = mx - (r[0] + r[2]) * 0.5;
+            dragOffY = my - (r[1] + r[3]) * 0.5;
+            break;
+          }
+        }
+      });
+      window.addEventListener('pointermove', function (ev) {
+        if (dragIdx < 0) return;
+        var dpr = window.devicePixelRatio || 1;
+        var cx = ev.clientX * dpr - dragOffX;
+        var cy = ev.clientY * dpr - dragOffY;
+        var half = 30 * dpr;
+        demoRects[dragIdx] = [cx - half, cy - half, cx + half, cy + half];
+        updateIconsFromRects(demoRects, true);
+      });
+      window.addEventListener('pointerup', function () { dragIdx = -1; });
+
+      document.getElementById('btn-spawn').addEventListener('click', function () {
+        var dpr = window.devicePixelRatio || 1;
+        var cx = (0.15 + Math.random() * 0.7) * W * dpr;
+        var cy = (0.15 + Math.random() * 0.65) * H * dpr;
+        var half = 30 * dpr;
+        demoRects.push([cx - half, cy - half, cx + half, cy + half]);
+        updateIconsFromRects(demoRects, true);
+      });
+      document.getElementById('btn-remove').addEventListener('click', function () {
+        if (demoRects.length > 0) {
+          demoRects.splice(Math.floor(demoRects.length / 2), 1);
+          updateIconsFromRects(demoRects, true);
+        }
+      });
+      document.getElementById('btn-reset').addEventListener('click', function () {
+        initDemoIcons();
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // 14. Boot
+    // -------------------------------------------------------------------------
+    window.addEventListener('resize', function () {
+      updateCanvasMetrics();
+      rebuildBackgroundLayer();
+      linksDirty = true;
+    });
+
+    updateCanvasMetrics();
+    rebuildBackgroundLayer();
+    if (STANDALONE) initDemoIcons();
+
+    if (HOST) HOST.postMessage('ready');
+    if (PREVIEW && window.parent && window.parent !== window) {
+      window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+    }
+
+    rafId = requestAnimationFrame(tick);
+  })();
+  </script>
+</body>
+</html>

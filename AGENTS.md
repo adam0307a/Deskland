@@ -71,9 +71,9 @@ All 13 built-in themes in this fork have `status: "ready"` and full source code 
 - **`desert`** (`desert.html`, adaptive): Overhead Sahara desert dunes with raised sunlit sand hills beneath dropped icons, turquoise date-palm oases, Bedouin tents, walking camel caravans, and robed Arab travelers (`desert-props.js`).
 
 ### Localization & Consistency
-- **Supported UI languages**: **Simplified Chinese (`zh-CN`) and English (`en`) ONLY**. Do not add extra languages.
+- **Supported UI languages**: **Simplified Chinese (`zh-CN`), English (`en`), and Turkish (`tr`)**.
 - `settings.html` resolves `t(key)` as `lang -> 'en' -> 'zh-CN' -> key`, while `el.textContent` is written by `applyStatic()` (do not embed HTML markup inside `i18n` values).
-- Keep defaults in `prototype/themes.json` synchronized with fallback defaults in each theme page HTML and translations in both `prototype/i18n/en.json` and `prototype/i18n/zh-CN.json`.
+- Keep defaults in `prototype/themes.json` synchronized with fallback defaults in each theme page HTML and translations in `prototype/i18n/en.json`, `prototype/i18n/tr.json`, and `prototype/i18n/zh-CN.json`.
 - **Plasma bridge registration**: When adding or renaming a theme HTML page, verify `linux/plasma-wallpaper/org.deskland.preview/contents/ui/inject.js` handles/recognizes it alongside icon injection.
 - **Thumbnails**: `prototype/thumbs/` and `prototype/thumbs-data.js` are hand-crafted; never regenerate or overwrite existing thumbnails unless explicitly requested.
 

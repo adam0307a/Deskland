@@ -18,7 +18,7 @@
 
   var QS = new URLSearchParams(location.search);
   var HOME = decodeURIComponent(QS.get('home') || '/');
-  var CURRENT_THEME = QS.get('theme') || 'meadow';
+  var CURRENT_THEME = QS.get('theme') || 'software-world';
   var ICONS_JSON = HOME + '/.cache/deskland/icons.json';
   var SETTINGS = HOME + '/.config/deskland/settings.json';
   var PAUSE_JSON = HOME + '/.cache/deskland/pause.json';
@@ -32,6 +32,21 @@
   var lastPauseSent = null;
   var lastLowModeSent = null;
   window.__desklandLowModeState = false;
+  try {
+    if (HOME && HOME !== '/') {
+      var initXhr = new XMLHttpRequest();
+      initXhr.open('GET', 'file://' + SETTINGS, false);
+      initXhr.send(null);
+      if (initXhr.responseText) {
+        var initCfg = JSON.parse(initXhr.responseText);
+        if (initCfg && typeof initCfg.lowMode === 'boolean') {
+          window.__desklandInitialLowMode = initCfg.lowMode;
+          window.__desklandLowModeState = initCfg.lowMode;
+          lastLowModeSent = initCfg.lowMode;
+        }
+      }
+    }
+  } catch (e) {}
 
   window.chrome = window.chrome || {};
   function replayCachedTo(fn) {
@@ -137,6 +152,12 @@
     istanbul: 'istanbul.html',
     'solar-system': 'solar-system.html',
     winter: 'winter.html',
+    neumorph: 'neumorph.html',
+    claymorph: 'claymorph.html',
+    neobrutalism: 'neobrutalism.html',
+    voxelcraft: 'voxelcraft.html',
+    liquidglass: 'liquidglass.html',
+    'software-world': 'software-world.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';

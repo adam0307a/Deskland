@@ -104,13 +104,13 @@ class DesklandHost:
     def choose_theme(self) -> None:
         if self.themes.allowed(self.settings.theme):
             return
-        for theme_id in ("beach", "meadow"):
+        for theme_id in ("software-world", "beach", "meadow"):
             if self.themes.allowed(theme_id):
                 self.settings.theme = theme_id
                 self.log.write(f"Geçersiz tema; {theme_id} seçildi")
                 return
         self.log.write("Yüklenecek ücretsiz tema bulunamadı")
-        self.settings.theme = "beach"
+        self.settings.theme = "software-world"
 
     # ---------------------------------------------------------------- startup
     def start(

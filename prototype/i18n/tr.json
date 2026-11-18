@@ -1,0 +1,1233 @@
+{
+  "name": "Türkçe",
+  "ui": {
+    "adaptive": "Uyarlanabilir",
+    "themes": "Temalar",
+    "collectionTitle": "Manzaranızı seçin.",
+    "collectionSubtitle": "Simgeleriniz manzaranın bir parçası olsun.",
+    "language": "Dil",
+    "langAuto": "Sistem varsayılanı",
+    "langAutoWith": "Sistem varsayılanı ({name})",
+    "autostart": "Windows ile başlat",
+    "autostartTitle": "Oturum açtığınızda DiyarDesk'i otomatik çalıştır",
+    "autostartBlocked": "Otomatik başlatma engellenmiş olabilir",
+    "autostartWarnSw": "DiyarDesk bu kez otomatik başlamadı — {sw} engellemiş olabilir. {sw} uygulamasını açıp başlangıç yöneticisinde DiyarDesk'i İzin Ver olarak ayarlayın.",
+    "autostartWarnGeneric": "DiyarDesk bu kez otomatik başlamadı — güvenlik yazılımınız veya sistemin Başlangıç uygulamaları ayarı engellemiş olabilir. Güvenlik yazılımınızın başlangıç yöneticisinden veya Windows Ayarlar → Uygulamalar → Başlangıç üzerinden DiyarDesk'i açın.",
+    "gotIt": "Anladım",
+    "updateAvailable": "Güncelleme mevcut",
+    "updateVersion": "DiyarDesk {version} hazır. Mevcut temanız ve ayarlarınız korunacak.",
+    "updateProgram": "Şimdi güncelle",
+    "updateRetry": "Güncellemeyi yeniden dene",
+    "updateWorking": "Güncelleniyor…",
+    "updateDownloading": "İndiriliyor ve kuruluyor… {progress}",
+    "updateInstalling": "Güncelleme kuruluyor… {progress}",
+    "updateCompletedTitle": "Güncelleme tamamlandı",
+    "updateCompleted": "Güncelleme indirildi ve kuruldu. DiyarDesk otomatik olarak yeniden başlamazsa uygulamayı tekrar açın.",
+    "updateDone": "Tamamlandı",
+    "updateCanceled": "Güncelleme iptal edildi. Daha sonra yeniden deneyebilirsiniz.",
+    "updateLowBattery": "Pil gücünde güncelleme tamamlanamadı. Cihazınızı şarja takıp tekrar deneyin.",
+    "updateWifiRecommended": "Bu ağ veri ücreti doğurabilir. Ağı değiştirin veya daha sonra tekrar deneyin.",
+    "updateWifiRequired": "Bu güncellemeyi indirmek için Wi-Fi'ye bağlanın.",
+    "updateStoreRequired": "Bu güncelleme yöntemi yalnızca Microsoft Store sürümünde kullanılabilir.",
+    "updateFailed": "Güncelleme başarısız oldu. Bağlantınızı veya Microsoft Store'u kontrol edip tekrar deneyin.",
+    "updateCheckingTitle": "Güncellemeler denetleniyor",
+    "updateChecking": "Güncelleme sunucusuna bağlanılıyor ve yeni sürüm denetleniyor…",
+    "updateFailedTitle": "Güncelleme tamamlanamadı",
+    "updateCheckFailedTitle": "Güncellemeler denetlenemedi",
+    "networkTimeout": "Bağlantı veya indirme zaman aşımına uğradı. Ağınızı, proxy veya güvenlik duvarınızı kontrol edip tekrar deneyin.",
+    "networkDns": "Sunucu adresi çözümlenemedi. Ağ, DNS veya proxy ayarlarınızı kontrol edip tekrar deneyin.",
+    "networkTls": "Güvenli bağlantı kurulamadı. Sistem saatini ve ağ/proxy güvenlik müdahalelerini kontrol edip tekrar deneyin.",
+    "networkLocal": "Ağ bağlantısı başarısız oldu veya kesildi. Ağınızı, proxy veya güvenlik duvarınızı kontrol edip tekrar deneyin.",
+    "serverUnavailable": "Sunucuya ulaşıldı ancak hizmet geçici olarak kullanılamıyor (HTTP 5xx). Lütfen daha sonra tekrar deneyin.",
+    "serverRejected": "Sunucu isteği reddetti (HTTP 4xx). Daha sonra tekrar deneyin veya sorun sürerse destekle iletişime geçin.",
+    "serverInvalid": "Sunucu tanınmayan bir yanıt döndürdü. Daha sonra tekrar deneyin veya sorun sürerse destekle iletişime geçin.",
+    "downloadInvalid": "İndirme eksik kaldı veya güvenlik doğrulamasından geçemedi, bu yüzden kurulum durduruldu. Tekrar deneyin.",
+    "livePreview": "Canlı önizleme",
+    "previewIcons": "Canlı önizleme · masaüstünüzdeki {n} simge kullanılıyor",
+    "previewNoIcons": "Canlı önizleme · masaüstü simgeleri gizli",
+    "refresh": "Yenile",
+    "refreshTitle": "Bu tema için yeni bir sahne oluştur",
+    "shareImage": "Görsel paylaş",
+    "shareImageTitle": "Masaüstü görselinizi gizliliğinizi koruyarak paylaşın",
+    "shareVideo": "Video paylaş",
+    "shareVideoTitle": "Masaüstü animasyonunuzu gizliliğinizi koruyarak paylaşın",
+    "generating": "Oluşturuluyor…",
+    "preparingRec": "Hazırlanıyor…",
+    "recording": "Kaydediliyor %{p}",
+    "savingVideo": "Kaydediliyor…",
+    "shareFailImage": "Görsel oluşturulamadı: {msg}",
+    "shareFailVideo": "Video kaydedilemedi: {msg}",
+    "unknownReason": "bilinmeyen hata",
+    "shareReadyImage": "Masaüstü görseliniz hazır",
+    "shareReadyVideo": "Masaüstü klibiniz hazır",
+    "sharePrivacy": "Simgeler örnek simgelerle, dosya adları ise renk bloklarıyla değiştirilir; hiçbir dosyanız gösterilmez.",
+    "shareCopiedImage": "Görsel panonuza kopyalandı — doğrudan bir sohbete veya gönderiye yapıştırabilirsiniz.",
+    "shareCopiedVideo": "Video dosyası panonuza kopyalandı — göndermek için sohbet penceresine yapıştırabilirsiniz.",
+    "shareBrowserHint": " (Tarayıcı önizlemesi: indirmek için “{btn}” düğmesine tıklayın.)",
+    "savedTo": "{path} konumuna kaydedildi",
+    "openFolder": "Klasörde göster",
+    "openImage": "Görseli aç",
+    "openVideo": "Videoyu aç",
+    "saveImage": "Görseli kaydet",
+    "saveVideo": "Videoyu kaydet",
+    "ok": "Tamam",
+    "sharePreviewAlt": "Paylaşılan görselin önizlemesi",
+    "autosave": "Değişiklikler otomatik olarak kaydedilir ve masaüstünüze hemen uygulanır",
+    "saved": "Kaydedildi ✓",
+    "resetAll": "Tümünü sıfırla",
+    "resetAllTitle": "Bu temanın tüm ayarlarını varsayılana döndür",
+    "helpButtonTitle": "Sık sorulan sorular ve sorun giderme",
+    "helpTitle": "Yardım",
+    "helpSubtitle": "Sık sorulan sorular ve sorun giderme",
+    "helpWallpaperQ": "DiyarDesk sürekli titriyor veya yeniden başlıyor. Nasıl düzeltirim?",
+    "helpWallpaperA": "Normal masaüstü duvar kağıdınız otomatik değişiyorsa her değişim DiyarDesk'in titremesine veya yeniden başlamasına yol açabilir. Değişmeyen sabit bir arka plan kullanın.",
+    "helpWallpaperStep1": "Windows Ayarlar → Kişiselleştirme → Arka Plan bölümünü açın.",
+    "helpWallpaperStep2": "‘Arka planınızı kişiselleştirin’ ayarını ‘Resim’ veya ‘Düz renk’ yapın. ‘Slayt gösterisi’ veya ‘Windows Spotlight’ kullanmayın.",
+    "helpWallpaperStep3": "Bu ayarı değiştirdikten sonra DiyarDesk'i yeniden başlatın.",
+    "badgeOn": "Kullanımda",
+    "badgeReady": "Hazır",
+    "badgeSoon": "Yakında",
+    "ongoingTitle": "Daha fazlası yolda",
+    "ongoingDesc": "Zamanla yeni sahneler ve öğeler eklenecek.",
+    "noParams": "Bu tema için henüz ayar bulunmuyor",
+    "resetOne": "Varsayılana sıfırla: {v}",
+    "resetOneAria": "{label} ayarını varsayılana sıfırla",
+    "dblclickReset": "Sıfırlamak için çift tıklayın ({v})",
+    "comingSoon": "Yakında:",
+    "audioNone": "Dosya seçilmedi",
+    "audioPick": "Ses seç…",
+    "audioPlay": "▶ Oynat",
+    "audioPause": "⏸ Duraklat",
+    "importTheme": "Tema içe aktar…",
+    "importThemeTitle": "Tema paketi (.zip, .deskland), HTML sayfası, görsel veya video içe aktar",
+    "importHelpBtnTitle": "Desteklenen içe aktarma formatları ve rehber",
+    "importHelpTitle": "Tema İçe Aktarma Rehberi",
+    "importHelpSubtitle": "Yerel bir dosya seçmek için + Tema içe aktar… düğmesine tıklayın. Aşağıdaki tüm formatlar desteklenir ve otomatik doğrulanır:",
+    "importHelpHowTitle": "Desteklenen Formatlar ve Davranış",
+    "importHelpZipTitle": "Tema Paketleri (.zip, .deskland)",
+    "importHelpZipDesc": "Çok dosyalı HTML/JS/CSS/varlık temaları. manifest.json veya theme.json varsa meta verileri, giriş HTML'ini, küçük resmi ve parametreleri otomatik okur; yoksa index.html veya ilk .html dosyasına döner, thumb/preview görsellerini (.svg dahil) algılar ve zip-slip yol geçişleri ile sembolik bağlantıları engeller.",
+    "importHelpHtmlTitle": "Tek Web Sayfası (.html, .htm)",
+    "importHelpHtmlDesc": "Tek dosyalı etkileşimli shader veya HTML temaları (tema adı olarak <title> etiketini kullanır).",
+    "importHelpImageTitle": "Görsel Duvar Kağıtları (.png, .jpg, .jpeg, .webp, .gif, .svg, .avif, .bmp)",
+    "importHelpImageDesc": "Yumuşak ortam yakınlaştırma/kaydırma, parlaklık, hareket ve simge arka plan halesi (dimIcons) kontrolleri, uyarlanabilir düzen ve anlık görüntü paylaşımı (desklandSnapshot) ile otomatik olarak etkileşimli duvar kağıdı sayfasına sarılır.",
+    "importHelpVideoTitle": "Video Duvar Kağıtları (.mp4, .webm, .mkv, .mov)",
+    "importHelpVideoDesc": "Videoyu parlaklık, oynatma hızı ve simge arka plan halesi (dimIcons) kontrolleriyle sessiz döngüde akıcı biçimde oynatır.",
+    "importHelpNote": "Arşivler açılmadan önce bütünlük kontrolünden geçirilir (paket başına en fazla 150 MB / 2.000 dosya). İçe aktarılan temalar kullanıcı klasörünüzde saklanır ve önizleme başlığındaki Kaldır düğmesiyle istenildiğinde silinebilir.",
+    "importHelpManifestTitle": "Manifest ve Ayar Şeması (manifest.json / theme.json)",
+    "importHelpManifestMetaTitle": "Meta Veriler ve Küçük Resim",
+    "importHelpManifestMetaDesc": "name/title, desc/description, entry/page/main/file (varsayılan index.html), adaptive (true/false) ve thumb/thumbnail/preview (.svg dahil göreli görsel yolu veya CSS renk/gradyan) alanlarını destekler.",
+    "importHelpManifestParamsTitle": "Parametreler (groups veya settings)",
+    "importHelpManifestParamsDesc": "DiyarDesk'in yerel groups dizisini ([{ name, params }]) ve group/category kullanan gruplanmış settings nesnelerini kabul eder; kaydırıcı (range: min/max/step/default), seçici (select: metin listeleri veya { label, value } seçenekleri) ve anahtar (checkbox: true/false) kontrollerini destekler.",
+    "importHelpProtoTitle": "Etkileşimli HTML Tema Protokolü",
+    "importHelpProtoReadyTitle": "Hazır El Sıkışması (ready)",
+    "importHelpProtoReadyDesc": "İlk ayarları ve simge dikdörtgenlerini almak için duvar kağıdı kipinde window.chrome.webview.postMessage('ready'), önizleme kipinde (?preview=1) parent.postMessage(JSON.stringify({ t: 'ready' }), '*') çağrısı yapın.",
+    "importHelpProtoMsgTitle": "Host İletileri ve Paylaşım",
+    "importHelpProtoMsgDesc": "Sayfanız { t: 'icons', vis, r: [[l, t, r, b], ...] } (fiziksel piksel; CSS pikseli için devicePixelRatio değerine bölün), { t: 'settings', v: {...} }, { t: 'reset', v: {...} } ve { t: 'pause', v: true|false } iletilerini alır. Paylaşım için isteğe bağlı olarak window.desklandSnapshot() / window.desklandRecord() işlevlerini tanımlayabilirsiniz.",
+    "removeTheme": "Kaldır",
+    "removeThemeTitle": "İçe aktarılan bu temayı kaldır",
+    "importErrorTitle": "Tema içe aktarılamadı",
+    "importError": "Tema içe aktarılamadı: {msg}",
+    "virtualBarTitle": "Masaüstünde sanal simgeler çubuğu",
+    "virtualBarAuto": "Simgeler: Otomatik",
+    "virtualBarAlways": "Simgeler: Her zaman göster",
+    "virtualBarOff": "Simgeler: Gizli",
+    "lowMode": "Eco mod (Düşük)",
+    "lowModeTitle": "Sıkı eko optimizasyon: 15 FPS sınırı, 0.75x ölçek, yoğun bulanıklık/gölgeleri kapatır ve pencereler arkasında daha hızlı duraklatır"
+  },
+  "host": {
+    "traySettings": "Ayarlar…",
+    "trayPause": "Animasyonu duraklat",
+    "trayLowMode": "Eco mod (Düşük güç)",
+    "trayReload": "Yeniden yükle",
+    "trayAutostart": "Sistem ile başlat",
+    "trayExit": "Çıkış (duvar kağıdını geri yükle)",
+    "welcomeTitle": "DiyarDesk çalışıyor",
+    "welcomeBody": "Menüyü açmak için sistem tepsisindeki DiyarDesk simgesine tıklayın{hotkey}.\nGöremiyorsanız görev çubuğunun sağındaki ^ simgesine tıklayın.",
+    "welcomeHotkey": " veya Ctrl+Alt+H tuşlarına basın",
+    "errNotReady": "Duvar kağıdı henüz hazır değil",
+    "errNoImage": "Görsel geri dönmedi",
+    "errNoVideo": "Video geri dönmedi",
+    "errBusyImage": "Önceki görsel hâlâ oluşturuluyor",
+    "errBusyVideo": "Önceki klip hâlâ kaydediliyor",
+    "errImageTimeout": "Oluşturma çok uzun sürdü",
+    "errVideoTimeout": "Kayıt çok uzun sürdü",
+    "errBadData": "Sayfa eksik veri döndürdü",
+    "errRebuilt": "Windows duvar kağıdı katmanını sürekli yeniden oluşturduğu için DiyarDesk durduruldu.",
+    "errSeeLog": "Ayrıntılar için günlüğe bakın: {path}",
+    "errSettings": "Ayarlar penceresi açılamadı: {msg}",
+    "errNoPage": "Sayfa bulunamadı: {path}",
+    "errNoDesktop": "Masaüstü penceresi bulunamadığı için duvar kağıdı bağlanamıyor.",
+    "errStart": "Başlatılamadı: {msg}"
+  },
+  "themes": {
+    "software-world": {
+      "name": "Software World",
+      "desc": "Masaüstü simgelerinin veri akışları, paketler, git dalları ve terminal atmosferiyle etkileşimli düğümlere dönüştüğü canlı yazılım ekosistemi.",
+      "groups": [
+        "Ekosistem",
+        "Atmosfer",
+        "Performans"
+      ],
+      "params": {
+        "animSpeed": {
+          "label": "Animasyon hızı",
+          "hint": "Paketlerin, düğüm nabızlarının, git dallarının ve ortam akışının genel hızı"
+        },
+        "networkActivity": {
+          "label": "Ağ etkinliği",
+          "hint": "Bağlantılar üzerindeki veri paketlerinin sıklığı ve akış yoğunluğu"
+        },
+        "connectionIntensity": {
+          "label": "Bağlantı yoğunluğu",
+          "hint": "Düğümler arasındaki bağımlılık ve veri akışı bağlantılarının görünürlüğü ve erişimi"
+        },
+        "particleDensity": {
+          "label": "Parçacık yoğunluğu",
+          "hint": "Ortam ağ ve arka plan sistem parçacıklarının yoğunluğu"
+        },
+        "codeParticleDensity": {
+          "label": "Kod parçacık yoğunluğu",
+          "hint": "Arka plandaki programlama sembolü parçacıklarının yoğunluğu"
+        },
+        "envDetail": {
+          "label": "Ortam detayı",
+          "hint": "Git dalları, terminal günlükleri, derleme yayları ve ızgara ayrıntı düzeyi"
+        },
+        "quality": {
+          "label": "Kalite",
+          "hint": "İşleme çözünürlük ölçeği ve ekosistem bütçesi",
+          "options": [
+            "Düşük",
+            "Dengeli",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "beach": {
+      "name": "Sahil",
+      "desc": "Dalgalar kumsala vururken kıyı şeridi dosyalarınızın etrafından kıvrılır",
+      "groups": [
+        "Kıyı şeridi",
+        "Su",
+        "Ayrıntılar"
+      ],
+      "params": {
+        "palms": {
+          "label": "Hindistan cevizi palmiyeleri",
+          "hint": "Kıyı palmiyesi sayısı; gizlemek için 0 yapın. Yeterli kum yoksa daha az görünür.",
+          "unit": ""
+        },
+        "sigma": {
+          "label": "Simgelerden uzaklık",
+          "hint": "Kıyı şeridinin simgelerinizden ne kadar uzakta duracağı"
+        },
+        "warp": {
+          "label": "Kıvrımlı kıyı",
+          "hint": "Kıyı şeridinin ne kadar kıvrılıp büküleceği"
+        },
+        "shoal": {
+          "label": "Berrak sığlık",
+          "hint": "Kum üzerindeki şeffaf su kuşağının genişliği"
+        },
+        "shallow": {
+          "label": "Sığ deniz",
+          "hint": "Suyun turkuazdan derin maviye geçiş mesafesi"
+        },
+        "kayaks": {
+          "label": "Kanolar",
+          "unit": ""
+        },
+        "birds": {
+          "label": "Deniz kuşları",
+          "hint": "Yukarıda süzülüp daire çizen martılar",
+          "unit": ""
+        }
+      }
+    },
+    "meadow": {
+      "name": "Çayır",
+      "desc": "Simgelerinizin koyu yeşil gölgeler düşüren beyaz bulutların içine gizlendiği suluboya çayır",
+      "groups": [
+        "Simgelerin çevresi",
+        "Bulutlar",
+        "Karakterler"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Bulut boyutu",
+          "hint": "Simgelerinizin etrafındaki bulutların ne kadar yayılacağı"
+        },
+        "cover": {
+          "label": "Çayır üzerindeki bulutlar",
+          "hint": "Açık çayır üzerinde süzülen bulut sayısı"
+        },
+        "flow": {
+          "label": "Süzülme hızı",
+          "hint": "Bulutların sürüklenme ve şekil değiştirme hızı"
+        },
+        "showBoy": {
+          "label": "Çocuğu göster",
+          "hint": "Uçurtmalı çocuğu göster veya gizle",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        },
+        "showCat": {
+          "label": "Kedi yavrusunu göster",
+          "hint": "Çimenlerde dinlenen küçük siyah kedi yavrusu",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        }
+      }
+    },
+    "aurora": {
+      "name": "Aurora Gölü",
+      "desc": "Gece yarısı donmuş göl kutup ışıklarını yansıtırken simgeleriniz çamlar ve sıcak fenerlerle karlı adacıklarda dinlenir",
+      "groups": [
+        "Karlı kıyı",
+        "Aurora ve buz",
+        "Ayrıntılar"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Kar açıklığı",
+          "hint": "Karlı adacıkların simgelerinizin etrafında ne kadar genişleyeceği"
+        },
+        "warp": {
+          "label": "Kıvrımlı kıyı",
+          "hint": "Karlı kıyı çizgisinin ne kadar kıvrımlı olacağı"
+        },
+        "shoal": {
+          "label": "Buzlu kenar",
+          "hint": "Kıyı etrafındaki soluk buzlu sınırın genişliği"
+        },
+        "aurora": {
+          "label": "Aurora ışıltısı",
+          "hint": "Kuzey ışıklarının donmuş göl üzerinde ne kadar parlak parıldayacağı"
+        },
+        "flow": {
+          "label": "Akış hızı",
+          "hint": "Aurora şeritlerinin ve kar yağışının hızı"
+        },
+        "pines": {
+          "label": "Karlı çamlar",
+          "hint": "Adacıklardaki kar kaplı çam ağaçları; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "lanterns": {
+          "label": "Sıcak fenerler",
+          "hint": "Karlı kıyı boyunca yerleştirilmiş sıcak parlayan fenerler",
+          "unit": ""
+        },
+        "snow": {
+          "label": "Kar yağışı",
+          "hint": "Sahne boyunca süzülen kar tanesi yoğunluğu"
+        }
+      }
+    },
+    "glade": {
+      "name": "Orman Açıklığı",
+      "desc": "Guaj boyalı ağaçlar hafifçe sallanır ve simgelerinizin etrafında güneşli çayır açıklıkları açar; dallarda minik kuşlar konar",
+      "groups": [
+        "Açıklık",
+        "Orman",
+        "Yaban hayatı"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Açıklık boyutu",
+          "hint": "Simgelerinizin etrafında güneşli çayır açıklığının genişliği"
+        },
+        "warp": {
+          "label": "Kenar kıvrımı",
+          "hint": "Orman sınırının ne kadar organik biçimde kıvrılacağı"
+        },
+        "density": {
+          "label": "Ağaç yoğunluğu",
+          "hint": "Ağaçların ormanlık alanı ne kadar sık kaplayacağı"
+        },
+        "wind": {
+          "label": "Rüzgar salınımı",
+          "hint": "Ağaç tepelerinin ve kuşların rüzgarda ne kadar sallanacağı"
+        },
+        "birds": {
+          "label": "Orman kuşları",
+          "hint": "Ağaç tepelerine konan ve ormanda uçuşan minik kuşlar; gizlemek için 0 yapın",
+          "unit": ""
+        }
+      }
+    },
+    "rift": {
+      "name": "Rünik Vadi",
+      "desc": "Ressamane orman ve parıldayan nehir ortasında, altın ve camgöbeği Hextech rünleriyle bezeli taş sunaklar simgelerinizin etrafında açılır",
+      "groups": [
+        "Sunak",
+        "Rünler ve nehir",
+        "Kalıntılar ve ışıklar"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Arena boyutu",
+          "hint": "Oyma taş sunağın simgelerinizin etrafında ne kadar açılacağı"
+        },
+        "warp": {
+          "label": "Uçurum hattı",
+          "hint": "Orman uçurum kenarının ne kadar keskin veya organik kıvrılacağı"
+        },
+        "glow": {
+          "label": "Hextech ışıltısı",
+          "hint": "Camgöbeği rünlerin, totem kristallerinin ve nehrin parlaklığı"
+        },
+        "wind": {
+          "label": "Esinti ve akış",
+          "hint": "Ağaçların salınım, nehir dalgalarının akış ve perilerin süzülme hızı"
+        },
+        "heroes": {
+          "label": "Vadi şampiyonları",
+          "hint": "Taş sunaklar ile nehir kıyısında dolaşan sevimli şampiyonlar ve Poro; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "turrets": {
+          "label": "Büyülü kuleler",
+          "hint": "Sunak kenarlarını koruyan Mavi ve Kızıl taş savunma kuleleri; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "wards": {
+          "label": "Totem fenerleri",
+          "hint": "Simge kenarlarında duran pirinç ve kristal rün fenerleri; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "wisps": {
+          "label": "Mana perileri",
+          "hint": "Nehir ve orman üzerinde süzülen ışıklı mana perileri; gizlemek için 0 yapın",
+          "unit": ""
+        }
+      }
+    },
+    "strike": {
+      "name": "Bomba Alanı Tozu",
+      "desc": "Güneşli çöl bomba alanı: simgeler kurşun izli beton etki bölgelerinde yer alır; pirinç kovanlar, sandıklar, tavuklar ve dokununca fırlayan futbol topuyla",
+      "groups": [
+        "Etki bölgesi",
+        "Atmosfer",
+        "Nesneler ve sürprizler"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Etki yarıçapı",
+          "hint": "Kurşun izli beton bölgenin simgelerinizin etrafında ne kadar genişleyeceği"
+        },
+        "warp": {
+          "label": "Moloz kenarı",
+          "hint": "Beton sınırının avlu kumuna ne kadar pürüzlü geçiş yapacağı"
+        },
+        "holes": {
+          "label": "Mermi yoğunluğu",
+          "hint": "Simge bölgelerindeki mermi izi, çatlak ve boş kovan yoğunluğu"
+        },
+        "smoke": {
+          "label": "Toz ve duman",
+          "hint": "Taktik dumanların ve güneşli çöl pusunun görünürlüğü"
+        },
+        "wind": {
+          "label": "Esinti ve hız",
+          "hint": "Taktik dumanların, uçuşan kumun ve tavukların hareket hızı"
+        },
+        "ball": {
+          "label": "Futbol topu",
+          "hint": "Üzerine simge geldiğinde yuvarlanıp seken klasik CS futbol topu; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "chickens": {
+          "label": "Gezen tavuklar",
+          "hint": "Avluda yemlenen ve simgelerden kaçışan çöl tavukları; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "crates": {
+          "label": "Siper sandıkları",
+          "hint": "Açık koridorlardaki ahşap mühimmat sandığı, varil ve kum torbası yoğunluğu"
+        }
+      }
+    },
+    "pocket": {
+      "name": "Cephe Kuşatması",
+      "desc": "Simge kümelerinin, klasör dillerine göre otomatik eşleşen Türk, Alman veya İngiliz NATO tümen işaretleriyle kuşatılmış savaş cebine dönüştüğü büyük strateji haritası",
+      "groups": [
+        "Cephe ve Kuşatma",
+        "Tümenler ve Ülkeler",
+        "Harekat ayrıntıları"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Cephe yarıçapı",
+          "hint": "Kuşatılmış savaş cebinin simgelerinizin etrafında ne kadar uzanacağı"
+        },
+        "warp": {
+          "label": "Cephe eğrisi",
+          "hint": "Kuşatma sınırının arazi sırtlarını ne kadar doğal izleyeceği"
+        },
+        "arrows": {
+          "label": "Taarruz okları",
+          "hint": "İçe dönük harekat planı oklarının ve cephe vurgularının parlaklığı"
+        },
+        "divisions": {
+          "label": "Tümen pulları",
+          "hint": "Cepleri kuşatan Age of History / HOI4 tarzı tümen pulu sayısı; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "faction": {
+          "label": "Kuşatan kuvvet",
+          "hint": "0 = Klasör dilini otomatik algıla (Türkçe/Almanca/İngilizce); 1 = Türk; 2 = Alman; 3 = İngiliz"
+        },
+        "pace": {
+          "label": "Harekat temposu",
+          "hint": "Cephe yarmalarının animasyon ve tümenlerin yürüyüş hızı"
+        },
+        "skirmish": {
+          "label": "Topçu ateşi",
+          "hint": "Cephe tümenlerinin içeri doğru topçu parlaması ve dumanı üretme sıklığı"
+        },
+        "supply": {
+          "label": "Harita ve kaleler",
+          "hint": "Topoğrafik eşyükselti eğrilerinin, koordinat ızgarasının ve ikmal depolarının görünürlüğü"
+        }
+      }
+    },
+    "roach": {
+      "name": "Hamamböceği Kasabası",
+      "desc": "Viral insansı hamamböceği karakterler — deri yelekli meyve suyu içici, kravatlı öğrenci, baretli fabrika ekibi, pembe tüylü diva ve kırmızı elbiseli çift — Arnavut kaldırımlı caddede simge kaldırımlarının etrafında gezinir",
+      "groups": [
+        "Cadde ve Kaldırım",
+        "Hamamböceği Kadrosu"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Kaldırım genişliği",
+          "hint": "Sıcak fayanslı kaldırım adasının masaüstü simgelerinizin etrafında ne kadar uzanacağı"
+        },
+        "warp": {
+          "label": "Kaldırım doğallığı",
+          "hint": "Kaldırım taşının simge kümelerinizin etrafından ne kadar akıcı kıvrılacağı"
+        },
+        "glow": {
+          "label": "Sokak lambası ışıltısı",
+          "hint": "Su birikintilerindeki sıcak kehribar lamba yansımalarının yoğunluğu"
+        },
+        "vibe": {
+          "label": "Gün ışığı avlusu",
+          "hint": "Alacakaranlık Beyoğlu Arnavut kaldırımlı bulvardan güneşli avluya yumuşak geçiş"
+        },
+        "crowd": {
+          "label": "Karakter sayısı",
+          "hint": "Gezinen, dans eden ve meyve suyu içen karakter sayısı; gizlemek için 0 yapın",
+          "unit": ""
+        },
+        "speed": {
+          "label": "Yürüyüş temposu",
+          "hint": "Karakterlerin yürüme, dans etme ve köşe dönüş hızı"
+        },
+        "props": {
+          "label": "Lambalar ve nesneler",
+          "hint": "Ferforje sokak lambaları, meyve suyu kutuları ve ince belli çay bardaklarının yoğunluğu"
+        },
+        "audio": {
+          "label": "Arka plan sesi",
+          "hint": "Hamamböceği Kasabası için yerel bir ses dosyası seçin ve dilediğiniz zaman oynatın veya duraklatın",
+          "defaultName": "Roach Town (Varsayılan)"
+        }
+      }
+    },
+    "rosebrook": {
+      "name": "Gül Deresi",
+      "desc": "Kristal berraklığında bir derenin geçtiği yemyeşil çayırlar. Bir simgeyi bıraktığınızda veya taşıdığınızda etrafında katmanlı güller ve kır çiçekleri açar, rüzgarda taç yaprakları süzülür.",
+      "groups": [
+        "Dere ve Çayır",
+        "Güller ve Yapraklar"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Çayır yarıçapı",
+          "hint": "Her simgenin etrafındaki güneşli çimen ve çiçek halkasının genişliği",
+          "unit": "px"
+        },
+        "stream": {
+          "label": "Dere genişliği",
+          "hint": "Çayır boyunca kıvrılan orman deresinin genişliği"
+        },
+        "flow": {
+          "label": "Akıntı hızı",
+          "hint": "Dalgaların ve güneş parıltılarının akıntı yönündeki hızı"
+        },
+        "sunlight": {
+          "label": "Su parıltısı",
+          "hint": "Dere üzerindeki sıcak güneş ışığı ve pırıltılı yansımalar"
+        },
+        "roses": {
+          "label": "Gül yoğunluğu",
+          "hint": "Bırakılan simgelerin çevresinde açan gül ve kır çiçeği zenginliği"
+        },
+        "petals": {
+          "label": "Uçuşan yapraklar",
+          "hint": "Havada süzülen gül yaprakları ve bahçe kelebeklerinin sayısı"
+        },
+        "breeze": {
+          "label": "Çayır esintisi",
+          "hint": "Çiçeklerin salınım ve uçuşan gül yapraklarının hızı"
+        }
+      }
+    },
+    "polarnight": {
+      "name": "Kutup Gecesi Aurorası",
+      "desc": "Donmuş bir göl kıyısında kutup gecesi: aurora gökyüzünde dalgalanıp buza yansır, simgeleriniz ise karlı çam ormanının açıklığında dinlenir",
+      "groups": [
+        "Simgelerin çevresi",
+        "Aurora",
+        "Kış gecesi"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Açıklık boyutu",
+          "hint": "Ağaçlar başlamadan önce simgelerinizin etrafındaki açık kar alanının genişliği"
+        },
+        "density": {
+          "label": "Orman yoğunluğu",
+          "hint": "Açıklığın ötesindeki çam ormanının sıklığı; 0 ağaçları gizler"
+        },
+        "glow": {
+          "label": "Aurora parlaklığı",
+          "hint": "Gökyüzündeki üç ışık şeridinin parlaklık düzeyi"
+        },
+        "flow": {
+          "label": "Akış hızı",
+          "hint": "Auroranın dalgalanma, buzun parıldama ve karın yağma hızı"
+        },
+        "palette": {
+          "label": "Aurora renkleri",
+          "hint": "Işık şeritlerinin renk paleti",
+          "options": [
+            "Yeşil ve pembe",
+            "Mor ve camgöbeği",
+            "Altın ve yeşil"
+          ]
+        },
+        "snow": {
+          "label": "Kar yağışı",
+          "hint": "Düşen kar tanesi miktarı; 0 kar yağışını durdurur",
+          "unit": ""
+        },
+        "meteor": {
+          "label": "Kayan yıldızlar",
+          "hint": "Gece gökyüzünden ara sıra kayıp geçen meteorlar",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        },
+        "cabin": {
+          "label": "Kulübe",
+          "hint": "Simgelerinizden uzakta duran sıcak pencereli ve dumanlı kıyı kulübesi",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        }
+      }
+    },
+    "desert": {
+      "name": "Sahra Vahası",
+      "desc": "Altın çöl kumullarına kuşbakışı: simgeler güneşli kum tepeleri yükseltirken deve kervanları ve Arap gezginler hurma vahaları arasında yol alır",
+      "groups": [
+        "Simge kumulları",
+        "Vaha ve güneş ışığı",
+        "Kervan ve gezginler"
+      ],
+      "params": {
+        "sigma": {
+          "label": "Kumul boyutu",
+          "hint": "Her simgenin etrafında yükselen kumul tepeciğinin genişliği"
+        },
+        "warp": {
+          "label": "Rüzgar dalgaları",
+          "hint": "Kumulların doğal kıvrımları ve rüzgarla şekillenen hatları"
+        },
+        "oases": {
+          "label": "Vaha sayısı",
+          "hint": "Çukur havzalarda yer alan turkuaz çöl vahalarının sayısı",
+          "unit": ""
+        },
+        "warmth": {
+          "label": "Güneş sıcaklığı",
+          "hint": "Altın Sahra güneş ışığının ve titreşen çöl sıcaklığının yoğunluğu"
+        },
+        "wind": {
+          "label": "Rüzgar ve kervan hızı",
+          "hint": "Savrulan kumların, sallanan palmiyelerin ve yürüyen kervanların hızı"
+        },
+        "camels": {
+          "label": "Develer",
+          "hint": "Kumullar arasında ilerleyen deve sayısı; 0 kervanları gizler",
+          "unit": ""
+        },
+        "travelers": {
+          "label": "Arap gezginler",
+          "hint": "Kefiye takmış cüppeli Arap kervan rehberleri ve Bedevi vaha çadırları",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        },
+        "palms": {
+          "label": "Hurma palmiyeleri",
+          "hint": "Vahaları çevreleyen gür hurma ağaçlarının sayısı",
+          "unit": ""
+        }
+      }
+    },
+    "zen-archipelago": {
+      "name": "Zen Takımadası",
+      "desc": "Simgelerinizin etrafına uyarlanan biyolüminesan koi lagünü, ahşap köprüler, sakura adacıkları ve yüzen fenerler",
+      "groups": [
+        "Atmosfer ve dalgalar",
+        "Adalar ve köprüler",
+        "Lagün ve fenerler"
+      ],
+      "params": {
+        "timeOfDay": {
+          "label": "Günün saati",
+          "hint": "Biyolüminesan gece, altın gün batımı ve zümrüt gündüz arasında geçiş yapın",
+          "options": [
+            "Biyolüminesan Gece",
+            "Altın Gün Batımı",
+            "Zümrüt Gündüz"
+          ]
+        },
+        "waveIntensity": {
+          "label": "Dalga yoğunluğu",
+          "hint": "Her adanın kıyılarına vuran dalgaların gücü ve ışıltısı"
+        },
+        "islandMargin": {
+          "label": "Ada boyutu",
+          "hint": "Her simge adasının kum, çimen ve resif olarak ne kadar büyüyeceği"
+        },
+        "bridgeDistance": {
+          "label": "Köprü açıklığı",
+          "hint": "Yakın simge adaları arasına ahşap köprü kurulabilecek maksimum mesafe"
+        },
+        "koiCount": {
+          "label": "Koi balıkları",
+          "hint": "Lagün içinde zarafetle yüzen koi balığı sayısı",
+          "unit": ""
+        },
+        "lanternCount": {
+          "label": "Yüzen fenerler",
+          "hint": "Lagün boyunca süzülen sıcak ahşap tōrō fenerleri",
+          "unit": ""
+        },
+        "sakuraDensity": {
+          "label": "Sakura çiçekleri",
+          "hint": "Kiraz çiçeği ağaçlarının ve uçuşan yaprakların yoğunluğu"
+        },
+        "fireflies": {
+          "label": "Ateş böcekleri",
+          "hint": "Üzerinde süzülen biyolüminesan sporların ve ateş böceklerinin sayısı"
+        }
+      }
+    },
+    "istanbul": {
+      "name": "İstanbul — Boğaz'da Gün Batımı",
+      "desc": "İstanbul'a kuşbakışı: Boğaziçi, Haliç, kubbeler, minareler, vapurlar, martılar ve simgelerinizin etrafında laleli çini meydanlarla ahşap iskeleler",
+      "groups": [
+        "Zaman ve ışıltı",
+        "Boğaziçi",
+        "Simge çevresi",
+        "Şehir"
+      ],
+      "params": {
+        "time": {
+          "label": "Günün saati",
+          "hint": "Otomatik seçenek sistem saatinize göre sabah, öğle, gün batımı ve geceyi izler",
+          "options": [
+            "Otomatik",
+            "Sabah",
+            "Öğle",
+            "Gün batımı",
+            "Gece"
+          ]
+        },
+        "glow": {
+          "label": "Işık parıltısı",
+          "hint": "Su yakamozu, şehir pencereleri ve meydan fenerlerinin yoğunluğu"
+        },
+        "ferries": {
+          "label": "Vapurlar",
+          "hint": "Boğaz'dan geçen şehir hatları vapuru sayısı",
+          "unit": ""
+        },
+        "flow": {
+          "label": "Akıntı ve vapur hızı",
+          "hint": "Geçen dalgaların ve yolcu vapurlarının hızı"
+        },
+        "gulls": {
+          "label": "Martılar",
+          "hint": "Boğaz semalarında süzülen martı sürüleri",
+          "options": [
+            "Yok",
+            "Az",
+            "Çok"
+          ]
+        },
+        "pad": {
+          "label": "Meydan boyutu",
+          "hint": "Karadaki çini meydanın ve sudaki ahşap iskelenin simge etrafındaki genişliği"
+        },
+        "tulips": {
+          "label": "Laleler",
+          "hint": "Kara simgelerinin etrafındaki meydanları süsleyen lale bordürleri",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        },
+        "cats": {
+          "label": "Sokak kedileri",
+          "hint": "Huzurlu İstanbul meydanlarında güneşlenen kediler",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        },
+        "landmarks": {
+          "label": "Tarihi yapılar",
+          "hint": "Ayasofya, Sultanahmet, Süleymaniye, Galata Kulesi ve Kız Kulesi",
+          "options": [
+            "Gizle",
+            "Göster"
+          ]
+        }
+      }
+    },
+    "solar-system": {
+      "name": "Etkileşimli Güneş Sistemi ve Kara Delik",
+      "desc": "Masaüstü simgelerini imleç kütleçekimi ve yörüngesel simge hareketiyle göreli bir kara deliğin etrafında dönen canlı güneş sistemlerine dönüştürür",
+      "groups": [
+        "Kara Delik ve Çekirdek",
+        "Güneş Sistemi",
+        "Uzay",
+        "Fizik",
+        "Performans"
+      ],
+      "params": {
+        "centerBodyType": {
+          "label": "Merkez gök cismi",
+          "options": [
+            "Kara Delik",
+            "Dev Güneş",
+            "Derin Uzay"
+          ]
+        },
+        "blackHoleSize": {
+          "label": "Kara delik ölçeği"
+        },
+        "accretionIntensity": {
+          "label": "Yığılma ve mercek ışıltısı"
+        },
+        "iconOrbitMode": {
+          "label": "Simge yörünge hareketi",
+          "options": [
+            "Merkezde Dön",
+            "Sabit Çapa"
+          ]
+        },
+        "globalOrbitSpeed": {
+          "label": "Simge dönüş hızı"
+        },
+        "planetCount": {
+          "label": "Gezegen sayısı"
+        },
+        "orbitSize": {
+          "label": "Yörünge boyutu"
+        },
+        "orbitSpeed": {
+          "label": "Yörünge hızı"
+        },
+        "planetSize": {
+          "label": "Gezegen boyutu"
+        },
+        "starDensity": {
+          "label": "Yıldız yoğunluğu"
+        },
+        "nebulaIntensity": {
+          "label": "Bulutsu yoğunluğu"
+        },
+        "asteroidDensity": {
+          "label": "Asteroit yoğunluğu"
+        },
+        "shootingStars": {
+          "label": "Kayan yıldızlar",
+          "options": [
+            "Kapalı",
+            "Açık"
+          ]
+        },
+        "gravityStrength": {
+          "label": "Kütleçekim gücü"
+        },
+        "systemAttraction": {
+          "label": "Sistem çekimi"
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "winter": {
+      "name": "Kış Kulübesi ve Canlı Kar",
+      "desc": "Karlı zirveler, çam ormanı, sıcak kulübe dumanı ve masaüstü simgelerinizi kucaklayan kar yığınlarıyla sakin kış alacakaranlığı",
+      "groups": [
+        "Kar ve Rüzgar",
+        "Manzara ve Kulübe",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "snowIntensity": {
+          "label": "Kar yoğunluğu"
+        },
+        "snowSpeed": {
+          "label": "Kar hızı"
+        },
+        "windStrength": {
+          "label": "Rüzgar gücü"
+        },
+        "atmosphereDensity": {
+          "label": "Atmosfer yoğunluğu"
+        },
+        "mountainVisibility": {
+          "label": "Dağ görünürlüğü"
+        },
+        "treeDensity": {
+          "label": "Ağaç yoğunluğu"
+        },
+        "smokeAmount": {
+          "label": "Duman miktarı"
+        },
+        "iconSnowAmount": {
+          "label": "Simge kar miktarı"
+        },
+        "animSpeed": {
+          "label": "Animasyon hızı"
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "neumorph": {
+      "name": "Neomorfik Dokunsal Yüzey",
+      "desc": "Yay fizikli dokunsal karolar, döner kadranlar, tıklama dalgaları ve masaüstü simgelerinin etrafında kabartmalı yuvalar sunan yumuşak UI yüzeyi",
+      "groups": [
+        "Yüzey ve Aydınlatma",
+        "Dokunsal Hareket",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "palette": {
+          "label": "Yüzey paleti",
+          "options": [
+            "Kaymaktaşı",
+            "Sıcak Kum",
+            "Gece Arduvazı",
+            "Adaçayı Sisi"
+          ]
+        },
+        "accentColor": {
+          "label": "Vurgu LED'i",
+          "options": [
+            "Kobalt",
+            "Mercan",
+            "Zümrüt",
+            "Kehribar"
+          ]
+        },
+        "reliefDepth": {
+          "label": "Kabartma derinliği"
+        },
+        "lightFollowCursor": {
+          "label": "İmleç aydınlatması",
+          "options": [
+            "Kapalı",
+            "Açık"
+          ]
+        },
+        "waveSpeed": {
+          "label": "Nefes dalgası hızı"
+        },
+        "tileDensity": {
+          "label": "Karo yoğunluğu"
+        },
+        "rippleStrength": {
+          "label": "Tıklama dalgası gücü"
+        },
+        "iconStyle": {
+          "label": "Simge kalıp stili",
+          "options": [
+            "Kabartmalı yuva",
+            "Oyuk hazne",
+            "Minimal halka"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "claymorph": {
+      "name": "Claymorphism Dokunsal Dünya",
+      "desc": "Jöle kıvamında esneme fiziği, yumuşak imleç itmesi ve masaüstü simgelerinin altında şişirilmiş kil yuvaları barındıran kabarık 3B pastel kil küreleri ve kapsülleri",
+      "groups": [
+        "Kil ve Palet",
+        "Yüzen Heykeller",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "palette": {
+          "label": "Kil paleti",
+          "options": [
+            "Pastel Stüdyo",
+            "Böğürtlen ve Krema",
+            "Matcha Kili",
+            "Alacakaranlık Kili"
+          ]
+        },
+        "puffiness": {
+          "label": "Kabarıklık"
+        },
+        "squishStrength": {
+          "label": "Esneme ve zıplama"
+        },
+        "blobCount": {
+          "label": "Heykel yoğunluğu"
+        },
+        "floatSpeed": {
+          "label": "Süzülme hızı"
+        },
+        "cursorRepel": {
+          "label": "İmleç yastık itmesi"
+        },
+        "iconCradle": {
+          "label": "Simge yuvası stili",
+          "options": [
+            "Kabarık pastel",
+            "Krema yastık",
+            "Kil halka"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "neobrutalism": {
+      "name": "Neo-Brütalizm Kinetik Poster",
+      "desc": "Keskin kalın mürekkep kenarlıklı yüksek kontrastlı renk blokları, bulanıklıksız sert ofset gölgeler, mekanik tıklama tepkisi ve çerçeveli masaüstü simge kartları",
+      "groups": [
+        "Palet ve Mürekkep",
+        "Hareket ve Etkileşim",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "palette": {
+          "label": "Poster paleti",
+          "options": [
+            "Bauhaus Pop",
+            "Asit Poster",
+            "Retro Zine",
+            "Geceyarısı Zine"
+          ]
+        },
+        "borderWeight": {
+          "label": "Kenarlık kalınlığı"
+        },
+        "shadowDepth": {
+          "label": "Sert gölge mesafesi"
+        },
+        "halftonePattern": {
+          "label": "Tram noktaları",
+          "options": [
+            "Kapalı",
+            "Açık"
+          ]
+        },
+        "shapeCount": {
+          "label": "Blok yoğunluğu"
+        },
+        "motionSpeed": {
+          "label": "Süzülme hızı"
+        },
+        "cursorPush": {
+          "label": "İmleç itmesi"
+        },
+        "iconFrame": {
+          "label": "Simge çerçeve stili",
+          "options": [
+            "Renkli kart",
+            "Eğik çıkartma",
+            "Mavi baskı çizgisi"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "voxelcraft": {
+      "name": "Voxel Craft Dünyası",
+      "desc": "Değiştirilebilir biyomlar, kübik gece-gündüz döngüsü, sıcak meşaleler, piksel arılar, XP blok kırma patlamaları ve simge altı yüzen voksel platformları",
+      "groups": [
+        "Dünya ve Gökyüzü",
+        "Yaşam ve Atmosfer",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "biome": {
+          "label": "Biyom",
+          "options": [
+            "Yeşil Düzlükler",
+            "Kiraz Korusu",
+            "Karlı Tayga",
+            "Kızıl Nether"
+          ]
+        },
+        "timeOfDay": {
+          "label": "Günün saati",
+          "options": [
+            "Otomatik döngü",
+            "Gündüz",
+            "Gün batımı",
+            "Yıldızlı gece"
+          ]
+        },
+        "blockSize": {
+          "label": "Blok ölçeği"
+        },
+        "cloudDensity": {
+          "label": "Kübik bulutlar"
+        },
+        "weatherAmount": {
+          "label": "Parçacıklar ve ateş böcekleri"
+        },
+        "critterAmount": {
+          "label": "Piksel arılar"
+        },
+        "torchGlow": {
+          "label": "Meşale parıltısı"
+        },
+        "animSpeed": {
+          "label": "Döngü hızı"
+        },
+        "iconBlockStyle": {
+          "label": "Simge voksel platformu",
+          "options": [
+            "Yüzen ada",
+            "Ahşap kalaslar",
+            "Piksel çerçeve"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "liquidglass": {
+      "name": "Liquid Glass Kırınımlı Yüzey",
+      "desc": "Yarı saydam optik kırınımlı sıvı cam damlacıkları arkasında akan ipeksi ışık ağı, prizmatik renk saçılımı kenarları, imleç merceği ve masaüstü simgelerinin etrafında buzlu cam yuvalar",
+      "groups": [
+        "Cam ve Işık",
+        "Sıvı Hareket",
+        "Simgeler ve Performans"
+      ],
+      "params": {
+        "palette": {
+          "label": "İpek paleti",
+          "options": [
+            "Tahoe Gök Mavisi",
+            "Aurora Prizması",
+            "Gün Batımı İpeği",
+            "Obsidyen Cam"
+          ]
+        },
+        "refraction": {
+          "label": "Optik kırınım"
+        },
+        "frostAmount": {
+          "label": "Buzlu yayılım"
+        },
+        "dispersion": {
+          "label": "Kromatik kenar"
+        },
+        "dropletCount": {
+          "label": "Damlacık sayısı"
+        },
+        "flowSpeed": {
+          "label": "Akış hızı"
+        },
+        "cursorLens": {
+          "label": "İmleç cam merceği",
+          "options": [
+            "Kapalı",
+            "Açık"
+          ]
+        },
+        "iconGlassStyle": {
+          "label": "Simge cam stili",
+          "options": [
+            "Buzlu kapsül",
+            "Berrak damla",
+            "Prizma kenar"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -115,10 +115,13 @@
           cb(ts);
         });
       };
-      if (wait <= 4) {
+      // Wake slightly before the target VSync so origRAF catches the 66.7ms (15 FPS) tick cleanly
+      // instead of missing it by 1-2ms of setTimeout jitter and dropping to 12/10 FPS.
+      var timerDelay = Math.max(0, Math.round(wait - 8));
+      if (timerDelay <= 4) {
         dispatch();
       } else {
-        entry.timer = window.setTimeout(dispatch, Math.round(wait));
+        entry.timer = window.setTimeout(dispatch, timerDelay);
       }
       return id;
     };

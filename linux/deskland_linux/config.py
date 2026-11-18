@@ -14,9 +14,9 @@ APP_NAME = "DiyarDesk"
 APP_ID = "app.deskland.Preview"
 VERSION = "0.1.4-linux.1"
 
-THEME_DEFAULT = "beach"
+THEME_DEFAULT = "software-world"
 LANG_DEFAULT = "auto"
-SUPPORTED_LANGS = ("zh-CN", "en")
+SUPPORTED_LANGS = ("zh-CN", "en", "tr")
 
 
 def repo_root() -> Path:
@@ -365,6 +365,8 @@ class I18n:
             first = value.split(":", 1)[0].split(".", 1)[0].split("@", 1)[0]
             if first.lower().startswith("zh"):
                 return "zh-CN"
+            if first.lower().startswith("tr"):
+                return "tr"
             if first:
                 return "en"
         return "en"

@@ -1,0 +1,1191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neumorphic Tactile Surface</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #e0e5ec; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; }
+    #ghosts { position: fixed; inset: 0; pointer-events: none; }
+    .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .26; }
+    .ghost i { width: 40px; height: 40px; border-radius: 9px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.22); }
+    .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 3px; background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // 1. CONFIGURATION, PALETTES & QUALITY PROFILES
+    // =========================================================================
+    const QS = new URLSearchParams(location.search || '');
+    const WALL = QS.has('wallpaper');
+    const PREVIEW = QS.has('preview');
+
+    const DEFAULTS = {
+      palette: 'alabaster',
+      accentColor: 'cobalt',
+      reliefDepth: 1.0,
+      lightFollowCursor: false,
+      waveSpeed: 0.75,
+      tileDensity: 1.0,
+      rippleStrength: 1.0,
+      iconStyle: 'cradle',
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    const P = Object.assign({}, DEFAULTS);
+
+    const PALETTES = {
+      alabaster: {
+        bg: '#e0e5ec',
+        bgHi: '#edf1f7',
+        bgLo: '#d2d9e4',
+        lightRgb: '255, 255, 255',
+        darkRgb: '163, 177, 198',
+        lightAlpha: 0.90,
+        darkAlpha: 0.74,
+        seamRgb: '163, 177, 198',
+        seamAlpha: 0.22,
+        labelPill: 'rgba(38, 50, 68, 0.22)',
+        isDark: false
+      },
+      sand: {
+        bg: '#e6dfd5',
+        bgHi: '#f1ece4',
+        bgLo: '#d8cfc2',
+        lightRgb: '255, 252, 246',
+        darkRgb: '179, 166, 148',
+        lightAlpha: 0.88,
+        darkAlpha: 0.70,
+        seamRgb: '176, 163, 145',
+        seamAlpha: 0.22,
+        labelPill: 'rgba(54, 46, 38, 0.22)',
+        isDark: false
+      },
+      slate: {
+        bg: '#1e222b',
+        bgHi: '#262b36',
+        bgLo: '#161920',
+        lightRgb: '60, 68, 88',
+        darkRgb: '9, 11, 15',
+        lightAlpha: 0.78,
+        darkAlpha: 0.90,
+        seamRgb: '10, 12, 16',
+        seamAlpha: 0.45,
+        labelPill: 'rgba(10, 12, 18, 0.24)',
+        isDark: true
+      },
+      sage: {
+        bg: '#dce5df',
+        bgHi: '#e8efe9',
+        bgLo: '#cdd8d1',
+        lightRgb: '250, 255, 252',
+        darkRgb: '158, 174, 164',
+        lightAlpha: 0.86,
+        darkAlpha: 0.70,
+        seamRgb: '156, 172, 162',
+        seamAlpha: 0.22,
+        labelPill: 'rgba(34, 52, 42, 0.22)',
+        isDark: false
+      }
+    };
+
+    const ACCENTS = {
+      cobalt:  { hex: '#3b82f6', rgb: '59, 130, 246' },
+      coral:   { hex: '#f46a55', rgb: '244, 106, 85' },
+      emerald: { hex: '#10b981', rgb: '16, 185, 129' },
+      amber:   { hex: '#f59e0b', rgb: '245, 158, 11' }
+    };
+
+    const QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, shadowSteps: 7,  enableWidgets: false, enableGridDots: false },
+      Medium: { maxDpr: 1.25, shadowSteps: 11, enableWidgets: true,  enableGridDots: true },
+      High:   { maxDpr: 1.50, shadowSteps: 14, enableWidgets: true,  enableGridDots: true }
+    };
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    function getPalette() {
+      return PALETTES[P.palette] || PALETTES.alabaster;
+    }
+
+    function getAccent() {
+      return ACCENTS[P.accentColor] || ACCENTS.cobalt;
+    }
+
+    // =========================================================================
+    // 2. CANVAS STATE, UTILITIES & PRNG
+    // =========================================================================
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d', { alpha: false });
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+
+    let W = innerWidth || 1920;
+    let H = innerHeight || 1080;
+    let scale = 1;
+    let cacheOK = false;
+    let paused = false;
+    let _rafId = 0;
+    let lastT = 0;
+    let simTime = 0;
+    let seed = 20261118;
+    let icons = [];
+    let iconsSeen = false;
+
+    const pointer = {
+      x: -9999,
+      y: -9999,
+      smoothX: 0.25,
+      smoothY: 0.25,
+      active: false,
+      down: false
+    };
+
+    function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function smoothstep(e0, e1, x) {
+      const t = clamp((x - e0) / (e1 - e0 || 1), 0, 1);
+      return t * t * (3 - 2 * t);
+    }
+    function mulberry32(a) {
+      let s = a >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function addRoundRectPath(c, x, y, w, h, r) {
+      const rr = Math.min(r, w * 0.5, h * 0.5);
+      c.moveTo(x + rr, y);
+      c.arcTo(x + w, y, x + w, y + h, rr);
+      c.arcTo(x + w, y + h, x, y + h, rr);
+      c.arcTo(x, y + h, x, y, rr);
+      c.arcTo(x, y, x + w, y, rr);
+      c.closePath();
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      addRoundRectPath(c, x, y, w, h, r);
+    }
+
+    // =========================================================================
+    // 3. ZERO-SHADOWBLUR NEUMORPHISM SPRITE BAKER
+    //    Uses layered soft-alpha expanded/inset geometry instead of ctx.shadowBlur
+    //    so Soft UI depth stays crisp & identical in both Normal and Eco Mode.
+    // =========================================================================
+    let tileRaisedSprite = null;
+    let tileWellSprite = null;
+    let dialBaseSprite = null;
+    let dialKnobSprite = null;
+    let pillTrackSprite = null;
+    let pillThumbSprite = null;
+    const cradleCache = new Map();
+    let spriteBakeSig = '';
+
+    function drawFeatheredRoundedShadow(sctx, x, y, w, h, r, dx, dy, blurR, steps, rgb, totalAlpha) {
+      const n = Math.max(4, steps | 0);
+      for (let i = n; i >= 1; i--) {
+        const frac = i / n;
+        const spread = blurR * frac;
+        const weight = Math.pow(1 - frac * 0.88, 1.85);
+        const alpha = (totalAlpha / n) * weight * 2.25;
+        if (alpha <= 0.002) continue;
+        sctx.fillStyle = 'rgba(' + rgb + ', ' + Math.min(0.42, alpha).toFixed(4) + ')';
+        roundRect(
+          sctx,
+          x + dx * (0.45 + 0.55 * frac) - spread * 0.5,
+          y + dy * (0.45 + 0.55 * frac) - spread * 0.5,
+          w + spread,
+          h + spread,
+          r + spread * 0.45
+        );
+        sctx.fill();
+      }
+    }
+
+    function bakeRaisedRoundedCanvas(w, h, r, pad, pal, relief, steps, spriteScale) {
+      const c = document.createElement('canvas');
+      c.width = Math.max(2, Math.ceil((w + pad * 2) * spriteScale));
+      c.height = Math.max(2, Math.ceil((h + pad * 2) * spriteScale));
+      const s = c.getContext('2d');
+      s.setTransform(spriteScale, 0, 0, spriteScale, 0, 0);
+
+      const off = 6.5 * relief;
+      const blurR = 14.0 * relief;
+
+      // Top-left light highlight & bottom-right cast shadow
+      drawFeatheredRoundedShadow(s, pad, pad, w, h, r, -off, -off, blurR, steps, pal.lightRgb, pal.lightAlpha * 0.55);
+      drawFeatheredRoundedShadow(s, pad, pad, w, h, r, off, off, blurR, steps, pal.darkRgb, pal.darkAlpha * 0.62);
+
+      // Molded body with gentle directional gradient matching top-left illumination
+      const g = s.createLinearGradient(pad, pad, pad + w, pad + h);
+      g.addColorStop(0.0, pal.bgHi);
+      g.addColorStop(0.52, pal.bg);
+      g.addColorStop(1.0, pal.bgLo);
+      s.fillStyle = g;
+      roundRect(s, pad, pad, w, h, r);
+      s.fill();
+
+      // Delicate specular inner rim along top-left edge
+      s.save();
+      roundRect(s, pad, pad, w, h, r);
+      s.clip();
+      s.strokeStyle = 'rgba(' + pal.lightRgb + ', ' + (pal.lightAlpha * 0.55).toFixed(3) + ')';
+      s.lineWidth = 1.25;
+      roundRect(s, pad + 0.7, pad + 0.7, w, h, r);
+      s.stroke();
+      s.restore();
+
+      return { canvas: c, pad: pad, w: w, h: h };
+    }
+
+    function bakeWellRoundedCanvas(w, h, r, pad, pal, relief, steps, spriteScale) {
+      const c = document.createElement('canvas');
+      c.width = Math.max(2, Math.ceil((w + pad * 2) * spriteScale));
+      c.height = Math.max(2, Math.ceil((h + pad * 2) * spriteScale));
+      const s = c.getContext('2d');
+      s.setTransform(spriteScale, 0, 0, spriteScale, 0, 0);
+
+      // Faint outer lip highlight
+      s.strokeStyle = 'rgba(' + pal.lightRgb + ', ' + (pal.lightAlpha * 0.35).toFixed(3) + ')';
+      s.lineWidth = 1.2;
+      roundRect(s, pad - 0.5, pad - 0.5, w + 1, h + 1, r + 0.5);
+      s.stroke();
+
+      // Reversed interior gradient (darker top-left cavity, lighter bottom-right inner wall)
+      const g = s.createLinearGradient(pad, pad, pad + w, pad + h);
+      g.addColorStop(0.0, pal.bgLo);
+      g.addColorStop(0.5, pal.bg);
+      g.addColorStop(1.0, pal.bgHi);
+      s.fillStyle = g;
+      roundRect(s, pad, pad, w, h, r);
+      s.fill();
+
+      // Clipped soft inner dual shadows
+      s.save();
+      roundRect(s, pad, pad, w, h, r);
+      s.clip();
+
+      const off = 5.5 * relief;
+      const n = Math.max(4, steps | 0);
+      for (let i = n; i >= 1; i--) {
+        const frac = i / n;
+        const lw = 1.5 + off * 1.9 * frac;
+        const weight = Math.pow(1 - frac * 0.85, 1.8);
+        const da = (pal.darkAlpha * 0.55 / n) * weight * 2.4;
+        const la = (pal.lightAlpha * 0.50 / n) * weight * 2.4;
+
+        s.strokeStyle = 'rgba(' + pal.darkRgb + ', ' + Math.min(0.45, da).toFixed(4) + ')';
+        s.lineWidth = lw;
+        roundRect(s, pad + off * 0.65 * frac, pad + off * 0.65 * frac, w, h, r);
+        s.stroke();
+
+        s.strokeStyle = 'rgba(' + pal.lightRgb + ', ' + Math.min(0.45, la).toFixed(4) + ')';
+        s.lineWidth = lw;
+        roundRect(s, pad - off * 0.65 * frac, pad - off * 0.65 * frac, w, h, r);
+        s.stroke();
+      }
+      s.restore();
+
+      return { canvas: c, pad: pad, w: w, h: h };
+    }
+
+    function bakeTileSprites(tileSize) {
+      const pal = getPalette();
+      const prof = getProfile();
+      const relief = clamp(P.reliefDepth, 0.3, 1.6);
+      const bakeScale = clamp(scale, 0.75, 1.5);
+      const sig = [P.palette, relief.toFixed(2), prof.shadowSteps, Math.round(tileSize), bakeScale.toFixed(2)].join('|');
+      if (sig === spriteBakeSig && tileRaisedSprite && tileWellSprite) return;
+
+      spriteBakeSig = sig;
+      cradleCache.clear();
+
+      const pad = Math.ceil(22 * relief);
+      const r = Math.max(10, Math.round(tileSize * 0.22));
+      tileRaisedSprite = bakeRaisedRoundedCanvas(tileSize, tileSize, r, pad, pal, relief, prof.shadowSteps, bakeScale);
+      tileWellSprite = bakeWellRoundedCanvas(tileSize, tileSize, r, pad, pal, relief * 0.9, prof.shadowSteps, bakeScale);
+
+      // Ambient micro-widgets: Rotary Dial + Pill Track
+      const dialR = 54;
+      dialBaseSprite = bakeWellRoundedCanvas(dialR * 2, dialR * 2, dialR, pad, pal, relief, prof.shadowSteps, bakeScale);
+      const knobR = 36;
+      dialKnobSprite = bakeRaisedRoundedCanvas(knobR * 2, knobR * 2, knobR, pad, pal, relief * 0.95, prof.shadowSteps, bakeScale);
+
+      const pillW = 148, pillH = 44;
+      pillTrackSprite = bakeWellRoundedCanvas(pillW, pillH, pillH * 0.5, pad, pal, relief * 0.95, prof.shadowSteps, bakeScale);
+      const thumbD = 32;
+      pillThumbSprite = bakeRaisedRoundedCanvas(thumbD, thumbD, thumbD * 0.5, pad, pal, relief * 0.9, prof.shadowSteps, bakeScale);
+    }
+
+    function getIconCradleSprite(w, h) {
+      const pal = getPalette();
+      const prof = getProfile();
+      const relief = clamp(P.reliefDepth, 0.3, 1.6);
+      const bakeScale = clamp(scale, 0.75, 1.5);
+      const rw = Math.round(w), rh = Math.round(h);
+      const key = rw + 'x' + rh + ':' + P.iconStyle + ':' + P.palette + ':' + relief.toFixed(2) + ':' + prof.shadowSteps + ':' + bakeScale.toFixed(2);
+      const hit = cradleCache.get(key);
+      if (hit) return hit;
+
+      const pad = Math.ceil(24 * relief);
+      const rad = clamp(Math.min(rw, rh) * 0.22, 12, 22);
+      let sprite;
+      if (P.iconStyle === 'well') {
+        sprite = bakeWellRoundedCanvas(rw, rh, rad, pad, pal, relief, prof.shadowSteps, bakeScale);
+      } else if (P.iconStyle === 'minimal') {
+        const c = document.createElement('canvas');
+        c.width = Math.max(2, Math.ceil((rw + pad * 2) * bakeScale));
+        c.height = Math.max(2, Math.ceil((rh + pad * 2) * bakeScale));
+        const s = c.getContext('2d');
+        s.setTransform(bakeScale, 0, 0, bakeScale, 0, 0);
+        s.strokeStyle = 'rgba(' + pal.darkRgb + ', ' + (pal.darkAlpha * 0.36).toFixed(3) + ')';
+        s.lineWidth = 1.6;
+        roundRect(s, pad + 1.2, pad + 1.2, rw, rh, rad);
+        s.stroke();
+        s.strokeStyle = 'rgba(' + pal.lightRgb + ', ' + (pal.lightAlpha * 0.55).toFixed(3) + ')';
+        s.lineWidth = 1.4;
+        roundRect(s, pad - 0.8, pad - 0.8, rw, rh, rad);
+        s.stroke();
+        sprite = { canvas: c, pad: pad, w: rw, h: rh };
+      } else {
+        sprite = bakeRaisedRoundedCanvas(rw, rh, rad, pad, pal, relief * 1.05, prof.shadowSteps, bakeScale);
+      }
+
+      if (cradleCache.size > 24) cradleCache.clear();
+      cradleCache.set(key, sprite);
+      return sprite;
+    }
+
+    // =========================================================================
+    // 4. STATIC BASE LAYER & KINETIC TILE GRID
+    // =========================================================================
+    let gridSpacing = 112;
+    let tileSize = 76;
+    let tiles = [];
+    const ripples = [];
+    const widgets = [
+      { kind: 'dial', x: 0, y: 0, angle: 0.7, targetAngle: 0.7, press: 0, visible: false },
+      { kind: 'pill', x: 0, y: 0, pos: 0.28, targetPos: 0.72, press: 0, visible: false }
+    ];
+
+    function buildGrid() {
+      const density = clamp(P.tileDensity, 0.5, 1.6);
+      gridSpacing = Math.round(118 / Math.sqrt(density));
+      tileSize = Math.round(gridSpacing * 0.68);
+      bakeTileSprites(tileSize);
+
+      const cols = Math.max(3, Math.floor((W - 40) / gridSpacing));
+      const rows = Math.max(3, Math.floor((H - 40) / gridSpacing));
+      const offX = (W - (cols - 1) * gridSpacing) * 0.5;
+      const offY = (H - (rows - 1) * gridSpacing) * 0.5;
+      const rng = mulberry32(seed ^ 0x9E3779B9);
+
+      tiles = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const cx = offX + c * gridSpacing;
+          const cy = offY + r * gridSpacing;
+          tiles.push({
+            cx: cx,
+            cy: cy,
+            col: c,
+            row: r,
+            phase: rng() * Math.PI * 2,
+            bias: (rng() - 0.5) * 0.35,
+            elev: 0,
+            vel: 0,
+            pressTarget: 0,
+            underIcon: false
+          });
+        }
+      }
+      refreshTileIconMasks();
+      pickWidgetPlacements();
+      cacheOK = false;
+    }
+
+    function refreshTileIconMasks() {
+      const pad = tileSize * 0.55 + 18;
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        let blocked = false;
+        if (P.adaptive !== 0) {
+          for (let j = 0; j < icons.length; j++) {
+            const ic = icons[j];
+            if (t.cx >= ic.x - pad && t.cx <= ic.x + ic.w + pad &&
+                t.cy >= ic.y - pad && t.cy <= ic.y + ic.h + pad) {
+              blocked = true;
+              break;
+            }
+          }
+        }
+        t.underIcon = blocked;
+      }
+    }
+
+    function rectOverlapsIcons(rx, ry, rw, rh, margin) {
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        if (rx < ic.x + ic.w + margin && rx + rw > ic.x - margin &&
+            ry < ic.y + ic.h + margin && ry + rh > ic.y - margin) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function pickWidgetPlacements() {
+      const candidates = [
+        { fx: 0.78, fy: 0.24 },
+        { fx: 0.76, fy: 0.72 },
+        { fx: 0.52, fy: 0.22 },
+        { fx: 0.50, fy: 0.74 },
+        { fx: 0.26, fy: 0.74 },
+        { fx: 0.26, fy: 0.24 }
+      ];
+      let placedDial = false;
+      let placedPill = false;
+      for (let i = 0; i < candidates.length; i++) {
+        const cx = Math.round(W * candidates[i].fx);
+        const cy = Math.round(H * candidates[i].fy);
+        if (!placedDial && !rectOverlapsIcons(cx - 64, cy - 64, 128, 128, 28)) {
+          widgets[0].x = cx;
+          widgets[0].y = cy;
+          widgets[0].visible = true;
+          placedDial = true;
+          continue;
+        }
+        if (!placedPill && !rectOverlapsIcons(cx - 84, cy - 32, 168, 64, 28)) {
+          if (!placedDial || Math.hypot(cx - widgets[0].x, cy - widgets[0].y) > 170) {
+            widgets[1].x = cx;
+            widgets[1].y = cy;
+            widgets[1].visible = true;
+            placedPill = true;
+          }
+        }
+        if (placedDial && placedPill) break;
+      }
+      if (!placedDial) widgets[0].visible = false;
+      if (!placedPill) widgets[1].visible = false;
+    }
+
+    function renderStaticBackground() {
+      bgCanvas.width = Math.max(1, Math.round(W * scale));
+      bgCanvas.height = Math.max(1, Math.round(H * scale));
+      bgCtx.setTransform(scale, 0, 0, scale, 0, 0);
+
+      const pal = getPalette();
+      const prof = getProfile();
+      document.documentElement.style.background = pal.bg;
+      document.body.style.background = pal.bg;
+
+      // Soft ambient surface illumination from top-left to bottom-right
+      const g = bgCtx.createLinearGradient(0, 0, W, H);
+      g.addColorStop(0.0, pal.bgHi);
+      g.addColorStop(0.5, pal.bg);
+      g.addColorStop(1.0, pal.bgLo);
+      bgCtx.fillStyle = g;
+      bgCtx.fillRect(0, 0, W, H);
+
+      // Subtle molded architectural grid seams between tiles
+      if (tiles.length > 0) {
+        const half = gridSpacing * 0.5;
+        bgCtx.strokeStyle = 'rgba(' + pal.seamRgb + ', ' + pal.seamAlpha.toFixed(3) + ')';
+        bgCtx.lineWidth = 1;
+        bgCtx.beginPath();
+        const first = tiles[0];
+        const last = tiles[tiles.length - 1];
+        const minX = first.cx - half;
+        const maxX = last.cx + half;
+        const minY = first.cy - half;
+        const maxY = last.cy + half;
+
+        const seenX = new Set();
+        const seenY = new Set();
+        for (let i = 0; i < tiles.length; i++) {
+          const tx = Math.round(tiles[i].cx - half);
+          const ty = Math.round(tiles[i].cy - half);
+          if (!seenX.has(tx)) {
+            seenX.add(tx);
+            bgCtx.moveTo(tx + 0.5, minY);
+            bgCtx.lineTo(tx + 0.5, maxY);
+          }
+          if (!seenY.has(ty)) {
+            seenY.add(ty);
+            bgCtx.moveTo(minX, ty + 0.5);
+            bgCtx.lineTo(maxX, ty + 0.5);
+          }
+        }
+        bgCtx.moveTo(Math.round(maxX) + 0.5, minY);
+        bgCtx.lineTo(Math.round(maxX) + 0.5, maxY);
+        bgCtx.moveTo(minX, Math.round(maxY) + 0.5);
+        bgCtx.lineTo(maxX, Math.round(maxY) + 0.5);
+        bgCtx.stroke();
+
+        // Micro recessed alignment dimples at grid intersections
+        if (prof.enableGridDots) {
+          bgCtx.fillStyle = 'rgba(' + pal.darkRgb + ', ' + (pal.seamAlpha * 1.15).toFixed(3) + ')';
+          seenX.forEach(function (vx) {
+            seenY.forEach(function (vy) {
+              bgCtx.fillRect(vx - 1, vy - 1, 2, 2);
+            });
+          });
+        }
+      }
+
+      cacheOK = true;
+    }
+
+    // =========================================================================
+    // 5. ADAPTIVE ICON CRADLES
+    // =========================================================================
+    const iconStates = [];
+
+    function syncIncomingIcons(rects) {
+      icons = Array.isArray(rects) ? rects : [];
+      iconsSeen = true;
+
+      const matched = new Set();
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        let bestIdx = -1;
+        let bestDist = 48;
+        for (let s = 0; s < iconStates.length; s++) {
+          if (matched.has(s)) continue;
+          const st = iconStates[s];
+          const d = Math.hypot(ic.x - st.tx, ic.y - st.ty);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = s;
+          }
+        }
+        if (bestIdx >= 0) {
+          const st = iconStates[bestIdx];
+          st.tx = ic.x;
+          st.ty = ic.y;
+          st.tw = ic.w;
+          st.th = ic.h;
+          st.removing = false;
+          matched.add(bestIdx);
+        } else {
+          iconStates.push({
+            x: ic.x, y: ic.y, w: ic.w, h: ic.h,
+            tx: ic.x, ty: ic.y, tw: ic.w, th: ic.h,
+            opacity: 0,
+            press: 0,
+            pulse: 0.4,
+            phase: (i * 1.37) % (Math.PI * 2),
+            removing: false
+          });
+          matched.add(iconStates.length - 1);
+        }
+      }
+
+      for (let s = 0; s < iconStates.length; s++) {
+        if (!matched.has(s)) iconStates[s].removing = true;
+      }
+      refreshTileIconMasks();
+      pickWidgetPlacements();
+    }
+
+    // =========================================================================
+    // 6. SIMULATION STEP (SPRING PHYSICS, WAVES, RIPPLES, MICRO-WIDGETS)
+    // =========================================================================
+    function spawnRipple(x, y, strengthScale) {
+      const str = clamp(P.rippleStrength * (strengthScale || 1), 0, 2.2);
+      if (str <= 0.02) return;
+      if (ripples.length >= 6) ripples.shift();
+      ripples.push({
+        x: x,
+        y: y,
+        r: 12,
+        speed: 340,
+        maxR: Math.hypot(W, H) * 0.55,
+        strength: str,
+        life: 0
+      });
+    }
+
+    function stepSimulation(dt) {
+      const waveRate = clamp(P.waveSpeed, 0, 2.5);
+      simTime += dt * (0.65 + waveRate * 0.85);
+
+      // Smooth ambient light follow when enabled
+      const targetLX = (P.lightFollowCursor && pointer.active) ? clamp(pointer.x / Math.max(1, W), 0.05, 0.95) : 0.16;
+      const targetLY = (P.lightFollowCursor && pointer.active) ? clamp(pointer.y / Math.max(1, H), 0.05, 0.95) : 0.16;
+      const lAlpha = 1 - Math.exp(-5.0 * dt);
+      pointer.smoothX = lerp(pointer.smoothX, targetLX, lAlpha);
+      pointer.smoothY = lerp(pointer.smoothY, targetLY, lAlpha);
+
+      // Advance pressure ripples
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        rp.r += rp.speed * dt;
+        rp.life += dt;
+        if (rp.r >= rp.maxR) ripples.splice(i, 1);
+      }
+
+      // Spring-damper tile elevation
+      const hoverRadius = Math.max(115, gridSpacing * 1.45);
+      const kSpring = 38.0;
+      const kDamp = 7.4;
+
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        if (t.underIcon) continue;
+
+        let target = t.bias;
+        if (waveRate > 0.005) {
+          const w1 = Math.sin(simTime * 0.95 + t.col * 0.52 + t.row * 0.36);
+          const w2 = Math.cos(simTime * 0.62 - t.col * 0.28 + t.row * 0.44) * 0.5;
+          target += (w1 + w2) * 0.46;
+        }
+
+        if (pointer.active) {
+          const pd = Math.hypot(t.cx - pointer.x, t.cy - pointer.y);
+          if (pd < hoverRadius) {
+            const inf = 1 - pd / hoverRadius;
+            target -= inf * inf * (pointer.down ? 1.35 : 0.95);
+          }
+        }
+
+        for (let r = 0; r < ripples.length; r++) {
+          const rp = ripples[r];
+          const d = Math.hypot(t.cx - rp.x, t.cy - rp.y);
+          const band = 72;
+          const diff = Math.abs(d - rp.r);
+          if (diff < band) {
+            const fade = (1 - rp.r / rp.maxR) * rp.strength;
+            const waveForm = Math.cos((diff / band) * Math.PI * 0.5);
+            target -= waveForm * 1.15 * fade;
+          }
+        }
+
+        target = clamp(target, -1.0, 1.0);
+        const accel = (target - t.elev) * kSpring - t.vel * kDamp;
+        t.vel += accel * dt;
+        t.elev = clamp(t.elev + t.vel * dt, -1.05, 1.05);
+      }
+
+      // Update ambient micro-widgets
+      if (widgets[0].visible) {
+        widgets[0].targetAngle += dt * (0.24 + waveRate * 0.22);
+        widgets[0].angle = lerp(widgets[0].angle, widgets[0].targetAngle, 1 - Math.exp(-8 * dt));
+        widgets[0].press = Math.max(0, widgets[0].press - dt * 2.8);
+      }
+      if (widgets[1].visible) {
+        const autoSlide = 0.5 + Math.sin(simTime * 0.55) * 0.34;
+        if (Math.abs(widgets[1].pos - widgets[1].targetPos) < 0.02 && waveRate > 0.05) {
+          widgets[1].targetPos = autoSlide;
+        }
+        widgets[1].pos = lerp(widgets[1].pos, widgets[1].targetPos, 1 - Math.exp(-4.5 * dt));
+        widgets[1].press = Math.max(0, widgets[1].press - dt * 2.8);
+      }
+
+      // Update adaptive icon cradle states
+      const posAlpha = 1 - Math.exp(-10 * dt);
+      for (let i = iconStates.length - 1; i >= 0; i--) {
+        const st = iconStates[i];
+        st.x = lerp(st.x, st.tx, posAlpha);
+        st.y = lerp(st.y, st.ty, posAlpha);
+        st.w = lerp(st.w, st.tw, posAlpha);
+        st.h = lerp(st.h, st.th, posAlpha);
+
+        if (st.removing) {
+          st.opacity = Math.max(0, st.opacity - dt * 2.6);
+          if (st.opacity <= 0.005) {
+            iconStates.splice(i, 1);
+            continue;
+          }
+        } else {
+          st.opacity = Math.min(1, st.opacity + dt * 3.2);
+        }
+
+        const icx = st.x + st.w * 0.5;
+        const icy = st.y + st.h * 0.5;
+        let hoverTarget = 0;
+        if (pointer.active) {
+          const d = Math.hypot(icx - pointer.x, icy - pointer.y);
+          if (d < 85) hoverTarget = (1 - d / 85) * (pointer.down ? 1.0 : 0.55);
+        }
+        st.press = lerp(st.press, hoverTarget, 1 - Math.exp(-12 * dt));
+        st.pulse = Math.max(0, st.pulse - dt * 1.4);
+
+        for (let r = 0; r < ripples.length; r++) {
+          const rp = ripples[r];
+          const d = Math.hypot(icx - rp.x, icy - rp.y);
+          if (Math.abs(d - rp.r) < 42) {
+            st.pulse = Math.max(st.pulse, (1 - rp.r / rp.maxR) * 0.95);
+          }
+        }
+      }
+    }
+
+    // =========================================================================
+    // 7. RENDERING PIPELINE
+    // =========================================================================
+    function draw() {
+      bakeTileSprites(tileSize);
+      if (!cacheOK) renderStaticBackground();
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+      const pal = getPalette();
+      const accent = getAccent();
+      const prof = getProfile();
+
+      // Optional dynamic ambient light sheen following cursor
+      if (P.lightFollowCursor) {
+        const lx = pointer.smoothX * W;
+        const ly = pointer.smoothY * H;
+        const rad = Math.max(W, H) * 0.55;
+        const lg = ctx.createRadialGradient(lx, ly, 0, lx, ly, rad);
+        lg.addColorStop(0.0, 'rgba(' + pal.lightRgb + ', ' + (pal.isDark ? '0.07' : '0.18') + ')');
+        lg.addColorStop(1.0, 'rgba(' + pal.lightRgb + ', 0)');
+        ctx.fillStyle = lg;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // Draw kinetic molded tiles
+      const half = tileSize * 0.5;
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        if (t.underIcon) continue;
+        const ev = t.elev;
+        if (ev > 0.04 && tileRaisedSprite) {
+          const sp = tileRaisedSprite;
+          ctx.globalAlpha = clamp(ev, 0, 1);
+          ctx.drawImage(sp.canvas, t.cx - half - sp.pad, t.cy - half - sp.pad, sp.w + sp.pad * 2, sp.h + sp.pad * 2);
+        } else if (ev < -0.04 && tileWellSprite) {
+          const sp = tileWellSprite;
+          ctx.globalAlpha = clamp(-ev, 0, 1);
+          ctx.drawImage(sp.canvas, t.cx - half - sp.pad, t.cy - half - sp.pad, sp.w + sp.pad * 2, sp.h + sp.pad * 2);
+        }
+      }
+      ctx.globalAlpha = 1.0;
+
+      // Draw ambient Soft UI micro-widgets
+      if (prof.enableWidgets) {
+        drawMicroWidgets(pal, accent);
+      }
+
+      // Draw expanding concentric neumorphic click ripples
+      drawRipples(pal, accent);
+
+      // Draw adaptive desktop icon cradles
+      if (P.adaptive !== 0) {
+        drawIconCradles(pal, accent);
+      }
+    }
+
+    function drawMicroWidgets(pal, accent) {
+      // 1. Rotary Soft Dial
+      const d = widgets[0];
+      if (d.visible && dialBaseSprite && dialKnobSprite) {
+        const pressScale = 1 - d.press * 0.035;
+        ctx.drawImage(
+          dialBaseSprite.canvas,
+          d.x - 54 - dialBaseSprite.pad,
+          d.y - 54 - dialBaseSprite.pad,
+          dialBaseSprite.w + dialBaseSprite.pad * 2,
+          dialBaseSprite.h + dialBaseSprite.pad * 2
+        );
+
+        // Recessed accent arc indicator
+        ctx.strokeStyle = 'rgba(' + accent.rgb + ', 0.45)';
+        ctx.lineWidth = 2.4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 44, -Math.PI * 0.75, d.angle);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(d.x, d.y);
+        ctx.scale(pressScale, pressScale);
+        ctx.drawImage(
+          dialKnobSprite.canvas,
+          -36 - dialKnobSprite.pad,
+          -36 - dialKnobSprite.pad,
+          dialKnobSprite.w + dialKnobSprite.pad * 2,
+          dialKnobSprite.h + dialKnobSprite.pad * 2
+        );
+        const pipX = Math.cos(d.angle) * 21;
+        const pipY = Math.sin(d.angle) * 21;
+        ctx.fillStyle = accent.hex;
+        ctx.beginPath();
+        ctx.arc(pipX, pipY, 3.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 2. Tactile Pill Slider
+      const pl = widgets[1];
+      if (pl.visible && pillTrackSprite && pillThumbSprite) {
+        const trackW = 148, trackH = 44;
+        const leftX = pl.x - trackW * 0.5;
+        const topY = pl.y - trackH * 0.5;
+        ctx.drawImage(
+          pillTrackSprite.canvas,
+          leftX - pillTrackSprite.pad,
+          topY - pillTrackSprite.pad,
+          pillTrackSprite.w + pillTrackSprite.pad * 2,
+          pillTrackSprite.h + pillTrackSprite.pad * 2
+        );
+
+        const travel = trackW - 44;
+        const thumbX = leftX + 22 + travel * clamp(pl.pos, 0, 1);
+        ctx.strokeStyle = 'rgba(' + accent.rgb + ', 0.50)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(leftX + 22, pl.y);
+        ctx.lineTo(thumbX, pl.y);
+        ctx.stroke();
+
+        const pressScale = 1 - pl.press * 0.05;
+        ctx.save();
+        ctx.translate(thumbX, pl.y);
+        ctx.scale(pressScale, pressScale);
+        ctx.drawImage(
+          pillThumbSprite.canvas,
+          -16 - pillThumbSprite.pad,
+          -16 - pillThumbSprite.pad,
+          pillThumbSprite.w + pillThumbSprite.pad * 2,
+          pillThumbSprite.h + pillThumbSprite.pad * 2
+        );
+        ctx.fillStyle = accent.hex;
+        ctx.beginPath();
+        ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function drawRipples(pal, accent) {
+      for (let i = 0; i < ripples.length; i++) {
+        const rp = ripples[i];
+        const fade = (1 - rp.r / rp.maxR) * Math.min(1, rp.strength);
+        if (fade <= 0.01) continue;
+
+        // Dual light/dark offset concentric rings create a molded surface ripple
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = 'rgba(' + pal.lightRgb + ', ' + (fade * pal.lightAlpha * 0.42).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(rp.x - 1.8, rp.y - 1.8, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(' + pal.darkRgb + ', ' + (fade * pal.darkAlpha * 0.36).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(rp.x + 1.8, rp.y + 1.8, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = 'rgba(' + accent.rgb + ', ' + (fade * 0.22).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawIconCradles(pal, accent) {
+      for (let i = 0; i < iconStates.length; i++) {
+        const st = iconStates[i];
+        if (st.opacity <= 0.01) continue;
+
+        const padX = 10, padY = 8;
+        const cw = st.w + padX * 2;
+        const ch = st.h + padY * 2;
+        const cx = st.x - padX;
+        const cy = st.y - padY;
+
+        const sp = getIconCradleSprite(cw, ch);
+        const scaleMod = 1 - st.press * 0.025 + st.pulse * 0.015;
+        const midX = cx + cw * 0.5;
+        const midY = cy + ch * 0.5;
+
+        ctx.save();
+        ctx.globalAlpha = st.opacity;
+        ctx.translate(midX, midY);
+        ctx.scale(scaleMod, scaleMod);
+        ctx.drawImage(
+          sp.canvas,
+          -cw * 0.5 - sp.pad,
+          -ch * 0.5 - sp.pad,
+          sp.w + sp.pad * 2,
+          sp.h + sp.pad * 2
+        );
+
+        // Soft contrast pill beneath desktop icon label on light palettes
+        if (!pal.isDark && P.iconStyle !== 'minimal') {
+          const lblW = Math.min(cw - 14, Math.max(44, st.w * 0.84));
+          const lblH = 14;
+          ctx.fillStyle = pal.labelPill;
+          roundRect(ctx, -lblW * 0.5, ch * 0.5 - lblH - 7, lblW, lblH, lblH * 0.5);
+          ctx.fill();
+        }
+
+        // Tiny tactile accent LED indicator dot
+        const breath = 0.55 + 0.35 * Math.sin(simTime * 1.8 + st.phase);
+        const ledAlpha = clamp(breath + st.pulse * 0.5 + st.press * 0.4, 0.25, 1.0);
+        ctx.fillStyle = 'rgba(' + accent.rgb + ', ' + ledAlpha.toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(cw * 0.5 - 11, -ch * 0.5 + 11, 2.4 + st.pulse * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1.0;
+    }
+
+    // =========================================================================
+    // 8. RESIZE, LIFECYCLE & HOST MESSAGE PROTOCOL
+    // =========================================================================
+    function resize() {
+      const box = cv.getBoundingClientRect();
+      W = box.width || innerWidth || 1920;
+      H = box.height || innerHeight || 1080;
+      const prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+      buildGrid();
+    }
+
+    function _scheduleFrame() {
+      if (!paused && !_rafId) _rafId = requestAnimationFrame(frame);
+    }
+
+    function _setPaused(v) {
+      paused = PREVIEW ? false : !!v;
+      if (paused) {
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+        lastT = 0;
+      } else {
+        _scheduleFrame();
+      }
+    }
+
+    function frame(now) {
+      _rafId = 0;
+      if (paused || document.hidden) { lastT = 0; return; }
+      _scheduleFrame();
+      const maxDt = window.__desklandLowMode ? 0.12 : 0.08;
+      const dt = lastT ? Math.min((now - lastT) / 1000, maxDt) : 0.03;
+      lastT = now;
+
+      stepSimulation(dt);
+      draw();
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      let needRebake = false;
+      let needGrid = false;
+      let needBg = false;
+
+      if (typeof v.seed === 'number' && v.seed !== seed) {
+        seed = (v.seed >>> 0) || 20261118;
+        needGrid = true;
+      }
+      if (typeof v.palette === 'string' && v.palette in PALETTES && v.palette !== P.palette) {
+        P.palette = v.palette;
+        needRebake = true;
+        needBg = true;
+      }
+      if (typeof v.accentColor === 'string' && v.accentColor in ACCENTS && v.accentColor !== P.accentColor) {
+        P.accentColor = v.accentColor;
+      }
+      if (typeof v.iconStyle === 'string' && (v.iconStyle === 'cradle' || v.iconStyle === 'well' || v.iconStyle === 'minimal')) {
+        if (P.iconStyle !== v.iconStyle) {
+          P.iconStyle = v.iconStyle;
+          cradleCache.clear();
+        }
+      }
+      if (typeof v.quality === 'string' && v.quality in QUALITY_PROFILES && v.quality !== P.quality) {
+        P.quality = v.quality;
+        resize();
+      }
+      if (v.lightFollowCursor !== undefined) {
+        P.lightFollowCursor = (v.lightFollowCursor === true || v.lightFollowCursor === 'true' || v.lightFollowCursor === 1);
+      }
+
+      const numKeys = ['reliefDepth', 'waveSpeed', 'tileDensity', 'rippleStrength', 'adaptive'];
+      for (let i = 0; i < numKeys.length; i++) {
+        const k = numKeys[i];
+        if (v[k] !== undefined) {
+          const n = Number(v[k]);
+          if (Number.isFinite(n) && P[k] !== n) {
+            P[k] = n;
+            if (k === 'reliefDepth') { needRebake = true; }
+            if (k === 'tileDensity') { needGrid = true; }
+            if (k === 'adaptive') { refreshTileIconMasks(); }
+          }
+        }
+      }
+
+      if (needRebake) spriteBakeSig = '';
+      if (needGrid) buildGrid();
+      else if (needRebake) bakeTileSprites(tileSize);
+      if (needBg) cacheOK = false;
+    }
+
+    function drawGhosts() {
+      const box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(ic =>
+        `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`
+      ).join('');
+    }
+
+    function handleMessage(ev) {
+      let m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      const kind = m.t || m.type;
+      if (kind === 'pause') {
+        _setPaused(m.v);
+        if (paused) draw();
+        return;
+      }
+      if (kind === 'resume') {
+        _setPaused(false);
+        return;
+      }
+      if (kind === 'settings') { applySettings(m.v || m.params || m); return; }
+      if (kind === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+      if (kind === 'icons') {
+        const k = window.devicePixelRatio || 1;
+        const rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k }))
+          : [];
+        syncIncomingIcons(rects);
+        if (PREVIEW) drawGhosts();
+        if (paused) draw();
+      }
+    }
+
+    function buildDemoIcons() {
+      const cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.44, 0.68], [0.54, 0.68], [0.80, 0.72]
+      ];
+      return cells.map(([fx, fy], i) => ({
+        x: Math.round(fx * W),
+        y: Math.round(fy * H),
+        w: i % 3 === 0 ? 80 : 72,
+        h: 86
+      }));
+    }
+
+    function init() {
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', function () {
+        spriteBakeSig = '';
+        resize();
+      });
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !paused) lastT = 0;
+      });
+
+      window.addEventListener('pointermove', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+      }, { passive: true });
+
+      window.addEventListener('pointerdown', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+        pointer.down = true;
+        spawnRipple(pointer.x, pointer.y, 1.0);
+
+        if (widgets[0].visible && Math.hypot(pointer.x - widgets[0].x, pointer.y - widgets[0].y) < 54) {
+          widgets[0].press = 1;
+          widgets[0].targetAngle += Math.PI * 0.35;
+        }
+        if (widgets[1].visible && Math.abs(pointer.x - widgets[1].x) < 76 && Math.abs(pointer.y - widgets[1].y) < 26) {
+          widgets[1].press = 1;
+          widgets[1].targetPos = widgets[1].targetPos > 0.5 ? 0.18 : 0.82;
+        }
+      }, { passive: true });
+
+      window.addEventListener('pointerup', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointercancel', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointer.down = false; pointer.active = false; }, { passive: true });
+
+      if (PREVIEW) {
+        document.body.classList.add('preview');
+        const g = document.createElement('div');
+        g.id = 'ghosts';
+        document.body.appendChild(g);
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      } else {
+        syncIncomingIcons(buildDemoIcons());
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            const k = window.devicePixelRatio || 1;
+            const rects = vList.map(v => ({ x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k }));
+            syncIncomingIcons(rects);
+          }
+        });
+      }
+
+      Object.defineProperty(window, 'cv', { get: () => cv });
+      Object.defineProperty(window, 'W', { get: () => W });
+      Object.defineProperty(window, 'H', { get: () => H });
+      Object.defineProperty(window, 'WALL', { get: () => WALL });
+      Object.defineProperty(window, 'icons', { get: () => icons });
+      Object.defineProperty(window, 'cacheOK', { get: () => cacheOK, set: v => { cacheOK = !!v; } });
+      window.draw = draw;
+      window.handleMessage = handleMessage;
+
+      _scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

@@ -467,7 +467,7 @@
 const host = window.chrome && window.chrome.webview;
 const send = m => { if (host) host.postMessage(JSON.stringify(m)); };
 
-const state = { registry0: null, registry: null, theme: 'beach', params: {}, screen: null, icons: null,
+const state = { registry0: null, registry: null, theme: 'software-world', params: {}, screen: null, icons: null,
   langSetting: 'auto', langSys: 'zh-CN', autostartWarn: false, autostartSw: '', canSaveSnapshot: false,
   updateVersion: '', updateStatus: '', updateProgress: -1, updateError: '' };
 const $ = id => document.getElementById(id);
@@ -475,7 +475,7 @@ const frame = $('preview');
 
 /* ---------- 界面语言：文字表在 i18n/<语言>.json（ui：界面文字；themes：主题名和参数——简体中文的就是 themes.json 本身） ---------- */
 // 增加语言时同步宿主 I18n.Supported 与体验版导出的语言列表。
-const LANGS = { 'en': 'English', 'zh-CN': '简体中文' };
+const LANGS = { 'en': 'English', 'tr': 'Türkçe', 'zh-CN': '简体中文' };
 const I18N = {};
 let lang = 'zh-CN';
 const loadLang = code => I18N[code] ? Promise.resolve() :
@@ -1028,7 +1028,7 @@ function onHost(m) {
     state.langSetting = m.lang || 'auto';
     state.langSys = m.langSys || 'zh-CN';
     setLang(m.langEff || state.langSys).then(() => {        // 先按界面语言把文字表读进来，再画界面
-      state.theme = themeById(m.theme) && themeById(m.theme).status === 'ready' ? m.theme : 'beach';
+      state.theme = themeById(m.theme) && themeById(m.theme).status === 'ready' ? m.theme : 'software-world';
       state.params = m.params || {};
       state.screen = m.screen;
       state.lowMode = !!m.lowMode;
@@ -1090,7 +1090,7 @@ function onHost(m) {
   } else if (m.t === 'themeRemoved') {
     state.registry0.themes = state.registry0.themes.filter(x => x.id !== m.id);
     localizeRegistry();
-    state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'beach');
+    state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'software-world');
     showTheme();
   } else if (m.t === 'importError') {
     $('importWarnTitle').textContent = t('importErrorTitle') || 'Theme import failed';
@@ -1124,7 +1124,7 @@ function mockHost() {
   for (let c = 0; c < 4; c++) for (let row = 0; row < 9; row++) cell(c, row);
   for (const [c, row] of [[6, 0], [6, 1], [7, 3], [8, 3], [8, 4], [12, 1], [13, 1], [14, 1], [13, 2], [14, 2], [20, 0], [21, 0], [19, 5], [20, 5]]) cell(c, row);
   const bl = browserLang();
-  onHost({ t: 'init', theme: 'beach', params: {}, screen: { w: W * k, h: H * k }, autostart: false, lang: 'auto', langEff: bl, langSys: bl });
+  onHost({ t: 'init', theme: 'software-world', params: {}, screen: { w: W * k, h: H * k }, autostart: false, lang: 'auto', langEff: bl, langSys: bl });
   onHost({ t: 'icons', vis: true, r });
   if (new URLSearchParams(location.search).has('updateDemo')) onHost({ t: 'updateState', version: '0.2.0', status: 'available', progress: -1 });
 }

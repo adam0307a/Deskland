@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neo-Brutalism Kinetic Poster</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #f6f1e7; }
+    #cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; pointer-events: auto; }
+    #ghosts { position: fixed; inset: 0; pointer-events: none; }
+    .ghost { position: absolute; display: flex; flex-direction: column; align-items: center; padding-top: 6px; opacity: .28; }
+    .ghost i { width: 40px; height: 40px; border-radius: 6px; background: #fff; border: 2px solid #111; box-shadow: 3px 3px 0 #111; }
+    .ghost b { width: 46px; height: 6px; margin-top: 8px; border-radius: 2px; background: #fff; border: 1.5px solid #111; }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <script>
+  (function () {
+    'use strict';
+
+    // =========================================================================
+    // 1. CONFIGURATION, PALETTES & QUALITY PROFILES
+    // =========================================================================
+    const QS = new URLSearchParams(location.search || '');
+    const WALL = QS.has('wallpaper');
+    const PREVIEW = QS.has('preview');
+
+    const DEFAULTS = {
+      palette: 'bauhaus',
+      borderWeight: 3.0,
+      shadowDepth: 7.0,
+      shapeCount: 1.0,
+      motionSpeed: 0.85,
+      cursorPush: 1.0,
+      halftonePattern: true,
+      iconFrame: 'card',
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    const P = Object.assign({}, DEFAULTS);
+
+    const PALETTES = {
+      bauhaus: {
+        bg: '#f6f1e7',
+        grid: 'rgba(17, 17, 17, 0.08)',
+        dot: 'rgba(17, 17, 17, 0.13)',
+        ink: '#111111',
+        shadow: '#111111',
+        labelPlate: '#111111',
+        blocks: ['#ffe14d', '#3b82f6', '#ff5c4d', '#34d399', '#f4f1ea'],
+        isDark: false
+      },
+      acid: {
+        bg: '#f4fae8',
+        grid: 'rgba(17, 17, 17, 0.08)',
+        dot: 'rgba(17, 17, 17, 0.14)',
+        ink: '#111111',
+        shadow: '#111111',
+        labelPlate: '#111111',
+        blocks: ['#c8ff3d', '#ff4db8', '#22d3ee', '#a855f7', '#ffffff'],
+        isDark: false
+      },
+      zine: {
+        bg: '#efe8d8',
+        grid: 'rgba(20, 18, 16, 0.09)',
+        dot: 'rgba(20, 18, 16, 0.14)',
+        ink: '#141210',
+        shadow: '#141210',
+        labelPlate: '#141210',
+        blocks: ['#ff4828', '#f5b700', '#2347e8', '#ff9f7f', '#faf6ee'],
+        isDark: false
+      },
+      dark: {
+        bg: '#16161c',
+        grid: 'rgba(245, 242, 235, 0.06)',
+        dot: 'rgba(245, 242, 235, 0.10)',
+        ink: '#f5f2eb',
+        shadow: '#000000',
+        labelPlate: '#09090d',
+        blocks: ['#ffe14d', '#38bdf8', '#fb7185', '#a3e635', '#262632'],
+        isDark: true
+      }
+    };
+
+    const QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, blockScale: 0.55, enableDots: false, enableSparks: false },
+      Medium: { maxDpr: 1.25, blockScale: 0.85, enableDots: true,  enableSparks: true },
+      High:   { maxDpr: 1.50, blockScale: 1.00, enableDots: true,  enableSparks: true }
+    };
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    function getPalette() {
+      return PALETTES[P.palette] || PALETTES.bauhaus;
+    }
+
+    // =========================================================================
+    // 2. CANVAS STATE, PRNG & GEOMETRY HELPERS
+    // =========================================================================
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d', { alpha: false });
+    const bgCanvas = document.createElement('canvas');
+    const bgCtx = bgCanvas.getContext('2d', { alpha: false });
+
+    let W = innerWidth || 1920;
+    let H = innerHeight || 1080;
+    let scale = 1;
+    let cacheOK = false;
+    let paused = false;
+    let _rafId = 0;
+    let lastT = 0;
+    let simTime = 0;
+    let seed = 20261118;
+    let icons = [];
+    let iconsSeen = false;
+
+    const pointer = { x: -9999, y: -9999, active: false, down: false };
+
+    function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function mulberry32(a) {
+      let s = a >>> 0;
+      return function () {
+        s = (s + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(s ^ (s >>> 15), 1 | s);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+      const rr = Math.min(r, w * 0.5, h * 0.5);
+      c.beginPath();
+      if (rr <= 0.5) {
+        c.rect(x, y, w, h);
+        return;
+      }
+      c.moveTo(x + rr, y);
+      c.arcTo(x + w, y, x + w, y + h, rr);
+      c.arcTo(x + w, y + h, x, y + h, rr);
+      c.arcTo(x, y + h, x, y, rr);
+      c.arcTo(x, y, x + w, y, rr);
+      c.closePath();
+    }
+
+    function starPath(c, cx, cy, outerR, innerR, points) {
+      c.beginPath();
+      const total = points * 2;
+      for (let i = 0; i < total; i++) {
+        const ang = (i * Math.PI) / points - Math.PI * 0.5;
+        const rad = (i % 2 === 0) ? outerR : innerR;
+        const px = cx + Math.cos(ang) * rad;
+        const py = cy + Math.sin(ang) * rad;
+        if (i === 0) c.moveTo(px, py);
+        else c.lineTo(px, py);
+      }
+      c.closePath();
+    }
+
+    // =========================================================================
+    // 3. STATIC DRAFTING PAPER & HALFTONE BACKDROP
+    // =========================================================================
+    function renderStaticBackground() {
+      bgCanvas.width = Math.max(1, Math.round(W * scale));
+      bgCanvas.height = Math.max(1, Math.round(H * scale));
+      bgCtx.setTransform(scale, 0, 0, scale, 0, 0);
+
+      const pal = getPalette();
+      const prof = getProfile();
+      document.documentElement.style.background = pal.bg;
+      document.body.style.background = pal.bg;
+
+      bgCtx.fillStyle = pal.bg;
+      bgCtx.fillRect(0, 0, W, H);
+
+      // Architectural drafting grid lines
+      const step = 64;
+      bgCtx.strokeStyle = pal.grid;
+      bgCtx.lineWidth = 1;
+      bgCtx.beginPath();
+      for (let x = 0.5; x < W; x += step) {
+        bgCtx.moveTo(x, 0);
+        bgCtx.lineTo(x, H);
+      }
+      for (let y = 0.5; y < H; y += step) {
+        bgCtx.moveTo(0, y);
+        bgCtx.lineTo(W, y);
+      }
+      bgCtx.stroke();
+
+      // Optional comic/poster halftone corner dot matrix
+      if (P.halftonePattern && prof.enableDots) {
+        bgCtx.fillStyle = pal.dot;
+        const dotGap = 18;
+        for (let y = 16; y < H; y += dotGap) {
+          for (let x = 16; x < W; x += dotGap) {
+            const dTopRight = Math.hypot(W - x, y) / Math.max(W, H);
+            const dBotLeft = Math.hypot(x, H - y) / Math.max(W, H);
+            const band = Math.min(dTopRight, dBotLeft);
+            if (band < 0.36) {
+              const rad = clamp((0.36 - band) * 7.2, 0.9, 2.6);
+              bgCtx.beginPath();
+              bgCtx.arc(x, y, rad, 0, Math.PI * 2);
+              bgCtx.fill();
+            }
+          }
+        }
+      }
+
+      // Bold poster frame border inset
+      const pad = 16;
+      bgCtx.strokeStyle = pal.ink;
+      bgCtx.lineWidth = Math.max(1.5, P.borderWeight * 0.65);
+      bgCtx.strokeRect(pad, pad, Math.max(10, W - pad * 2), Math.max(10, H - pad * 2));
+
+      cacheOK = true;
+    }
+
+    // =========================================================================
+    // 4. KINETIC NEO-BRUTALIST SHAPES, SHOCKWAVES & SPARKS
+    // =========================================================================
+    const shapes = [];
+    const shockwaves = [];
+    const sparks = [];
+
+    function buildShapes() {
+      const prof = getProfile();
+      const count = clamp(Math.round(14 * P.shapeCount * prof.blockScale), 0, 26);
+      const rng = mulberry32(seed ^ 0x42525554);
+      shapes.length = 0;
+
+      const kinds = ['card', 'pill', 'circle', 'star', 'striped'];
+      for (let i = 0; i < count; i++) {
+        const kind = kinds[i % kinds.length];
+        const homeX = (0.09 + rng() * 0.82) * W;
+        const homeY = (0.09 + rng() * 0.82) * H;
+        let w = 68 + Math.round(rng() * 58);
+        let h = 54 + Math.round(rng() * 44);
+        if (kind === 'circle') { w = h = 52 + Math.round(rng() * 46); }
+        else if (kind === 'star') { w = h = 56 + Math.round(rng() * 38); }
+        else if (kind === 'pill') { w = 104 + Math.round(rng() * 52); h = 44 + Math.round(rng() * 14); }
+
+        shapes.push({
+          kind: kind,
+          w: w,
+          h: h,
+          points: rng() > 0.5 ? 8 : 6,
+          colorIdx: Math.floor(rng() * 5),
+          homeX: homeX,
+          homeY: homeY,
+          x: homeX,
+          y: homeY,
+          vx: 0,
+          vy: 0,
+          rot: (rng() - 0.5) * 0.32,
+          rotBase: (rng() - 0.5) * 0.32,
+          rotSpeed: (rng() - 0.5) * 0.25,
+          ampX: 10 + rng() * 18,
+          ampY: 10 + rng() * 18,
+          freqX: 0.4 + rng() * 0.5,
+          freqY: 0.45 + rng() * 0.5,
+          phase: rng() * Math.PI * 2,
+          press: 0,
+          pressVel: 0
+        });
+      }
+    }
+
+    function spawnBurst(x, y, pal) {
+      if (shockwaves.length >= 5) shockwaves.shift();
+      shockwaves.push({
+        x: x,
+        y: y,
+        r: 12,
+        maxR: Math.hypot(W, H) * 0.42,
+        speed: 480,
+        square: Math.random() > 0.5
+      });
+
+      const prof = getProfile();
+      if (!prof.enableSparks) return;
+      for (let i = 0; i < 10; i++) {
+        if (sparks.length >= 48) sparks.shift();
+        const ang = (i / 10) * Math.PI * 2 + Math.random() * 0.3;
+        const spd = 110 + Math.random() * 150;
+        sparks.push({
+          x: x,
+          y: y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          size: 7 + Math.random() * 6,
+          rot: Math.random() * Math.PI,
+          colorIdx: i % pal.blocks.length,
+          life: 0,
+          maxLife: 0.55
+        });
+      }
+    }
+
+    // =========================================================================
+    // 5. ADAPTIVE DESKTOP ICON FRAMES
+    // =========================================================================
+    const iconStates = [];
+
+    function syncIncomingIcons(rects) {
+      icons = Array.isArray(rects) ? rects : [];
+      iconsSeen = true;
+
+      const matched = new Set();
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        let bestIdx = -1;
+        let bestDist = 48;
+        for (let s = 0; s < iconStates.length; s++) {
+          if (matched.has(s)) continue;
+          const st = iconStates[s];
+          const d = Math.hypot(ic.x - st.tx, ic.y - st.ty);
+          if (d < bestDist) {
+            bestDist = d;
+            bestIdx = s;
+          }
+        }
+        if (bestIdx >= 0) {
+          const st = iconStates[bestIdx];
+          st.tx = ic.x; st.ty = ic.y; st.tw = ic.w; st.th = ic.h;
+          st.removing = false;
+          matched.add(bestIdx);
+        } else {
+          const idxSeed = Math.abs(Math.round(ic.x / 42) * 5 + Math.round(ic.y / 42) * 11 + i);
+          iconStates.push({
+            x: ic.x, y: ic.y, w: ic.w, h: ic.h,
+            tx: ic.x, ty: ic.y, tw: ic.w, th: ic.h,
+            opacity: 0,
+            colorIdx: idxSeed % 5,
+            tilt: ((idxSeed % 7) - 3) * 0.018,
+            press: 0,
+            pressVel: 0,
+            removing: false
+          });
+          matched.add(iconStates.length - 1);
+        }
+      }
+
+      for (let s = 0; s < iconStates.length; s++) {
+        if (!matched.has(s)) iconStates[s].removing = true;
+      }
+    }
+
+    // =========================================================================
+    // 6. SIMULATION STEP
+    // =========================================================================
+    function handlePressImpulse(x, y) {
+      const pal = getPalette();
+      spawnBurst(x, y, pal);
+
+      for (let i = 0; i < shapes.length; i++) {
+        const sh = shapes[i];
+        const dx = sh.x - x;
+        const dy = sh.y - y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < 260) {
+          const inf = 1 - d / 260;
+          sh.pressVel += inf * 12.0;
+          sh.vx += (dx / d) * inf * 180 * clamp(P.cursorPush, 0.2, 2.0);
+          sh.vy += (dy / d) * inf * 180 * clamp(P.cursorPush, 0.2, 2.0);
+        }
+      }
+
+      for (let i = 0; i < iconStates.length; i++) {
+        const st = iconStates[i];
+        const d = Math.hypot(st.x + st.w * 0.5 - x, st.y + st.h * 0.5 - y);
+        if (d < 200) {
+          st.pressVel += (1 - d / 200) * 11.0;
+        }
+      }
+    }
+
+    function stepSimulation(dt) {
+      const mSpeed = clamp(P.motionSpeed, 0, 2.5);
+      simTime += dt * (0.25 + mSpeed * 0.9);
+
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        const sw = shockwaves[i];
+        sw.r += sw.speed * dt;
+        if (sw.r >= sw.maxR) shockwaves.splice(i, 1);
+      }
+
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const sp = sparks[i];
+        sp.life += dt;
+        if (sp.life >= sp.maxLife) { sparks.splice(i, 1); continue; }
+        sp.vx *= Math.exp(-3.5 * dt);
+        sp.vy *= Math.exp(-3.5 * dt);
+        sp.x += sp.vx * dt;
+        sp.y += sp.vy * dt;
+        sp.rot += dt * 4.5;
+      }
+
+      const pushStr = clamp(P.cursorPush, 0, 2.0);
+      const kPress = 110.0;
+      const dPress = 11.0;
+
+      for (let i = 0; i < shapes.length; i++) {
+        const sh = shapes[i];
+        const tx = sh.homeX + Math.sin(simTime * sh.freqX + sh.phase) * sh.ampX;
+        const ty = sh.homeY + Math.cos(simTime * sh.freqY + sh.phase * 1.2) * sh.ampY;
+
+        let pushX = 0, pushY = 0;
+        let hoverTarget = 0;
+        if (pointer.active) {
+          const dx = sh.x - pointer.x;
+          const dy = sh.y - pointer.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const rHit = Math.max(sh.w, sh.h) * 0.65 + 70;
+          if (d < rHit) {
+            const inf = 1 - d / rHit;
+            hoverTarget = pointer.down ? 1.0 : -0.45 * inf;
+            if (pushStr > 0.01) {
+              pushX = (dx / d) * inf * 360 * pushStr;
+              pushY = (dy / d) * inf * 360 * pushStr;
+            }
+          }
+        }
+
+        if (P.adaptive !== 0) {
+          for (let j = 0; j < icons.length; j++) {
+            const ic = icons[j];
+            const dx = sh.x - (ic.x + ic.w * 0.5);
+            const dy = sh.y - (ic.y + ic.h * 0.5);
+            const minSep = Math.max(ic.w, ic.h) * 0.6 + Math.max(sh.w, sh.h) * 0.5 + 16;
+            const d = Math.hypot(dx, dy) || 1;
+            if (d < minSep) {
+              const inf = 1 - d / minSep;
+              pushX += (dx / d) * inf * 280;
+              pushY += (dy / d) * inf * 280;
+            }
+          }
+        }
+
+        sh.vx += ((tx - sh.x) * 16 + pushX - sh.vx * 5) * dt;
+        sh.vy += ((ty - sh.y) * 16 + pushY - sh.vy * 5) * dt;
+        sh.x += sh.vx * dt;
+        sh.y += sh.vy * dt;
+        sh.rot = sh.rotBase + Math.sin(simTime * 0.6 + sh.phase) * 0.08 * mSpeed;
+
+        const acc = (hoverTarget - sh.press) * kPress - sh.pressVel * dPress;
+        sh.pressVel += acc * dt;
+        sh.press = clamp(sh.press + sh.pressVel * dt, -0.55, 1.15);
+      }
+
+      const posAlpha = 1 - Math.exp(-10 * dt);
+      for (let i = iconStates.length - 1; i >= 0; i--) {
+        const st = iconStates[i];
+        st.x = lerp(st.x, st.tx, posAlpha);
+        st.y = lerp(st.y, st.ty, posAlpha);
+        st.w = lerp(st.w, st.tw, posAlpha);
+        st.h = lerp(st.h, st.th, posAlpha);
+
+        if (st.removing) {
+          st.opacity = Math.max(0, st.opacity - dt * 2.5);
+          if (st.opacity <= 0.005) { iconStates.splice(i, 1); continue; }
+        } else {
+          st.opacity = Math.min(1, st.opacity + dt * 3.0);
+        }
+
+        let hoverTarget = 0;
+        if (pointer.active) {
+          const d = Math.hypot(st.x + st.w * 0.5 - pointer.x, st.y + st.h * 0.5 - pointer.y);
+          if (d < 72) {
+            hoverTarget = pointer.down ? 1.0 : -0.45 * (1 - d / 72);
+          }
+        }
+        const acc = (hoverTarget - st.press) * kPress - st.pressVel * dPress;
+        st.pressVel += acc * dt;
+        st.press = clamp(st.press + st.pressVel * dt, -0.55, 1.15);
+      }
+    }
+
+    // =========================================================================
+    // 7. RENDERING PIPELINE (HARD INK BORDERS + SOLID OFFSET SHADOWS)
+    // =========================================================================
+    function drawBrutalistShape(sh, pal, bw, sd) {
+      const fill = pal.blocks[sh.colorIdx % pal.blocks.length];
+      // Pressing moves the card toward its hard shadow (zeroing out the shadow gap)
+      const lift = 1 - sh.press;
+      const sx = sd * clamp(lift, 0, 1.5);
+      const sy = sd * clamp(lift, 0, 1.5);
+      const bx = sd * clamp(sh.press, -0.5, 1.0);
+      const by = sd * clamp(sh.press, -0.5, 1.0);
+
+      ctx.save();
+      ctx.translate(sh.x, sh.y);
+      ctx.rotate(sh.rot);
+
+      if (sh.kind === 'circle') {
+        const r = sh.w * 0.5;
+        ctx.fillStyle = pal.shadow;
+        ctx.beginPath();
+        ctx.arc(bx + sx, by + sy, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = pal.ink;
+        ctx.lineWidth = bw;
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner editorial badge ring
+        ctx.beginPath();
+        ctx.arc(bx, by, r * 0.42, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (sh.kind === 'star') {
+        const rOut = sh.w * 0.5;
+        const rIn = rOut * 0.54;
+        ctx.fillStyle = pal.shadow;
+        starPath(ctx, bx + sx, by + sy, rOut, rIn, sh.points);
+        ctx.fill();
+
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = pal.ink;
+        ctx.lineWidth = bw;
+        starPath(ctx, bx, by, rOut, rIn, sh.points);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        const rad = sh.kind === 'pill' ? sh.h * 0.5 : 8;
+        ctx.fillStyle = pal.shadow;
+        roundRect(ctx, bx + sx - sh.w * 0.5, by + sy - sh.h * 0.5, sh.w, sh.h, rad);
+        ctx.fill();
+
+        ctx.fillStyle = fill;
+        ctx.strokeStyle = pal.ink;
+        ctx.lineWidth = bw;
+        roundRect(ctx, bx - sh.w * 0.5, by - sh.h * 0.5, sh.w, sh.h, rad);
+        ctx.fill();
+
+        // Optional bold diagonal stripes inside 'striped' blocks
+        if (sh.kind === 'striped') {
+          ctx.save();
+          roundRect(ctx, bx - sh.w * 0.5, by - sh.h * 0.5, sh.w, sh.h, rad);
+          ctx.clip();
+          ctx.strokeStyle = pal.ink;
+          ctx.lineWidth = Math.max(1.8, bw * 0.7);
+          ctx.beginPath();
+          for (let d = -sh.w; d < sh.w + sh.h; d += 14) {
+            ctx.moveTo(bx - sh.w * 0.5 + d, by - sh.h * 0.5);
+            ctx.lineTo(bx - sh.w * 0.5 + d - sh.h, by + sh.h * 0.5);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+        roundRect(ctx, bx - sh.w * 0.5, by - sh.h * 0.5, sh.w, sh.h, rad);
+        ctx.stroke();
+
+        // Corner graphic dot on cards & pills
+        if (sh.kind === 'card' || sh.kind === 'pill') {
+          ctx.fillStyle = pal.ink;
+          ctx.beginPath();
+          ctx.arc(bx - sh.w * 0.5 + 14, by - sh.h * 0.5 + 14, 3.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.restore();
+    }
+
+    function draw() {
+      if (!cacheOK) renderStaticBackground();
+
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+      const pal = getPalette();
+      const bw = clamp(P.borderWeight, 1.5, 5.5);
+      const sd = clamp(P.shadowDepth, 2.0, 14.0);
+
+      // 1. Floating kinetic Neo-Brutalist blocks
+      for (let i = 0; i < shapes.length; i++) {
+        drawBrutalistShape(shapes[i], pal, bw, sd);
+      }
+
+      // 2. Crisp hard-line expanding shockwaves
+      for (let i = 0; i < shockwaves.length; i++) {
+        const sw = shockwaves[i];
+        const fade = 1 - sw.r / sw.maxR;
+        if (fade <= 0.02) continue;
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.strokeStyle = pal.ink;
+        ctx.lineWidth = Math.max(1.5, bw * 0.85);
+        if (sw.square) {
+          ctx.strokeRect(sw.x - sw.r, sw.y - sw.r, sw.r * 2, sw.r * 2);
+        } else {
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // 3. Geometric click sparks
+      for (let i = 0; i < sparks.length; i++) {
+        const sp = sparks[i];
+        const fade = clamp(1 - sp.life / sp.maxLife, 0, 1);
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.translate(sp.x, sp.y);
+        ctx.rotate(sp.rot);
+        ctx.fillStyle = pal.blocks[sp.colorIdx % pal.blocks.length];
+        ctx.strokeStyle = pal.ink;
+        ctx.lineWidth = Math.max(1.4, bw * 0.6);
+        ctx.fillRect(-sp.size * 0.5, -sp.size * 0.5, sp.size, sp.size);
+        ctx.strokeRect(-sp.size * 0.5, -sp.size * 0.5, sp.size, sp.size);
+        ctx.restore();
+      }
+
+      // 4. Adaptive desktop icon frames
+      if (P.adaptive !== 0) {
+        for (let i = 0; i < iconStates.length; i++) {
+          const st = iconStates[i];
+          if (st.opacity <= 0.01) continue;
+
+          const cw = Math.round(st.w + 18);
+          const ch = Math.round(st.h + 14);
+          const midX = st.x + st.w * 0.5;
+          const midY = st.y + st.h * 0.5;
+          const fill = pal.blocks[st.colorIdx % pal.blocks.length];
+
+          const lift = 1 - st.press;
+          const sx = sd * clamp(lift, 0, 1.45);
+          const sy = sd * clamp(lift, 0, 1.45);
+          const bx = sd * clamp(st.press, -0.45, 1.0);
+          const by = sd * clamp(st.press, -0.45, 1.0);
+
+          ctx.save();
+          ctx.globalAlpha = st.opacity;
+          ctx.translate(midX, midY);
+          if (P.iconFrame === 'sticker') ctx.rotate(st.tilt);
+
+          if (P.iconFrame === 'blueprint') {
+            ctx.strokeStyle = pal.shadow;
+            ctx.lineWidth = bw;
+            roundRect(ctx, bx + sx - cw * 0.5, by + sy - ch * 0.5, cw, ch, 6);
+            ctx.stroke();
+
+            ctx.fillStyle = pal.bg;
+            roundRect(ctx, bx - cw * 0.5, by - ch * 0.5, cw, ch, 6);
+            ctx.fill();
+            ctx.strokeStyle = pal.ink;
+            ctx.stroke();
+          } else {
+            const rad = P.iconFrame === 'sticker' ? 10 : 6;
+            ctx.fillStyle = pal.shadow;
+            roundRect(ctx, bx + sx - cw * 0.5, by + sy - ch * 0.5, cw, ch, rad);
+            ctx.fill();
+
+            ctx.fillStyle = fill;
+            ctx.strokeStyle = pal.ink;
+            ctx.lineWidth = bw;
+            roundRect(ctx, bx - cw * 0.5, by - ch * 0.5, cw, ch, rad);
+            ctx.fill();
+            ctx.stroke();
+
+            // Bold dark nameplate strip at bottom for white desktop icon text legibility
+            const plateH = 16;
+            const plateW = Math.min(cw - 12, Math.max(46, st.w * 0.86));
+            ctx.fillStyle = pal.labelPlate;
+            roundRect(ctx, bx - plateW * 0.5, by + ch * 0.5 - plateH - 6, plateW, plateH, 3);
+            ctx.fill();
+
+            if (P.iconFrame === 'sticker') {
+              ctx.fillStyle = pal.ink;
+              ctx.beginPath();
+              ctx.arc(bx, by - ch * 0.5 + 8, 2.8, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          ctx.restore();
+        }
+        ctx.globalAlpha = 1.0;
+      }
+    }
+
+    // =========================================================================
+    // 8. RESIZE, LIFECYCLE & HOST PROTOCOL
+    // =========================================================================
+    function resize() {
+      const box = cv.getBoundingClientRect();
+      W = box.width || innerWidth || 1920;
+      H = box.height || innerHeight || 1080;
+      const prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.45 : Math.min(devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+
+      cacheOK = false;
+      buildShapes();
+    }
+
+    function _scheduleFrame() {
+      if (!paused && !_rafId) _rafId = requestAnimationFrame(frame);
+    }
+
+    function _setPaused(v) {
+      paused = PREVIEW ? false : !!v;
+      if (paused) {
+        if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+        lastT = 0;
+      } else {
+        _scheduleFrame();
+      }
+    }
+
+    function frame(now) {
+      _rafId = 0;
+      if (paused || document.hidden) { lastT = 0; return; }
+      _scheduleFrame();
+      const maxDt = window.__desklandLowMode ? 0.12 : 0.08;
+      const dt = lastT ? Math.min((now - lastT) / 1000, maxDt) : 0.03;
+      lastT = now;
+
+      stepSimulation(dt);
+      draw();
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      let needShapes = false;
+      let needBg = false;
+
+      if (typeof v.seed === 'number' && v.seed !== seed) {
+        seed = (v.seed >>> 0) || 20261118;
+        needShapes = true;
+      }
+      if (typeof v.palette === 'string' && v.palette in PALETTES && v.palette !== P.palette) {
+        P.palette = v.palette;
+        needBg = true;
+      }
+      if (typeof v.iconFrame === 'string' && (v.iconFrame === 'card' || v.iconFrame === 'sticker' || v.iconFrame === 'blueprint')) {
+        P.iconFrame = v.iconFrame;
+      }
+      if (typeof v.quality === 'string' && v.quality in QUALITY_PROFILES && v.quality !== P.quality) {
+        P.quality = v.quality;
+        resize();
+      }
+      if (v.halftonePattern !== undefined) {
+        const nextHp = (v.halftonePattern === true || v.halftonePattern === 'true' || v.halftonePattern === 1);
+        if (nextHp !== P.halftonePattern) {
+          P.halftonePattern = nextHp;
+          needBg = true;
+        }
+      }
+
+      const numKeys = ['borderWeight', 'shadowDepth', 'shapeCount', 'motionSpeed', 'cursorPush', 'adaptive'];
+      for (let i = 0; i < numKeys.length; i++) {
+        const k = numKeys[i];
+        if (v[k] !== undefined) {
+          const n = Number(v[k]);
+          if (Number.isFinite(n) && P[k] !== n) {
+            P[k] = n;
+            if (k === 'borderWeight') needBg = true;
+            if (k === 'shapeCount') needShapes = true;
+          }
+        }
+      }
+
+      if (needShapes) buildShapes();
+      if (needBg) cacheOK = false;
+    }
+
+    function drawGhosts() {
+      const box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(ic =>
+        `<div class="ghost" style="left:${ic.x}px;top:${ic.y}px;width:${ic.w}px;height:${ic.h}px"><i></i><b></b></div>`
+      ).join('');
+    }
+
+    function handleMessage(ev) {
+      let m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      const kind = m.t || m.type;
+      if (kind === 'pause') {
+        _setPaused(m.v);
+        if (paused) draw();
+        return;
+      }
+      if (kind === 'resume') {
+        _setPaused(false);
+        return;
+      }
+      if (kind === 'settings') { applySettings(m.v || m.params || m); return; }
+      if (kind === 'reset') { applySettings(Object.assign({}, DEFAULTS, m.v || {})); return; }
+      if (kind === 'icons') {
+        const k = window.devicePixelRatio || 1;
+        const rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(([l, t, r, b]) => ({ x: l / k, y: t / k, w: (r - l) / k, h: (b - t) / k }))
+          : [];
+        syncIncomingIcons(rects);
+        if (PREVIEW) drawGhosts();
+        if (paused) draw();
+      }
+    }
+
+    function buildDemoIcons() {
+      const cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.44, 0.68], [0.54, 0.68], [0.80, 0.72]
+      ];
+      return cells.map(([fx, fy], i) => ({
+        x: Math.round(fx * W),
+        y: Math.round(fy * H),
+        w: i % 3 === 0 ? 80 : 72,
+        h: 86
+      }));
+    }
+
+    function init() {
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', resize);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !paused) lastT = 0;
+      });
+
+      window.addEventListener('pointermove', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+      }, { passive: true });
+
+      window.addEventListener('pointerdown', function (ev) {
+        const rect = cv.getBoundingClientRect();
+        pointer.x = ev.clientX - rect.left;
+        pointer.y = ev.clientY - rect.top;
+        pointer.active = true;
+        pointer.down = true;
+        handlePressImpulse(pointer.x, pointer.y);
+      }, { passive: true });
+
+      window.addEventListener('pointerup', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointercancel', function () { pointer.down = false; }, { passive: true });
+      window.addEventListener('pointerleave', function () { pointer.down = false; pointer.active = false; }, { passive: true });
+
+      if (PREVIEW) {
+        document.body.classList.add('preview');
+        const g = document.createElement('div');
+        g.id = 'ghosts';
+        document.body.appendChild(g);
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      } else {
+        syncIncomingIcons(buildDemoIcons());
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            const k = window.devicePixelRatio || 1;
+            const rects = vList.map(v => ({ x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k }));
+            syncIncomingIcons(rects);
+          }
+        });
+      }
+
+      Object.defineProperty(window, 'cv', { get: () => cv });
+      Object.defineProperty(window, 'W', { get: () => W });
+      Object.defineProperty(window, 'H', { get: () => H });
+      Object.defineProperty(window, 'WALL', { get: () => WALL });
+      Object.defineProperty(window, 'icons', { get: () => icons });
+      Object.defineProperty(window, 'cacheOK', { get: () => cacheOK, set: v => { cacheOK = !!v; } });
+      window.draw = draw;
+      window.handleMessage = handleMessage;
+
+      _scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

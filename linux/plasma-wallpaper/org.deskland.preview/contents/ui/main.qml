@@ -22,7 +22,7 @@ WallpaperItem {
     objectName: "desklandWallpaper"
 
     property string prototypeRoot: "file:///usr/lib/deskland/prototype/"
-    property string theme: "meadow"
+    property string theme: "software-world"
     property string homeDir: {
         var base = String(StandardPaths.writableLocation(StandardPaths.GenericConfigLocation));
         // "file:///home/user/.config" -> "/home/user"
@@ -32,12 +32,13 @@ WallpaperItem {
     }
     property bool pageReady: false
     property bool windowPaused: false
+    property bool screenshotPaused: false
     property bool lowMode: false
     property var iconMover: null
     property bool iconMoveActive: false
     property double lastIconMoveAt: 0
     readonly property bool showingDesktop: KWindowSystem.showingDesktop
-    readonly property bool effectivePaused: pageReady && windowPaused && !showingDesktop
+    readonly property bool effectivePaused: pageReady && (screenshotPaused || (windowPaused && !showingDesktop))
 
     onShowingDesktopChanged: pauseEvalTimer.restart()
 
@@ -52,47 +53,64 @@ WallpaperItem {
     }
 
     function updateWindowPause() {
-        if (KWindowSystem.showingDesktop) {
-            root.windowPaused = false;
-            return;
-        }
         var covered = false;
+        var hasScreenshot = false;
         var count = tasksModel.count;
-        var screenArea = Math.max(1, root.width * root.height);
         for (var i = 0; i < count; i++) {
             var idx = tasksModel.index(i, 0);
             if (!tasksModel.data(idx, TaskManager.AbstractTasksModel.IsWindow))
-                continue;
-            if (!tasksModel.data(idx, TaskManager.AbstractTasksModel.IsActive))
                 continue;
             if (tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMinimized))
                 continue;
             if (tasksModel.data(idx, TaskManager.AbstractTasksModel.IsHidden))
                 continue;
-            if (tasksModel.data(idx, TaskManager.AbstractTasksModel.SkipTaskbar))
-                continue;
             var appId = String(tasksModel.data(idx, TaskManager.AbstractTasksModel.AppId) || "").toLowerCase();
             if (appId.indexOf("deskland") !== -1 || appId.indexOf("diyardesk") !== -1)
                 continue;
-            if (Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen))
-                    || (root.lowMode && Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMaximized)))) {
+            if (appId.indexOf("spectacle") !== -1 || appId.indexOf("flameshot") !== -1 || appId.indexOf("ksnip") !== -1) {
+                hasScreenshot = true;
+                covered = true;
+                break;
+            }
+            if (!tasksModel.data(idx, TaskManager.AbstractTasksModel.IsActive))
+                continue;
+            if (tasksModel.data(idx, TaskManager.AbstractTasksModel.SkipTaskbar))
+                continue;
+            if (!KWindowSystem.showingDesktop
+                    && (Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsFullScreen))
+                        || (root.lowMode && Boolean(tasksModel.data(idx, TaskManager.AbstractTasksModel.IsMaximized))))) {
                 covered = true;
                 break;
             }
         }
-        root.windowPaused = covered;
+        root.screenshotPaused = hasScreenshot;
+        root.windowPaused = (KWindowSystem.showingDesktop && !hasScreenshot) ? false : covered;
     }
 
     function applyEffectivePause() {
         if (!root.pageReady) return;
         if (root.effectivePaused) {
             view.runJavaScript("window.__desklandSetHostPaused&&window.__desklandSetHostPaused(true);");
+            freezeTimer.restart();
         } else {
+            freezeTimer.stop();
+            try { view.lifecycleState = WebEngineView.LifecycleState.Active; } catch (e) {}
             view.runJavaScript("window.__desklandSetHostPaused&&window.__desklandSetHostPaused(false);");
         }
     }
 
     onEffectivePausedChanged: applyEffectivePause()
+
+    Timer {
+        id: freezeTimer
+        interval: 180
+        repeat: false
+        onTriggered: {
+            if (root.effectivePaused) {
+                try { view.lifecycleState = WebEngineView.LifecycleState.Frozen; } catch (e) {}
+            }
+        }
+    }
 
     Timer {
         id: pauseEvalTimer
@@ -134,28 +152,31 @@ WallpaperItem {
 
     Timer {
         id: iconMoveTimer
-        interval: root.lowMode ? (root.iconMoveActive ? 150 : 800) : (root.iconMoveActive ? 40 : 320)
+        interval: root.lowMode ? (root.iconMoveActive ? 150 : 1200) : (root.iconMoveActive ? 40 : 480)
         repeat: true
         running: root.pageReady && !root.effectivePaused && root.iconMover !== null
         onTriggered: {
-            view.runJavaScript("window.__desklandLowModeState ? '1' : '0'", function (lm) {
-                var nextLow = (lm === '1');
-                if (nextLow !== root.lowMode) {
-                    root.lowMode = nextLow;
-                    root.updateWindowPause();
+            view.runJavaScript(
+                "[window.__desklandLowModeState ? '1' : '0', window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : '']",
+                function (res) {
+                    if (!res || res.length < 2) return;
+                    var nextLow = (res[0] === '1');
+                    if (nextLow !== root.lowMode) {
+                        root.lowMode = nextLow;
+                        root.updateWindowPause();
+                    }
+                    var raw = res[1];
+                    var mover = root.iconMover;
+                    if (!mover || typeof mover.applyMoveIcons !== "function") return;
+                    if (raw && raw.length > 0) {
+                        root.iconMoveActive = true;
+                        root.lastIconMoveAt = Date.now();
+                        mover.applyMoveIcons(raw);
+                    } else if (root.iconMoveActive && (Date.now() - root.lastIconMoveAt) > 1500) {
+                        root.iconMoveActive = false;
+                    }
                 }
-            });
-            view.runJavaScript("window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : ''", function (raw) {
-                var mover = root.iconMover;
-                if (!mover || typeof mover.applyMoveIcons !== "function") return;
-                if (raw && raw.length > 0) {
-                    root.iconMoveActive = true;
-                    root.lastIconMoveAt = Date.now();
-                    mover.applyMoveIcons(raw);
-                } else if (root.iconMoveActive && (Date.now() - root.lastIconMoveAt) > 1500) {
-                    root.iconMoveActive = false;
-                }
-            });
+            );
         }
     }
 
@@ -172,22 +193,24 @@ WallpaperItem {
         backgroundColor: "#000000"
         settings.localContentCanAccessFileUrls: true
         settings.localStorageEnabled: true
-        settings.playbackRequiresUserGesture: false
+        settings.playbackRequiresUserGesture: true
         settings.errorPageEnabled: false
 
         Component.onCompleted: {
+            var pageName = (root.theme === "beach" ? "flat" : root.theme) + ".html";
             view.userScripts.collection = [
-                { name: "deskland-low-mode",
-                  sourceUrl: root.prototypeRoot + "low-mode.js",
-                  injectionPoint: WebEngineScript.DocumentCreation,
-                  worldId: WebEngineScript.MainWorld },
                 { name: "deskland-bridge",
                   sourceUrl: Qt.resolvedUrl("inject.js"),
                   injectionPoint: WebEngineScript.DocumentCreation,
+                  worldId: WebEngineScript.MainWorld },
+                { name: "deskland-low-mode",
+                  sourceUrl: root.prototypeRoot + "low-mode.js",
+                  injectionPoint: WebEngineScript.DocumentCreation,
                   worldId: WebEngineScript.MainWorld }
             ];
-            view.url = root.prototypeRoot + root.theme + ".html"
-                + "?wallpaper=1&vicons=0&v=" + Date.now()
+            view.url = root.prototypeRoot + pageName
+                + "?wallpaper=1&vicons=0"
+                + "&v=" + Date.now()
                 + "&theme=" + encodeURIComponent(root.theme)
                 + "&home=" + encodeURIComponent(root.homeDir);
         }
