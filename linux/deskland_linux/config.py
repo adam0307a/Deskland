@@ -170,6 +170,7 @@ class SettingsStore:
         self.virtual_bar_collapsed: bool | None = None
         self.virtual_bar_mode: str = "auto"
         self.low_mode: bool = False
+        self.disable_auto_pause: bool = False
         self._lock = threading.Lock()
 
     def load(self) -> None:
@@ -202,6 +203,9 @@ class SettingsStore:
             low_mode = data.get("lowMode")
             if isinstance(low_mode, bool):
                 self.low_mode = low_mode
+            disable_auto_pause = data.get("disableAutoPause")
+            if isinstance(disable_auto_pause, bool):
+                self.disable_auto_pause = disable_auto_pause
         except (OSError, ValueError, TypeError):
             self.theme = THEME_DEFAULT
             self.lang = LANG_DEFAULT
@@ -210,6 +214,7 @@ class SettingsStore:
             self.virtual_bar_collapsed = None
             self.virtual_bar_mode = "auto"
             self.low_mode = False
+            self.disable_auto_pause = False
 
     def save(self) -> None:
         with self._lock:
@@ -222,6 +227,7 @@ class SettingsStore:
                 "virtualBarCollapsed": self.virtual_bar_collapsed,
                 "virtualBarMode": self.virtual_bar_mode,
                 "lowMode": self.low_mode,
+                "disableAutoPause": self.disable_auto_pause,
             }
             raw = json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8")
             try:

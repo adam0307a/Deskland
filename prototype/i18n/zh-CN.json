@@ -145,7 +145,9 @@
     "virtualBarAlways": "图标栏：始终显示",
     "virtualBarOff": "图标栏：隐藏",
     "lowMode": "低功耗模式",
-    "lowModeTitle": "严格性能优化：限制 15 FPS、0.75x 分辨率、关闭模糊/阴影并在窗口覆盖时更快暂停"
+    "lowModeTitle": "严格性能优化：限制 15 FPS、0.75x 分辨率、关闭模糊/阴影并在窗口覆盖时更快暂停",
+    "disableAutoPause": "关闭自动暂停",
+    "disableAutoPauseTitle": "开启后，打开最大化或全屏窗口时壁纸动画不会自动暂停"
   },
   "host": {
     "traySettings": "设置…",

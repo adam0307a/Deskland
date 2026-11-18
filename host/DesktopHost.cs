@@ -221,6 +221,7 @@ static class Settings
     public static object VirtualBarCollapsed = null;
     public static string VirtualBarMode = "auto";
     public static bool LowMode = false;
+    public static bool DisableAutoPause = false;
 
     public static List<Dictionary<string, object>> SanitizeVirtualIcons(object raw)
     {
@@ -280,6 +281,7 @@ static class Settings
                 if (mode == "auto" || mode == "always" || mode == "off") VirtualBarMode = mode;
             }
             if (root.TryGetValue("lowMode", out v) && v is bool) LowMode = (bool)v;
+            if (root.TryGetValue("disableAutoPause", out v) && v is bool) DisableAutoPause = (bool)v;
             Log.Write("已读取设置：主题 " + Theme);
         }
         catch (Exception ex) { Log.Write("读取设置失败（将使用默认值）：" + ex.Message); }
@@ -298,7 +300,8 @@ static class Settings
                 "virtualIcons", VirtualIcons,
                 "virtualBarCollapsed", VirtualBarCollapsed,
                 "virtualBarMode", VirtualBarMode,
-                "lowMode", LowMode)), new UTF8Encoding(false));
+                "lowMode", LowMode,
+                "disableAutoPause", DisableAutoPause)), new UTF8Encoding(false));
         }
         catch (Exception ex) { Log.Write("保存设置失败：" + ex.Message); }
     }
@@ -482,6 +485,15 @@ class HostContext : ApplicationContext
         Log.Write(enabled ? "已开启低功耗模式（Low Mode）" : "已关闭低功耗模式");
     }
 
+    void SetDisableAutoPause(bool enabled)
+    {
+        Settings.DisableAutoPause = enabled;
+        SaveSoon();
+        if (form != null) form.SetDisableAutoPause(enabled);
+        if (settingsWin != null) settingsWin.Post(Json.Stringify(Json.Obj("t", "disableAutoPause", "v", enabled)));
+        Log.Write(enabled ? "已关闭自动暂停（最大化/全屏保持运行）" : "已开启自动暂停");
+    }
+
     // ---------------------------------------------------------------- 设置窗口
     public void OpenSettings()
     {
@@ -562,7 +574,7 @@ class HostContext : ApplicationContext
                     "screen", Json.Obj("w", scr.Width, "h", scr.Height), "autostart", IsAutoStart(),
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
                     "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys,
-                    "virtualBarMode", Settings.VirtualBarMode, "lowMode", Settings.LowMode)));
+                    "virtualBarMode", Settings.VirtualBarMode, "lowMode", Settings.LowMode, "disableAutoPause", Settings.DisableAutoPause)));
                 if (updateVersion != null) PostUpdateState();
                 if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
                 break;
@@ -675,6 +687,9 @@ class HostContext : ApplicationContext
                 break;
             case "lowMode":
                 SetLowMode(m.ContainsKey("v") && m["v"] is bool && (bool)m["v"]);
+                break;
+            case "disableAutoPause":
+                SetDisableAutoPause(m.ContainsKey("v") && m["v"] is bool && (bool)m["v"]);
                 break;
         }
     }
@@ -1016,7 +1031,7 @@ class HostContext : ApplicationContext
             nextStart = DateTime.Now.AddSeconds(5);
             return;
         }
-        form = new WallpaperForm(pageDir, page, manualPause, Settings.LowMode);
+        form = new WallpaperForm(pageDir, page, manualPause, Settings.LowMode, Settings.DisableAutoPause);
         form.SettingsJson = SettingsMessage;
         form.VirtualStateJson = VirtualStateMessage;
         form.AudioPlayChanged += delegate(bool play)
@@ -1404,7 +1419,7 @@ class WallpaperForm : Form
     IntPtr parentHwnd, insertAfter;
     string lastIcons = "";
     int lastPause = -1;
-    bool manualPause, lowMode, shuttingDown, allowMoveIcons;
+    bool manualPause, lowMode, disableAutoPause, shuttingDown, allowMoveIcons;
     long lastMoveIconsMs;
 
     public bool Fatal { get; private set; }
@@ -1420,12 +1435,13 @@ class WallpaperForm : Form
     public string LastIcons { get { return lastIcons; } }
     protected override bool ShowWithoutActivation { get { return true; } }
 
-    public WallpaperForm(string pageDir, string page, bool manualPause, bool lowMode)
+    public WallpaperForm(string pageDir, string page, bool manualPause, bool lowMode, bool disableAutoPause = false)
     {
         this.pageDir = pageDir;
         this.page = page;
         this.manualPause = manualPause;
         this.lowMode = lowMode;
+        this.disableAutoPause = disableAutoPause;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
@@ -1447,6 +1463,7 @@ class WallpaperForm : Form
     }
 
     public void SetManualPause(bool v) { manualPause = v; PollForeground(); }
+    public void SetDisableAutoPause(bool v) { disableAutoPause = v; lastPause = -1; PollForeground(); }
 
     void ApplyWebViewLowMode(bool enabled)
     {
@@ -2152,7 +2169,7 @@ class WallpaperForm : Form
         string pauseBy = "";
         IntPtr fg = Native.GetForegroundWindow();
         int cloaked = 0;
-        if (!pause && fg != IntPtr.Zero && fg != Handle && Native.IsWindowVisible(fg)
+        if (!pause && !disableAutoPause && fg != IntPtr.Zero && fg != Handle && Native.IsWindowVisible(fg)
             && (Native.DwmGetWindowAttribute(fg, 14 /* DWMWA_CLOAKED */, out cloaked, 4) != 0 || cloaked == 0))
         {
             var cls = new StringBuilder(64);

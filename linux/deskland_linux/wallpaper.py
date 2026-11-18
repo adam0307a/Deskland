@@ -332,7 +332,11 @@ class Wallpaper:
         self._static_snapshot_pending = False
         self._icon_timeout = 0
         self._pause_timeout = 0
+        self._pointer_timeout = 0
+        self._pointer_active = False
+        self._last_pointer: tuple[int, int] | None = None
         self._low_mode = bool(getattr(getattr(self.host, "settings", None), "low_mode", False))
+        self._disable_auto_pause = bool(getattr(getattr(self.host, "settings", None), "disable_auto_pause", False))
         self._closed = False
 
         geo, scale = primary_geometry()
@@ -399,6 +403,9 @@ class Wallpaper:
         if getattr(self, "_pause_timeout", 0):
             GLib.source_remove(self._pause_timeout)
             self._pause_timeout = 0
+        if getattr(self, "_pointer_timeout", 0):
+            GLib.source_remove(self._pointer_timeout)
+            self._pointer_timeout = 0
         if self._closed:
             return
         low = self._is_low_mode()
@@ -409,6 +416,9 @@ class Wallpaper:
         pause_interval = 1000 if low else 500
         self._icon_timeout = GLib.timeout_add(icon_interval, self._poll_icons)
         self._pause_timeout = GLib.timeout_add(pause_interval, self._poll_pause)
+        if self.backend == "x11":
+            pointer_interval = 80 if low else 40
+            self._pointer_timeout = GLib.timeout_add(pointer_interval, self._poll_x11_pointer)
 
     def _init_bridge(self) -> None:
         if self.bridge is not None:
@@ -950,6 +960,11 @@ class Wallpaper:
         if self.backend == "static":
             self._schedule_static_render(1600 if self._low_mode else 400)
 
+    def set_disable_auto_pause(self, enabled: bool) -> None:
+        self._disable_auto_pause = bool(enabled)
+        self._last_pause = -1
+        self._poll_pause_once()
+
     # ---------------------------------------------------------------- icons
     def _poll_icons(self) -> bool:
         if self._closed:
@@ -1008,6 +1023,9 @@ class Wallpaper:
             # and Plasma hosts keep near-zero idle GPU/CPU usage.
             GLib.idle_add(self._apply_pause, True)
             return False
+        if getattr(self, "_disable_auto_pause", False):
+            GLib.idle_add(self._apply_pause, False)
+            return True
         if self._pause_busy:
             return True
         self._pause_busy = True
@@ -1016,7 +1034,7 @@ class Wallpaper:
 
     def _read_pause(self) -> None:
         try:
-            auto = self.pause_monitor.should_pause()
+            auto = False if getattr(self, "_disable_auto_pause", False) else self.pause_monitor.should_pause()
         except Exception as exc:
             self.log.exception("Duraklatma algılama hatası", exc)
             auto = False
@@ -1031,20 +1049,90 @@ class Wallpaper:
         self._pause_busy = False
         if self._closed:
             return False
+        effective_auto = False if getattr(self, "_disable_auto_pause", False) else bool(auto)
         pause = (
             True
             if self.backend in ("plasma-plugin", "static")
-            else bool(auto or self._manual_pause)
+            else bool(effective_auto or self._manual_pause)
         )
         value = 1 if pause else 0
         if value == self._last_pause:
             return False
         self._last_pause = value
         self._sync_native_audio()
+        if pause and getattr(self, "_pointer_active", False):
+            self._pointer_active = False
+            self._last_pointer = None
+            if self._ready and self.bridge is not None:
+                self.bridge.post({"t": "pointer", "kind": "leave"})
         if self._ready and self.bridge is not None:
             self.bridge.post({"t": "pause", "v": pause})
         self.log.write("Duraklatıldı" if pause else "Devam ediyor")
         return False
+
+    # ---------------------------------------------------------------- X11 hover
+    @staticmethod
+    def _is_x11_point_over_desktop(screen: Any, rx: int, ry: int) -> bool:
+        """Return True when (rx, ry) is not occluded by a visible non-desktop X11 window."""
+        if screen is None or not hasattr(screen, "get_window_stack"):
+            return True
+        try:
+            stack = screen.get_window_stack() or []
+        except Exception:
+            return True
+        desktop_hint = Gdk.WindowTypeHint.DESKTOP
+        dock_hint = Gdk.WindowTypeHint.DOCK
+        hidden_mask = Gdk.WindowState.ICONIFIED | Gdk.WindowState.WITHDRAWN
+        for win in stack:
+            if win is None:
+                continue
+            try:
+                if hasattr(win, "is_visible") and not win.is_visible():
+                    continue
+                if win.get_state() & hidden_mask:
+                    continue
+                if win.get_type_hint() in (desktop_hint, dock_hint):
+                    continue
+                wx, wy, ww, wh = win.get_geometry()
+                if ww > 0 and wh > 0 and wx <= rx < wx + ww and wy <= ry < wy + wh:
+                    return False
+            except Exception:
+                continue
+        return True
+
+    def _poll_x11_pointer(self) -> bool:
+        if self._closed or self.backend != "x11":
+            self._pointer_timeout = 0
+            return False
+        if not self._ready or self._last_pause != 0 or self.bridge is None:
+            return True
+        try:
+            display = Gdk.Display.get_default()
+            seat = display.get_default_seat() if display is not None else None
+            pointer = seat.get_pointer() if seat is not None else None
+            if pointer is None:
+                return True
+            screen, rx, ry = pointer.get_position()
+            inside = (
+                self.geo.x <= rx < self.geo.x + self.geo.width
+                and self.geo.y <= ry < self.geo.y + self.geo.height
+            )
+            over_desktop = inside and self._is_x11_point_over_desktop(screen, rx, ry)
+            if over_desktop:
+                lx = int(rx - self.geo.x)
+                ly = int(ry - self.geo.y)
+                last = self._last_pointer
+                if not self._pointer_active or last is None or abs(lx - last[0]) + abs(ly - last[1]) >= 2:
+                    self._pointer_active = True
+                    self._last_pointer = (lx, ly)
+                    self.bridge.post({"t": "pointer", "kind": "hover", "x": lx, "y": ly})
+            elif self._pointer_active:
+                self._pointer_active = False
+                self._last_pointer = None
+                self.bridge.post({"t": "pointer", "kind": "leave"})
+        except Exception:
+            pass
+        return True
 
     # ---------------------------------------------------------------- share
     def request_snapshot(
@@ -1252,6 +1340,9 @@ class Wallpaper:
         if getattr(self, "_pause_timeout", 0):
             GLib.source_remove(self._pause_timeout)
             self._pause_timeout = 0
+        if getattr(self, "_pointer_timeout", 0):
+            GLib.source_remove(self._pointer_timeout)
+            self._pointer_timeout = 0
         self.static_wallpaper.restore()
         if self._static_file is not None:
             try:

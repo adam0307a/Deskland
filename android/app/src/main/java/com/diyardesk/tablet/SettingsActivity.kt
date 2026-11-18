@@ -226,6 +226,9 @@ class SettingsActivity : AppCompatActivity(), ThemeStore.Listener {
             "lowMode" -> {
                 store.setLowModeEnabled(msg.optBoolean("v", false))
             }
+            "disableAutoPause" -> {
+                store.setDisableAutoPauseEnabled(msg.optBoolean("v", false))
+            }
             "importTheme" -> {
                 importPicker.launch(arrayOf("*/*"))
             }

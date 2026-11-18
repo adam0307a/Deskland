@@ -132,7 +132,9 @@
     "virtualBarAlways": "Simgeler: Her zaman göster",
     "virtualBarOff": "Simgeler: Gizli",
     "lowMode": "Eco mod (Düşük)",
-    "lowModeTitle": "Sıkı eko optimizasyon: 15 FPS sınırı, 0.75x ölçek, yoğun bulanıklık/gölgeleri kapatır ve pencereler arkasında daha hızlı duraklatır"
+    "lowModeTitle": "Sıkı eko optimizasyon: 15 FPS sınırı, 0.75x ölçek, yoğun bulanıklık/gölgeleri kapatır ve pencereler arkasında daha hızlı duraklatır",
+    "disableAutoPause": "Otomatik duraklatmayı kapat",
+    "disableAutoPauseTitle": "Aktifleştirildiğinde büyük veya tam ekran pencere açılsa bile animasyonlar duraklatılmaz"
   },
   "host": {
     "traySettings": "Ayarlar…",
@@ -1217,6 +1219,91 @@
             "Buzlu kapsül",
             "Berrak damla",
             "Prizma kenar"
+          ]
+        },
+        "quality": {
+          "label": "Kalite",
+          "options": [
+            "Düşük",
+            "Orta",
+            "Yüksek"
+          ]
+        }
+      }
+    },
+    "thinking-orbs": {
+      "name": "ThinkingOrbs 3D Küre",
+      "desc": "Masaüstü merkezinde büyük 3D noktasal küre, seçilebilir 9 ThinkingOrbs modu, fare hover 3D eğim ve manyetik nokta tepkisi ile uyarlanabilir simge bağlantıları",
+      "groups": [
+        "Küre ve Mod",
+        "Hareket ve Etkileşim",
+        "Görünüm ve Performans"
+      ],
+      "params": {
+        "orbDesign": {
+          "label": "Küre modu",
+          "hint": "9 farklı 3D noktasal ThinkingOrbs animasyonu arasında anında geçiş yapın",
+          "options": [
+            "Working",
+            "Searching",
+            "Solving",
+            "Listening",
+            "Connecting",
+            "Weaving",
+            "Composing",
+            "Breathing",
+            "Shaping"
+          ]
+        },
+        "autoCycle": {
+          "label": "Otomatik mod döngüsü",
+          "hint": "Açıkken 9 tasarım arasında belirli aralıklarla yumuşak geçiş yapar",
+          "options": [
+            "Kapalı",
+            "Açık"
+          ]
+        },
+        "orbScale": {
+          "label": "Küre boyutu",
+          "hint": "Merkezdeki ana kürenin genel çapını ayarlar"
+        },
+        "dotDensity": {
+          "label": "Nokta yoğunluğu",
+          "hint": "Küre yüzeyindeki parçacık ve kafes yoğunluğunu ayarlar"
+        },
+        "animSpeed": {
+          "label": "Animasyon hızı",
+          "hint": "Küre dönüşü, tarama meridyeni ve dalga akış hızı"
+        },
+        "hoverReaction": {
+          "label": "Hover ve dokunma tepkisi",
+          "hint": "Fare üzerine gelince 3D eğim, manyetik nokta açılması ve tıklama/dokunma dalgası gücü",
+          "options": [
+            "Kapalı",
+            "Yumuşak",
+            "Güçlü"
+          ]
+        },
+        "dotGlow": {
+          "label": "Işıltı yoğunluğu",
+          "hint": "Merkez ortam halesi ve aktif noktaların parlaklığı"
+        },
+        "palette": {
+          "label": "Renk paleti",
+          "options": [
+            "Koyu Monokrom",
+            "Açık Monokrom",
+            "Kobalt AI",
+            "Kehribar",
+            "Zümrüt Matris"
+          ]
+        },
+        "iconLinks": {
+          "label": "Simge bağlantıları",
+          "hint": "Uyarlanabilir açıkken masaüstü simgeleri ile merkez küre arasında noktasal hatlar çizer",
+          "options": [
+            "Gizle",
+            "Göster"
           ]
         },
         "quality": {

@@ -132,7 +132,9 @@
     "virtualBarAlways": "Icons: Always show",
     "virtualBarOff": "Icons: Hidden",
     "lowMode": "Low mode",
-    "lowModeTitle": "Strict eco optimization: 15 FPS limit, 0.75x scale, disables heavy blurs/shadows and pauses faster behind windows"
+    "lowModeTitle": "Strict eco optimization: 15 FPS limit, 0.75x scale, disables heavy blurs/shadows and pauses faster behind windows",
+    "disableAutoPause": "Disable auto-pause",
+    "disableAutoPauseTitle": "When enabled, animations keep playing even when a maximized or fullscreen window is open"
   },
   "host": {
     "traySettings": "Settings…",
@@ -1224,6 +1226,91 @@
           "options": [
             "Low",
             "Balanced",
+            "High"
+          ]
+        }
+      }
+    },
+    "thinking-orbs": {
+      "name": "ThinkingOrbs 3D",
+      "desc": "Large volumetric 3D dotted orb centered on your desktop with all 9 ThinkingOrbs modes, magnetic cursor hover tilt & ripple physics, and adaptive desktop icon links",
+      "groups": [
+        "Orb & Mode",
+        "Motion & Interaction",
+        "Appearance & Performance"
+      ],
+      "params": {
+        "orbDesign": {
+          "label": "Orb Mode",
+          "hint": "Switch live between all 9 3D dotted ThinkingOrbs designs",
+          "options": [
+            "Working",
+            "Searching",
+            "Solving",
+            "Listening",
+            "Connecting",
+            "Weaving",
+            "Composing",
+            "Breathing",
+            "Shaping"
+          ]
+        },
+        "autoCycle": {
+          "label": "Auto-cycle modes",
+          "hint": "Smoothly cycles through all 9 orb modes at regular intervals",
+          "options": [
+            "Off",
+            "On"
+          ]
+        },
+        "orbScale": {
+          "label": "Orb size",
+          "hint": "Overall diameter of the centered hero orb"
+        },
+        "dotDensity": {
+          "label": "Dot density",
+          "hint": "Particle and lattice density across the orb surface"
+        },
+        "animSpeed": {
+          "label": "Animation speed",
+          "hint": "Overall rotation, scan meridian, and wave tempo"
+        },
+        "hoverReaction": {
+          "label": "Hover & touch reaction",
+          "hint": "3D parallax tilt, magnetic dot repulsion, and click/tap shockwave intensity",
+          "options": [
+            "Off",
+            "Soft",
+            "Strong"
+          ]
+        },
+        "dotGlow": {
+          "label": "Core glow",
+          "hint": "Ambient core halo and active dot luminescence"
+        },
+        "palette": {
+          "label": "Palette",
+          "options": [
+            "Obsidian Mono",
+            "Paper Mono",
+            "Cobalt AI",
+            "Amber Pulse",
+            "Emerald Grid"
+          ]
+        },
+        "iconLinks": {
+          "label": "Icon telemetry links",
+          "hint": "Draw subtle dotted filaments between desktop icons and the central orb when Adaptive is enabled",
+          "options": [
+            "Hide",
+            "Show"
+          ]
+        },
+        "quality": {
+          "label": "Quality",
+          "options": [
+            "Low",
+            "Medium",
             "High"
           ]
         }

@@ -177,6 +177,8 @@ class ThemeStore(private val storageDir: File) {
         private set
     var lowMode: Boolean = false
         private set
+    var disableAutoPause: Boolean = false
+        private set
     private var paramsByTheme: MutableMap<String, JSONObject> = mutableMapOf()
     private var iconBoxes: MutableList<NormalizedBox> = IconLayoutMath.presetTablet5x6().toMutableList()
 
@@ -202,6 +204,7 @@ class ThemeStore(private val storageDir: File) {
                 lang = root.optString("lang", "auto").ifBlank { "auto" }
                 virtualBarMode = root.optString("virtualBarMode", "auto").ifBlank { "auto" }
                 lowMode = root.optBoolean("lowMode", false)
+                disableAutoPause = root.optBoolean("disableAutoPause", false)
 
                 paramsByTheme = mutableMapOf()
                 val paramsObj = root.optJSONObject("params")
@@ -234,6 +237,7 @@ class ThemeStore(private val storageDir: File) {
             put("lang", lang)
             put("virtualBarMode", virtualBarMode)
             put("lowMode", lowMode)
+            put("disableAutoPause", disableAutoPause)
             put("params", JSONObject().apply {
                 for ((k, v) in paramsByTheme) put(k, v)
             })
@@ -309,6 +313,14 @@ class ThemeStore(private val storageDir: File) {
         listeners.forEach { it.onSettingsChanged(this) }
     }
 
+    fun setDisableAutoPauseEnabled(enabled: Boolean) {
+        synchronized(lock) {
+            disableAutoPause = enabled
+            saveLocked()
+        }
+        listeners.forEach { it.onSettingsChanged(this) }
+    }
+
     fun notifyThemesRegistryChanged() {
         listeners.forEach { it.onThemesRegistryChanged(this) }
     }
@@ -352,6 +364,7 @@ class ThemeStore(private val storageDir: File) {
             put("autostartWarn", false)
             put("virtualBarMode", virtualBarMode)
             put("lowMode", lowMode)
+            put("disableAutoPause", disableAutoPause)
             put("lang", lang)
             put("langEff", effLang)
             put("langSys", systemLang)

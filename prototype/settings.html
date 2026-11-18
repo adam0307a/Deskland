@@ -47,7 +47,7 @@
   .brand { font-size: 25px; line-height: 1; font-weight: 750; letter-spacing: -1.2px; }
   .top .section-title { margin: 0; color: var(--text); font-size: 13px; letter-spacing: 0; padding: 5px 0; border-bottom: 2px solid var(--text); }
   .top-left { display: flex; align-items: center; gap: 28px; }
-  .top-right { display: flex; align-items: center; gap: 18px; }
+  .top-right { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 18px; }
   .lang-row { display: flex; flex: none; align-items: center; gap: 6px; color: var(--muted); }
   .lang-row svg { width: 15px; height: 15px; flex: none; }
   .lang-row select { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
@@ -148,6 +148,10 @@
   .card { min-height: 0; }
   .preview-card { flex: none; }
   .preview-head { margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .theme-credit { margin: -8px 0 14px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+  .theme-credit[hidden] { display: none; }
+  .theme-credit a { color: var(--text); opacity: .88; text-decoration: underline; text-underline-offset: 2px; }
+  .theme-credit a:hover { opacity: 1; }
   .adaptive-switch[hidden] { display: none; }
   .preview-head h2 { font-size: 28px; font-weight: 650; letter-spacing: -.04em; line-height: 1.2; }
   .stage { display: flex; justify-content: center; }
@@ -178,7 +182,9 @@
   .undo:hover { background: var(--accent-soft); color: var(--accent); }
   /* 选项（分段按钮）：比如时段 白天 / 傍晚 / 晚上 */
   .opts { display: flex; gap: 3px; margin: 8px 0 2px; padding: 3px; background: var(--panel-2); border-radius: 10px; }
+  .opts.opts-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .opts button { flex: 1; min-width: 0; padding: 6px 3px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
+  .opts.opts-grid button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px 5px; }
   .opts button:hover { background: var(--accent-soft); }
   .opts button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
   .audio-actions { display: flex; gap: 6px; margin: 8px 0 2px; }
@@ -305,6 +311,9 @@
     <label class="switch-row" data-i18n-title="lowModeTitle" title="Strict eco optimization: 15 FPS cap, reduced scale, no heavy blurs">
       <span data-i18n="lowMode">Low mode</span><input type="checkbox" id="lowMode"><i class="switch"></i>
     </label>
+    <label class="switch-row" data-i18n-title="disableAutoPauseTitle" title="When enabled, animations keep playing even when a maximized or fullscreen window is open">
+      <span data-i18n="disableAutoPause">Disable auto-pause</span><input type="checkbox" id="disableAutoPause"><i class="switch"></i>
+    </label>
     <label class="switch-row" data-i18n-title="autostartTitle" title="开机后自动运行 DiyarDesk">
       <span data-i18n="autostart">开机自动启动</span><input type="checkbox" id="autostart"><i class="switch"></i>
     </label>
@@ -344,6 +353,7 @@
           <label class="switch-row adaptive-switch" id="adaptiveRow" hidden><span data-i18n="adaptive">自适应</span><input type="checkbox" id="adaptive" role="switch" checked><i class="switch" aria-hidden="true"></i></label>
         </div>
       </div>
+      <p class="theme-credit" id="themeCredit" hidden><span id="themeCreditPrefix"></span> <a id="themeCreditLink" href="#" target="_blank" rel="noopener noreferrer"></a></p>
       <div class="stage" id="stage"><div class="preview" id="previewBox"><iframe id="preview" data-i18n-title="livePreview" title="实时预览" tabindex="-1"></iframe></div></div>
       <p class="preview-foot"><span class="live-dot"></span><span id="previewFoot">实时预览</span></p>
       <div class="preview-actions">
@@ -654,9 +664,9 @@ function renderControls() {
               <button class="undo" data-reset="${p.key}" title="${t('resetOne', { v: fmt(p, p.default) })}" aria-label="${t('resetOneAria', { label: p.label })}">↺</button>
               <span class="value" id="v-${p.key}">${fmt(p, vals[p.key])}</span>
             </span></div>
-          ${p.options ? `<div class="opts" data-key="${p.key}" role="radiogroup" aria-label="${p.label}">${p.options.map((o, i) => {
+          ${p.options ? `<div class="opts${p.options.length > 4 ? ' opts-grid' : ''}" data-key="${p.key}" role="radiogroup" aria-label="${p.label}">${p.options.map((o, i) => {
             const on = optIndex(p, vals[p.key]) === i;
-            return `<button data-opt="${i}" class="${on ? 'on' : ''}" role="radio" aria-checked="${on}">${o}</button>`;
+            return `<button data-opt="${i}" class="${on ? 'on' : ''}" role="radio" aria-checked="${on}" title="${escHtml(o)}">${o}</button>`;
           }).join('')}</div>` : `
           <div class="track" title="${t('dblclickReset', { v: fmt(p, p.default) })}">
             <input type="range" data-key="${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${vals[p.key]}" aria-label="${p.label}">
@@ -788,6 +798,11 @@ $('lowMode').addEventListener('change', e => {
   send({ t: 'lowMode', v });
   toPreview({ t: 'lowMode', v });
 });
+$('disableAutoPause').addEventListener('change', e => {
+  const v = !!e.target.checked;
+  state.disableAutoPause = v;
+  send({ t: 'disableAutoPause', v });
+});
 $('autostart').addEventListener('change', e => send({ t: 'autostart', v: e.target.checked }));
 $('virtualBarMode').addEventListener('change', e => {
   const mode = e.target.value;
@@ -836,6 +851,7 @@ $('updateProgram').addEventListener('click', () => {
 
 /* ---------- 实时预览：iframe 按整块桌面的尺寸排版，再整体缩小 ---------- */
 const toPreview = m => { if (frame.contentWindow) frame.contentWindow.postMessage(JSON.stringify(m), '*'); };
+let previewScale = 1;
 function screenCss() {
   const k = window.devicePixelRatio || 1;
   return { w: Math.round(state.screen.w / k), h: Math.round(state.screen.h / k) };
@@ -846,12 +862,28 @@ function layoutPreview() {
   // 小窗口给参数区留出空间，避免预览挤得连第一个滑块都看不到。
   const maxHeight = Math.min(innerHeight * 0.42, Math.max(110, innerHeight - 520));
   const k = Math.min(stage.width / s.w, maxHeight / s.h);
+  previewScale = k > 0 ? k : 1;
   $('previewBox').style.width = Math.floor(s.w * k) + 'px';
   $('previewBox').style.height = Math.floor(s.h * k) + 'px';
   frame.style.width = s.w + 'px'; frame.style.height = s.h + 'px';
   frame.style.transform = `scale(${k})`;
 }
 addEventListener('resize', layoutPreview);
+(function wirePreviewPointer() {
+  const box = $('previewBox');
+  if (!box) return;
+  const forward = (kind, ev) => {
+    const r = box.getBoundingClientRect();
+    const x = (ev.clientX - r.left) / (previewScale || 1);
+    const y = (ev.clientY - r.top) / (previewScale || 1);
+    toPreview({ t: 'pointer', kind, x, y });
+  };
+  box.addEventListener('pointermove', ev => forward('move', ev), { passive: true });
+  box.addEventListener('pointerdown', ev => forward('down', ev), { passive: true });
+  box.addEventListener('pointerup', ev => forward('up', ev), { passive: true });
+  box.addEventListener('pointerleave', () => toPreview({ t: 'pointer', kind: 'leave' }), { passive: true });
+  box.addEventListener('pointercancel', () => toPreview({ t: 'pointer', kind: 'cancel' }), { passive: true });
+})();
 let previewReady = false;
 let previewReadyTimer = 0;
 function sendPreviewBootstrap() {
@@ -882,6 +914,14 @@ function updateFoot() {
 function renderHead() {
   const th = themeById(state.theme);
   $('themeName').textContent = th.name;
+  const credit = th.credit && th.credit.url ? th.credit : null;
+  $('themeCredit').hidden = !credit;
+  if (credit) {
+    $('themeCreditPrefix').textContent = credit.prefix || 'Thanks to';
+    const link = $('themeCreditLink');
+    link.textContent = credit.label || credit.url;
+    link.href = credit.url;
+  }
   $('removeTheme').hidden = !th.imported || !host;
   $('adaptiveRow').hidden = !th.adaptive;
   $('adaptive').checked = valuesOf(th).adaptive !== 0;
@@ -1033,6 +1073,8 @@ function onHost(m) {
       state.screen = m.screen;
       state.lowMode = !!m.lowMode;
       if ($('lowMode')) $('lowMode').checked = state.lowMode;
+      state.disableAutoPause = !!m.disableAutoPause;
+      if ($('disableAutoPause')) $('disableAutoPause').checked = state.disableAutoPause;
       $('autostart').checked = !!m.autostart;
       if ($('virtualBarMode')) $('virtualBarMode').value = m.virtualBarMode || 'auto';
       state.autostartWarn = !!m.autostartWarn;
@@ -1069,6 +1111,9 @@ function onHost(m) {
     state.lowMode = !!m.v;
     if ($('lowMode')) $('lowMode').checked = state.lowMode;
     toPreview({ t: 'lowMode', v: state.lowMode });
+  } else if (m.t === 'disableAutoPause') {
+    state.disableAutoPause = !!m.v;
+    if ($('disableAutoPause')) $('disableAutoPause').checked = state.disableAutoPause;
   } else if (m.t === 'recProgress') {
     shareProgress(m.p);
   } else if (m.t === 'shareResult') {

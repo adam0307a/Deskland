@@ -34,11 +34,12 @@ WallpaperItem {
     property bool windowPaused: false
     property bool screenshotPaused: false
     property bool lowMode: false
+    property bool disableAutoPause: false
     property var iconMover: null
     property bool iconMoveActive: false
     property double lastIconMoveAt: 0
     readonly property bool showingDesktop: KWindowSystem.showingDesktop
-    readonly property bool effectivePaused: pageReady && (screenshotPaused || (windowPaused && !showingDesktop))
+    readonly property bool effectivePaused: pageReady && !disableAutoPause && (screenshotPaused || (windowPaused && !showingDesktop))
 
     onShowingDesktopChanged: pauseEvalTimer.restart()
 
@@ -151,13 +152,13 @@ WallpaperItem {
     }
 
     Timer {
-        id: iconMoveTimer
-        interval: root.lowMode ? (root.iconMoveActive ? 150 : 1200) : (root.iconMoveActive ? 40 : 480)
+        id: settingsSyncTimer
+        interval: 1000
         repeat: true
-        running: root.pageReady && !root.effectivePaused && root.iconMover !== null
+        running: root.pageReady && !root.effectivePaused
         onTriggered: {
             view.runJavaScript(
-                "[window.__desklandLowModeState ? '1' : '0', window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : '']",
+                "[window.__desklandLowModeState ? '1' : '0', window.__desklandDisableAutoPause ? '1' : '0']",
                 function (res) {
                     if (!res || res.length < 2) return;
                     var nextLow = (res[0] === '1');
@@ -165,7 +166,37 @@ WallpaperItem {
                         root.lowMode = nextLow;
                         root.updateWindowPause();
                     }
-                    var raw = res[1];
+                    var nextDisable = (res[1] === '1');
+                    if (nextDisable !== root.disableAutoPause) {
+                        root.disableAutoPause = nextDisable;
+                        root.updateWindowPause();
+                    }
+                }
+            );
+        }
+    }
+
+    Timer {
+        id: iconMoveTimer
+        interval: root.lowMode ? (root.iconMoveActive ? 150 : 1200) : (root.iconMoveActive ? 40 : 480)
+        repeat: true
+        running: root.pageReady && !root.effectivePaused && root.iconMover !== null
+        onTriggered: {
+            view.runJavaScript(
+                "[window.__desklandLowModeState ? '1' : '0', window.__desklandDisableAutoPause ? '1' : '0', window.__desklandTakeMoveIcons ? window.__desklandTakeMoveIcons() : '']",
+                function (res) {
+                    if (!res || res.length < 3) return;
+                    var nextLow = (res[0] === '1');
+                    if (nextLow !== root.lowMode) {
+                        root.lowMode = nextLow;
+                        root.updateWindowPause();
+                    }
+                    var nextDisable = (res[1] === '1');
+                    if (nextDisable !== root.disableAutoPause) {
+                        root.disableAutoPause = nextDisable;
+                        root.updateWindowPause();
+                    }
+                    var raw = res[2];
                     var mover = root.iconMover;
                     if (!mover || typeof mover.applyMoveIcons !== "function") return;
                     if (raw && raw.length > 0) {

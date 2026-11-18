@@ -249,6 +249,15 @@ class DesklandHost:
         self._post_settings({"t": "lowMode", "v": val})
         self.log.write("Düşük performans modu açık" if val else "Düşük performans modu kapalı")
 
+    def set_disable_auto_pause(self, enabled: bool) -> None:
+        val = bool(enabled)
+        self.settings.disable_auto_pause = val
+        self.settings.save()
+        if self.wallpaper is not None:
+            self.wallpaper.set_disable_auto_pause(val)
+        self._post_settings({"t": "disableAutoPause", "v": val})
+        self.log.write("Otomatik duraklatma devre dışı" if val else "Otomatik duraklatma etkin")
+
     # ---------------------------------------------------------------- state
     def schedule_save(self) -> None:
         if self._save_timeout:
@@ -311,6 +320,8 @@ class DesklandHost:
             self._on_virtual_bar_mode(message)
         elif kind == "lowMode":
             self.set_low_mode(bool(message.get("v")))
+        elif kind == "disableAutoPause":
+            self.set_disable_auto_pause(bool(message.get("v")))
         elif kind == "autostart":
             self.set_autostart(bool(message.get("v")))
             self._post_settings({"t": "autostart", "v": self.autostart_enabled()})
@@ -361,6 +372,7 @@ class DesklandHost:
                 "langSys": self.i18n.system,
                 "virtualBarMode": self.settings.virtual_bar_mode,
                 "lowMode": self.settings.low_mode,
+                "disableAutoPause": self.settings.disable_auto_pause,
                 "canSaveSnapshot": True,
             }
         )

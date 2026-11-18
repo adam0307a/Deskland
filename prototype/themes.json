@@ -2407,6 +2407,185 @@
           ]
         }
       ]
+    },
+    {
+      "id": "thinking-orbs",
+      "adaptive": true,
+      "name": "3D 思维球体",
+      "desc": "中心悬浮大型真 3D 点阵球体，支持 9 种 ThinkingOrbs 动态模式切换、悬停 3D 视差磁吸场与点击波纹交互，并可与桌面图标连线呼应",
+      "page": "thinking-orbs.html",
+      "status": "ready",
+      "product": "free",
+      "credit": {
+        "prefix": "Thanks to",
+        "label": "https://github.com/haplollc",
+        "url": "https://github.com/haplollc"
+      },
+      "thumb": "url(thumbs/thinking-orbs.webp) center / cover no-repeat, radial-gradient(circle at 50% 50%, #1c2434 0%, #090b10 100%)",
+      "thumbSource": "custom",
+      "groups": [
+        {
+          "name": "球体与模式",
+          "params": [
+            {
+              "key": "orbDesign",
+              "label": "球体模式",
+              "hint": "在 9 种 3D 点阵思考球体动画之间即时切换",
+              "options": [
+                "Working",
+                "Searching",
+                "Solving",
+                "Listening",
+                "Connecting",
+                "Weaving",
+                "Composing",
+                "Breathing",
+                "Shaping"
+              ],
+              "values": [
+                "working",
+                "searching",
+                "solving",
+                "listening",
+                "connecting",
+                "weaving",
+                "composing",
+                "breathing",
+                "shaping"
+              ],
+              "default": "searching"
+            },
+            {
+              "key": "autoCycle",
+              "label": "自动轮换模式",
+              "hint": "开启后定期在 9 种动画之间平滑切换",
+              "options": [
+                "关闭",
+                "开启"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": false
+            },
+            {
+              "key": "orbScale",
+              "label": "球体尺寸",
+              "hint": "调节屏幕中央主球体的整体大小",
+              "min": 0.55,
+              "max": 1.45,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "dotDensity",
+              "label": "点阵密度",
+              "hint": "调节球体表面粒子与晶格点的密集程度",
+              "min": 0.4,
+              "max": 1.8,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "动效与交互",
+          "params": [
+            {
+              "key": "animSpeed",
+              "label": "动画速度",
+              "hint": "球体旋转、扫描与波纹演化的整体速度",
+              "min": 0.25,
+              "max": 2.5,
+              "step": 0.05,
+              "default": 1.0,
+              "format": "times"
+            },
+            {
+              "key": "hoverReaction",
+              "label": "悬停交互响应",
+              "hint": "鼠标悬停或触控时 3D 视差倾斜、磁力排斥与点击波纹的强度",
+              "options": [
+                "关闭",
+                "柔和",
+                "强烈"
+              ],
+              "values": [
+                "off",
+                "soft",
+                "strong"
+              ],
+              "default": "strong"
+            },
+            {
+              "key": "dotGlow",
+              "label": "光晕强度",
+              "hint": "核心环境光晕与高亮点的辉光亮度",
+              "min": 0.0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 0.65,
+              "format": "percent"
+            }
+          ]
+        },
+        {
+          "name": "外观与性能",
+          "params": [
+            {
+              "key": "palette",
+              "label": "色彩风格",
+              "options": [
+                "极简深黑",
+                "极简浅白",
+                "钴蓝智算",
+                "琥珀脉冲",
+                "翡翠矩阵"
+              ],
+              "values": [
+                "monochrome-dark",
+                "monochrome-light",
+                "cobalt",
+                "amber",
+                "emerald"
+              ],
+              "default": "monochrome-dark"
+            },
+            {
+              "key": "iconLinks",
+              "label": "图标连线脉冲",
+              "hint": "启用自适应时在桌面图标与中心球体之间绘制虚点引力连线",
+              "options": [
+                "隐藏",
+                "显示"
+              ],
+              "values": [
+                false,
+                true
+              ],
+              "default": true
+            },
+            {
+              "key": "quality",
+              "label": "画质",
+              "options": [
+                "低",
+                "中",
+                "高"
+              ],
+              "values": [
+                "Low",
+                "Medium",
+                "High"
+              ],
+              "default": "High"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

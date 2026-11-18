@@ -110,6 +110,17 @@ def test_low_mode_setting_roundtrip(tmp_path):
     assert loaded.low_mode is True
 
 
+def test_disable_auto_pause_setting_roundtrip(tmp_path):
+    store = SettingsStore(tmp_path)
+    assert store.disable_auto_pause is False
+    store.disable_auto_pause = True
+    store.save()
+
+    loaded = SettingsStore(tmp_path)
+    loaded.load()
+    assert loaded.disable_auto_pause is True
+
+
 def test_turkish_system_detection_and_i18n(tmp_path, monkeypatch):
     (tmp_path / "i18n").mkdir()
     (tmp_path / "i18n" / "en.json").write_text(

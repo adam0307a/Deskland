@@ -186,3 +186,56 @@ def test_pause_monitor_low_mode_aggressive_coverage():
     # Small floating dialog (< 65%) should still NOT pause even in Low Mode.
     assert mon._rect_covers(300, 200, 600, 400) is False
 
+
+def test_disable_auto_pause_bypasses_window_pause_but_keeps_manual_pause() -> None:
+    fake = Wallpaper.__new__(Wallpaper)
+    fake._closed = False
+    fake.backend = "x11"
+    fake._manual_pause = False
+    fake._disable_auto_pause = False
+    fake._last_pause = -1
+    fake._ready = True
+    fake._pause_busy = False
+    fake.bridge = MagicMock()
+    fake.log = MagicMock()
+    fake._sync_native_audio = MagicMock()
+    fake.pause_monitor = MagicMock()
+    fake.pause_monitor.should_pause.return_value = True
+
+    # Default: auto-pause pauses when fullscreen/maximized window is detected.
+    fake._apply_pause(True)
+    fake.bridge.post.assert_called_with({"t": "pause", "v": True})
+
+    # When disable_auto_pause is enabled, auto=True does not pause wallpaper.
+    fake.bridge.reset_mock()
+    fake._disable_auto_pause = True
+    fake._last_pause = -1
+    fake._apply_pause(True)
+    fake.bridge.post.assert_called_with({"t": "pause", "v": False})
+
+    # Manual tray pause still pauses even when disable_auto_pause is active.
+    fake.bridge.reset_mock()
+    fake._manual_pause = True
+    fake._last_pause = -1
+    fake._apply_pause(True)
+    fake.bridge.post.assert_called_with({"t": "pause", "v": True})
+
+
+def test_plasma_bridge_honors_disable_auto_pause() -> None:
+    from pathlib import Path
+
+    ui_dir = (
+        Path(__file__).resolve().parents[1]
+        / "plasma-wallpaper"
+        / "org.deskland.preview"
+        / "contents"
+        / "ui"
+    )
+    main_qml = (ui_dir / "main.qml").read_text(encoding="utf-8")
+    inject_js = (ui_dir / "inject.js").read_text(encoding="utf-8")
+    assert "property bool disableAutoPause: false" in main_qml
+    assert "!disableAutoPause" in main_qml
+    assert "window.__desklandDisableAutoPause" in main_qml
+    assert "window.__desklandDisableAutoPause" in inject_js
+    assert "(hostPaused && !disableAutoPause) || filePaused" in inject_js
+

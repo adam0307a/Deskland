@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThinkingOrbs — DiyarDesk</title>
+  <script src="low-mode.js"></script>
+  <script src="wall-icons.js"></script>
+  <script src="thinking-orbs-engine.js"></script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #07080b;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    #cv {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: auto;
+    }
+    #ghosts {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: none;
+    }
+    body.preview #ghosts {
+      display: block;
+    }
+    .ghost {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 6px;
+      opacity: 0.28;
+    }
+    .ghost i {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    }
+    .ghost b {
+      width: 46px;
+      height: 6px;
+      margin-top: 8px;
+      border-radius: 3px;
+      background: #fff;
+    }
+    #demo-hud {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      max-width: calc(100vw - 28px);
+      background: rgba(14, 17, 24, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      padding: 7px 10px;
+      font: 11px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #d6dce6;
+      z-index: 20;
+      backdrop-filter: blur(8px);
+    }
+    body.standalone #demo-hud {
+      display: flex;
+    }
+    #demo-hud select, #demo-hud button {
+      background: rgba(255, 255, 255, 0.08);
+      color: #f0f4fa;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font: inherit;
+      cursor: pointer;
+    }
+    #demo-hud select option {
+      background: #141820;
+      color: #f0f4fa;
+    }
+    #demo-hud button:hover, #demo-hud select:hover {
+      background: rgba(255, 255, 255, 0.16);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <div id="ghosts"></div>
+  <div id="demo-hud">
+    <label>Mode:
+      <select id="demo-mode">
+        <option value="working">Working</option>
+        <option value="searching" selected>Searching</option>
+        <option value="solving">Solving</option>
+        <option value="listening">Listening</option>
+        <option value="connecting">Connecting</option>
+        <option value="weaving">Weaving</option>
+        <option value="composing">Composing</option>
+        <option value="breathing">Breathing</option>
+        <option value="shaping">Shaping</option>
+      </select>
+    </label>
+    <button id="demo-palette" type="button">Palette</button>
+    <button id="demo-cycle" type="button">Auto: Off</button>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    var Engine = window.ThinkingOrbsEngine;
+    var QS = new URLSearchParams(location.search || '');
+    var WALL = QS.has('wallpaper');
+    var PREVIEW = QS.has('preview');
+    var STANDALONE = !WALL && !PREVIEW;
+
+    var DEFAULTS = {
+      orbDesign: 'searching',
+      autoCycle: false,
+      orbScale: 1.0,
+      dotDensity: 1.0,
+      animSpeed: 1.0,
+      hoverReaction: 'strong',
+      dotGlow: 0.65,
+      palette: 'monochrome-dark',
+      iconLinks: true,
+      quality: 'High',
+      adaptive: 1,
+      seed: 0
+    };
+    var P = Object.assign({}, DEFAULTS);
+
+    var PALETTES = {
+      'monochrome-dark': {
+        isDark: true,
+        bgInner: '#181b24',
+        bgMid: '#0d0f15',
+        bgOuter: '#06070a',
+        nearRgb: [250, 251, 255],
+        farRgb: [72, 78, 90],
+        accentRgb: [255, 255, 255],
+        haloRgb: '215, 226, 248',
+        iconBg: 'rgba(255, 255, 255, 0.045)',
+        iconStroke: 'rgba(220, 230, 248, 0.20)',
+        linkRgb: '210, 222, 242'
+      },
+      'monochrome-light': {
+        isDark: false,
+        bgInner: '#ffffff',
+        bgMid: '#f2f3f5',
+        bgOuter: '#dfe3e8',
+        nearRgb: [18, 20, 24],
+        farRgb: [168, 174, 184],
+        accentRgb: [0, 0, 0],
+        haloRgb: '25, 32, 48',
+        iconBg: 'rgba(18, 22, 30, 0.055)',
+        iconStroke: 'rgba(24, 30, 42, 0.22)',
+        linkRgb: '36, 44, 58'
+      },
+      cobalt: {
+        isDark: true,
+        bgInner: '#0f2040',
+        bgMid: '#081226',
+        bgOuter: '#030710',
+        nearRgb: [216, 244, 255],
+        farRgb: [46, 98, 176],
+        accentRgb: [103, 232, 249],
+        haloRgb: '56, 189, 248',
+        iconBg: 'rgba(56, 189, 248, 0.065)',
+        iconStroke: 'rgba(125, 211, 252, 0.26)',
+        linkRgb: '125, 211, 252'
+      },
+      amber: {
+        isDark: true,
+        bgInner: '#241a11',
+        bgMid: '#120d09',
+        bgOuter: '#070504',
+        nearRgb: [255, 242, 210],
+        farRgb: [130, 82, 42],
+        accentRgb: [251, 191, 36],
+        haloRgb: '245, 158, 11',
+        iconBg: 'rgba(245, 158, 11, 0.06)',
+        iconStroke: 'rgba(252, 211, 77, 0.24)',
+        linkRgb: '252, 211, 77'
+      },
+      emerald: {
+        isDark: true,
+        bgInner: '#0a241e',
+        bgMid: '#051310',
+        bgOuter: '#020806',
+        nearRgb: [220, 255, 240],
+        farRgb: [36, 114, 88],
+        accentRgb: [52, 211, 153],
+        haloRgb: '52, 211, 153',
+        iconBg: 'rgba(52, 211, 153, 0.06)',
+        iconStroke: 'rgba(110, 231, 183, 0.24)',
+        linkRgb: '110, 231, 183'
+      }
+    };
+
+    var QUALITY_PROFILES = {
+      Low:    { maxDpr: 0.75, densityMul: 0.65, glowSteps: false },
+      Medium: { maxDpr: 1.25, densityMul: 0.88, glowSteps: true },
+      High:   { maxDpr: 1.75, densityMul: 1.00, glowSteps: true }
+    };
+
+    var PALETTE_LUT = Object.create(null);
+    function getPaletteLut(palKey) {
+      if (PALETTE_LUT[palKey]) return PALETTE_LUT[palKey];
+      var pal = PALETTES[palKey] || PALETTES['monochrome-dark'];
+      var lut = new Array(256);
+      for (var i = 0; i < 256; i++) {
+        var f = i / 255;
+        var r = Math.round(pal.nearRgb[0] + (pal.farRgb[0] - pal.nearRgb[0]) * f);
+        var g = Math.round(pal.nearRgb[1] + (pal.farRgb[1] - pal.nearRgb[1]) * f);
+        var b = Math.round(pal.nearRgb[2] + (pal.farRgb[2] - pal.nearRgb[2]) * f);
+        lut[i] = 'rgb(' + r + ',' + g + ',' + b + ')';
+      }
+      PALETTE_LUT[palKey] = lut;
+      return lut;
+    }
+
+    // ---- Canvas & State ----
+    var cv = document.getElementById('cv');
+    var ctx = cv.getContext('2d', { alpha: false });
+    var bgCanvas = document.createElement('canvas');
+    var bgCtx = bgCanvas.getContext('2d', { alpha: false });
+    var glowSprite = document.createElement('canvas');
+    glowSprite.width = 256;
+    glowSprite.height = 256;
+    var glowSpritePal = '';
+
+    var W = window.innerWidth || 1920;
+    var H = window.innerHeight || 1080;
+    var scale = 1;
+    var cacheOK = false;
+    var cachedPal = '';
+    var paused = false;
+    var rafId = 0;
+    var lastTs = 0;
+    var frameN = 0;
+
+    // Clocks & mode transition
+    var orbClock = 0;
+    var cycleTimer = 0;
+    var CYCLE_INTERVAL = 14.0;
+    var activeDesign = DEFAULTS.orbDesign;
+    var prevDesign = '';
+    var transitionT = 1.0;
+
+    // Resolved engine presets cache
+    var resolvedCache = Object.create(null);
+    var resolvedKeySig = '';
+
+    // Desktop icons (CSS logical coords for rendering & share.js)
+    var icons = [];
+    var iconsSeen = false;
+    var TASKBAR = 44;
+    var GRID_X0 = 36;
+    var GRID_Y0 = 36;
+    var CELL_W = 104;
+    var CELL_H = 112;
+
+    // Pointer / Hover physics state (CSS logical pixels)
+    var pointer = {
+      targetX: W * 0.5,
+      targetY: H * 0.5,
+      x: W * 0.5,
+      y: H * 0.5,
+      active: false,
+      down: false,
+      touchDecay: 0,
+      energy: 0,
+      insideEnergy: 0
+    };
+    var ripples = [];
+
+    function clamp(v, lo, hi) {
+      return v < lo ? lo : (v > hi ? hi : v);
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function getProfile() {
+      if (window.__desklandLowMode) return QUALITY_PROFILES.Low;
+      return QUALITY_PROFILES[P.quality] || QUALITY_PROFILES.High;
+    }
+
+    function getPalette() {
+      return PALETTES[P.palette] || PALETTES['monochrome-dark'];
+    }
+
+    function getResolved(designId) {
+      var prof = getProfile();
+      var effDensity = clamp(P.dotDensity * prof.densityMul, 0.25, 2.0);
+      var sig = effDensity.toFixed(3) + '|' + P.quality + '|' + (window.__desklandLowMode ? '1' : '0');
+      if (sig !== resolvedKeySig) {
+        resolvedCache = Object.create(null);
+        resolvedKeySig = sig;
+      }
+      if (!resolvedCache[designId]) {
+        resolvedCache[designId] = Engine.resolveDesign(designId, effDensity, 1.0);
+      }
+      return resolvedCache[designId];
+    }
+
+    function rebuildBackground() {
+      var pal = getPalette();
+      var bw = Math.max(64, Math.round(W * 0.35));
+      var bh = Math.max(36, Math.round(H * 0.35));
+      if (bgCanvas.width !== bw || bgCanvas.height !== bh) {
+        bgCanvas.width = bw;
+        bgCanvas.height = bh;
+      }
+      var cx = bw * 0.5;
+      var cy = bh * 0.5;
+      var rad = Math.hypot(cx, cy);
+      var g = bgCtx.createRadialGradient(cx, cy, rad * 0.04, cx, cy, rad);
+      g.addColorStop(0, pal.bgInner);
+      g.addColorStop(0.48, pal.bgMid);
+      g.addColorStop(1, pal.bgOuter);
+      bgCtx.fillStyle = g;
+      bgCtx.fillRect(0, 0, bw, bh);
+      document.documentElement.style.background = pal.bgOuter;
+      document.body.style.background = pal.bgOuter;
+
+      if (glowSpritePal !== P.palette) {
+        glowSpritePal = P.palette;
+        var gctx = glowSprite.getContext('2d');
+        gctx.clearRect(0, 0, 256, 256);
+        var rg = gctx.createRadialGradient(128, 128, 6, 128, 128, 126);
+        rg.addColorStop(0, 'rgba(' + pal.haloRgb + ', 0.28)');
+        rg.addColorStop(0.38, 'rgba(' + pal.haloRgb + ', 0.11)');
+        rg.addColorStop(0.72, 'rgba(' + pal.haloRgb + ', 0.03)');
+        rg.addColorStop(1, 'rgba(' + pal.haloRgb + ', 0)');
+        gctx.fillStyle = rg;
+        gctx.fillRect(0, 0, 256, 256);
+      }
+
+      cachedPal = P.palette;
+      cacheOK = true;
+    }
+
+    function resize() {
+      var box = cv.getBoundingClientRect();
+      W = box.width || window.innerWidth || 1920;
+      H = box.height || window.innerHeight || 1080;
+      var prof = getProfile();
+      scale = window.__desklandScale
+        ? window.__desklandScale(prof.maxDpr, 0.45)
+        : (PREVIEW ? 0.5 : Math.min(window.devicePixelRatio || 1, prof.maxDpr));
+      cv.width = Math.max(1, Math.round(W * scale));
+      cv.height = Math.max(1, Math.round(H * scale));
+      cv._scale = scale;
+      cacheOK = false;
+    }
+
+    function setDesign(nextId, immediate) {
+      if (!Engine.DESIGN_TO_MODE[nextId]) return;
+      if (nextId === activeDesign) return;
+      if (immediate) {
+        prevDesign = '';
+        activeDesign = nextId;
+        transitionT = 1.0;
+      } else {
+        prevDesign = activeDesign;
+        activeDesign = nextId;
+        transitionT = 0.0;
+      }
+      var sel = document.getElementById('demo-mode');
+      if (sel && sel.value !== nextId) sel.value = nextId;
+    }
+
+    function spawnRipple(x, y) {
+      if (P.hoverReaction === 'off') return;
+      ripples.push({ x: x, y: y, age: 0, maxAge: 0.95 });
+      if (ripples.length > 5) ripples.shift();
+    }
+
+    function stepSimulation(dt) {
+      if (P.autoCycle) {
+        cycleTimer += dt * clamp(P.animSpeed, 0.25, 2.5);
+        if (cycleTimer >= CYCLE_INTERVAL) {
+          cycleTimer -= CYCLE_INTERVAL;
+          var idx = Engine.DESIGN_IDS.indexOf(activeDesign);
+          var nextId = Engine.DESIGN_IDS[(idx + 1) % Engine.DESIGN_IDS.length];
+          setDesign(nextId, false);
+        }
+      }
+
+      if (transitionT < 1.0) {
+        transitionT = Math.min(1.0, transitionT + dt / 0.55);
+      }
+
+      if (pointer.touchDecay > 0) {
+        pointer.touchDecay = Math.max(0, pointer.touchDecay - dt);
+      }
+
+      var hasSignal = pointer.active || pointer.down || pointer.touchDecay > 0;
+      var hrEnabled = P.hoverReaction !== 'off';
+      var targetEnergy = (hrEnabled && hasSignal) ? (pointer.touchDecay > 0 && !pointer.active && !pointer.down ? clamp(pointer.touchDecay / 0.9, 0, 1) : 1) : 0;
+
+      var springK = 1 - Math.exp(-13 * dt);
+      pointer.x = lerp(pointer.x, pointer.targetX, springK);
+      pointer.y = lerp(pointer.y, pointer.targetY, springK);
+      pointer.energy = lerp(pointer.energy, targetEnergy, 1 - Math.exp(-(targetEnergy > pointer.energy ? 10 : 4.2) * dt));
+
+      var cx = W * 0.5;
+      var cy = H * 0.5;
+      var orbSize = Math.min(W, H) * 0.56 * P.orbScale;
+      var distCenter = Math.hypot(pointer.x - cx, pointer.y - cy);
+      var targetInside = (hrEnabled && hasSignal && distCenter <= orbSize * 0.58)
+        ? clamp(1 - (distCenter / (orbSize * 0.62)) * 0.35, 0.4, 1) * pointer.energy
+        : 0;
+      pointer.insideEnergy = lerp(pointer.insideEnergy, targetInside, 1 - Math.exp(-7 * dt));
+
+      for (var i = ripples.length - 1; i >= 0; i--) {
+        ripples[i].age += dt;
+        if (ripples[i].age >= ripples[i].maxAge) {
+          ripples.splice(i, 1);
+        }
+      }
+
+      var hrMul = P.hoverReaction === 'strong' ? 0.72 : (P.hoverReaction === 'soft' ? 0.35 : 0);
+      var res = getResolved(activeDesign);
+      var speedMul = P.animSpeed * res.speed * (1 + pointer.insideEnergy * hrMul);
+      orbClock += dt * speedMul;
+    }
+
+    function drawSingleOrb(designId, alphaMul, scaleMul, orbSize, cx, cy, hoverState) {
+      if (alphaMul <= 0.01) return;
+      var res = getResolved(designId);
+      var opts = Object.assign({}, res.opts, {
+        hoverYaw: hoverState.yaw,
+        hoverTilt: hoverState.tilt,
+        hoverRoll: hoverState.roll
+      });
+      var boxSize = orbSize * scaleMul;
+      var frame = Engine.frame(res.mode, boxSize, orbClock, opts);
+      var ox = cx - boxSize * 0.5;
+      var oy = cy - boxSize * 0.5;
+
+      var pal = getPalette();
+      var lut = getPaletteLut(P.palette);
+      var hr = hoverState.hr;
+      var energy = hoverState.energy;
+      var mx = hoverState.mx;
+      var my = hoverState.my;
+      var fieldR = boxSize * (0.21 + 0.07 * hr);
+      var maxPush = boxSize * 0.032 * hr;
+      var prof = getProfile();
+
+      // 1. Constellation lines (Connecting mode)
+      if (frame.lines.length > 0) {
+        ctx.lineCap = 'round';
+        for (var i = 0; i < frame.lines.length; i++) {
+          var ln = frame.lines[i];
+          var x1 = ox + ln.x1;
+          var y1 = oy + ln.y1;
+          var x2 = ox + ln.x2;
+          var y2 = oy + ln.y2;
+          var lalpha = ln.a * alphaMul;
+          if (energy > 0.01 && hr > 0) {
+            var midX = (x1 + x2) * 0.5;
+            var midY = (y1 + y2) * 0.5;
+            var ld = Math.hypot(midX - mx, midY - my);
+            if (ld < fieldR) {
+              var lf = 1 - ld / fieldR;
+              lalpha = Math.min(1, lalpha + lf * lf * 0.38 * energy * hr);
+            }
+          }
+          var lidx = clamp(Math.round(ln.white * 255), 0, 255);
+          ctx.strokeStyle = lut[lidx];
+          ctx.globalAlpha = lalpha;
+          ctx.lineWidth = ln.w;
+          ctx.beginPath();
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+      }
+
+      // 2. Z-sorted dots (far -> near)
+      var hasRipples = ripples.length > 0;
+      var dots = frame.dots;
+      for (var d = 0; d < dots.length; d++) {
+        var dot = dots[d];
+        var px = ox + dot.x;
+        var py = oy + dot.y;
+        var pr = dot.r;
+        var pa = dot.a * alphaMul;
+        var accentBlend = 0;
+
+        // Hover magnetic field
+        if (energy > 0.008 && hr > 0) {
+          var dx = px - mx;
+          var dy = py - my;
+          var dist = Math.hypot(dx, dy);
+          if (dist < fieldR) {
+            var u = 1 - dist / fieldR;
+            var fall = u * u * (3 - 2 * u) * energy;
+            var invD = dist > 0.5 ? 1 / dist : 0;
+            px += dx * invD * maxPush * fall;
+            py += dy * invD * maxPush * fall;
+            pr *= (1 + fall * 0.72 * hr);
+            pa = Math.min(1, pa + fall * 0.42 * alphaMul);
+            accentBlend = Math.max(accentBlend, fall * 0.85 * hr);
+          }
+        }
+
+        // Click / Tap expanding ripple wave
+        if (hasRipples) {
+          var ripWidth = boxSize * 0.12;
+          for (var rp = 0; rp < ripples.length; rp++) {
+            var rip = ripples[rp];
+            var prog = rip.age / rip.maxAge;
+            var ringR = prog * boxSize * 0.68;
+            var rdx = px - rip.x;
+            var rdy = py - rip.y;
+            var rDist = Math.hypot(rdx, rdy);
+            var delta = Math.abs(rDist - ringR);
+            if (delta < ripWidth) {
+              var wave = (1 - delta / ripWidth) * (1 - prog);
+              var rInv = rDist > 0.5 ? 1 / rDist : 0;
+              px += rdx * rInv * boxSize * 0.024 * wave;
+              py += rdy * rInv * boxSize * 0.024 * wave;
+              pr *= (1 + wave * 0.62);
+              pa = Math.min(1, pa + wave * 0.45 * alphaMul);
+              accentBlend = Math.max(accentBlend, wave * 0.95);
+            }
+          }
+        }
+
+        if (pa < 0.015) continue;
+
+        if (accentBlend > 0.06) {
+          var baseW = clamp(dot.white, 0, 1);
+          var br = Math.round(pal.nearRgb[0] + (pal.farRgb[0] - pal.nearRgb[0]) * baseW);
+          var bg = Math.round(pal.nearRgb[1] + (pal.farRgb[1] - pal.nearRgb[1]) * baseW);
+          var bb = Math.round(pal.nearRgb[2] + (pal.farRgb[2] - pal.nearRgb[2]) * baseW);
+          var cr = Math.round(br + (pal.accentRgb[0] - br) * accentBlend);
+          var cg = Math.round(bg + (pal.accentRgb[1] - bg) * accentBlend);
+          var cb = Math.round(bb + (pal.accentRgb[2] - bb) * accentBlend);
+          ctx.fillStyle = 'rgb(' + cr + ',' + cg + ',' + cb + ')';
+        } else {
+          var idx = clamp(Math.round(dot.white * 255), 0, 255);
+          ctx.fillStyle = lut[idx];
+        }
+
+        if (prof.glowSteps && P.dotGlow > 0.08 && (dot.boost > 0.25 || accentBlend > 0.25)) {
+          var glowFactor = Math.max(dot.boost || 0, accentBlend) * clamp(P.dotGlow, 0, 1.5);
+          ctx.globalAlpha = pa * 0.16 * Math.min(1, glowFactor);
+          ctx.beginPath();
+          ctx.arc(px, py, pr * 2.15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.globalAlpha = pa;
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawAdaptiveIcons(cx, cy, orbRadius) {
+      if (!P.adaptive || !icons.length) return;
+      var pal = getPalette();
+
+      for (var i = 0; i < icons.length; i++) {
+        var ic = icons[i];
+        var pad = 6;
+        var rx = ic.x - pad;
+        var ry = ic.y - pad;
+        var rw = ic.w + pad * 2;
+        var rh = ic.h + pad * 2;
+        var rad = 12;
+
+        // Soft adaptive cradle behind icon
+        ctx.fillStyle = pal.iconBg;
+        ctx.strokeStyle = pal.iconStroke;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(rx + rad, ry);
+        ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, rad);
+        ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, rad);
+        ctx.arcTo(rx, ry + rh, rx, ry, rad);
+        ctx.arcTo(rx, ry, rx + rw, ry, rad);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Dotted telemetry links toward central orb
+        if (P.iconLinks) {
+          var ix = ic.x + ic.w * 0.5;
+          var iy = ic.y + ic.h * 0.5;
+          var dx = cx - ix;
+          var dy = cy - iy;
+          var dist = Math.hypot(dx, dy);
+          if (dist > orbRadius * 0.92 && dist < Math.max(W, H) * 0.65) {
+            var nx = dx / dist;
+            var ny = dy / dist;
+            var startX = ix + nx * (Math.max(ic.w, ic.h) * 0.55);
+            var startY = iy + ny * (Math.max(ic.w, ic.h) * 0.55);
+            var endX = cx - nx * (orbRadius * 0.88);
+            var endY = cy - ny * (orbRadius * 0.88);
+            var span = Math.hypot(endX - startX, endY - startY);
+            if (span > 18) {
+              var dotsN = Math.min(18, Math.max(4, Math.floor(span / 26)));
+              var phase = (orbClock * 0.35 + i * 0.27) % 1;
+              for (var k = 0; k < dotsN; k++) {
+                var f = (k + phase) / dotsN;
+                if (f > 1) f -= 1;
+                var px = startX + (endX - startX) * f;
+                var py = startY + (endY - startY) * f;
+                var edgeFade = Math.sin(f * Math.PI);
+                ctx.fillStyle = 'rgba(' + pal.linkRgb + ', ' + (0.28 * edgeFade).toFixed(3) + ')';
+                ctx.beginPath();
+                ctx.arc(px, py, 1.35 + 0.7 * edgeFade, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function drawFrame() {
+      frameN++;
+      var effScale = cv._scale || (cv.width / Math.max(1, W));
+      if (!cacheOK || cachedPal !== P.palette) {
+        rebuildBackground();
+      }
+
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(bgCanvas, 0, 0, cv.width, cv.height);
+      ctx.setTransform(effScale, 0, 0, effScale, 0, 0);
+
+      var cx = W * 0.5;
+      var cy = H * 0.5;
+      var orbSize = Math.min(W, H) * 0.56 * P.orbScale;
+      var orbRadius = orbSize * 0.42;
+
+      // Ambient halo behind center orb
+      if (P.dotGlow > 0.02) {
+        var glowMul = clamp(P.dotGlow, 0, 1.5);
+        var hoverBoost = 1 + pointer.insideEnergy * 0.35;
+        var gSize = orbSize * (1.18 + 0.14 * pointer.insideEnergy) * (0.75 + 0.25 * glowMul);
+        ctx.globalAlpha = clamp(0.45 * glowMul * hoverBoost, 0, 0.95);
+        ctx.drawImage(glowSprite, cx - gSize * 0.5, cy - gSize * 0.5, gSize, gSize);
+
+        if (pointer.energy > 0.02 && P.hoverReaction !== 'off') {
+          var cursorGlow = orbSize * 0.46;
+          ctx.globalAlpha = 0.26 * pointer.energy * glowMul;
+          ctx.drawImage(glowSprite, pointer.x - cursorGlow * 0.5, pointer.y - cursorGlow * 0.5, cursorGlow, cursorGlow);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      drawAdaptiveIcons(cx, cy, orbRadius);
+
+      var hr = P.hoverReaction === 'strong' ? 1.0 : (P.hoverReaction === 'soft' ? 0.52 : 0.0);
+      var nx = clamp((pointer.x - cx) / Math.max(60, orbRadius), -1.5, 1.5);
+      var ny = clamp((pointer.y - cy) / Math.max(60, orbRadius), -1.5, 1.5);
+      var hoverState = {
+        hr: hr,
+        energy: pointer.energy,
+        mx: pointer.x,
+        my: pointer.y,
+        yaw: nx * 0.42 * pointer.energy * hr,
+        tilt: -ny * 0.34 * pointer.energy * hr,
+        roll: nx * ny * 0.07 * pointer.energy * hr
+      };
+
+      if (transitionT < 1.0 && prevDesign && prevDesign !== activeDesign) {
+        var ease = transitionT * transitionT * (3 - 2 * transitionT);
+        drawSingleOrb(prevDesign, 1 - ease, 1 - 0.1 * ease, orbSize, cx, cy, hoverState);
+        drawSingleOrb(activeDesign, ease, 0.9 + 0.1 * ease, orbSize, cx, cy, hoverState);
+      } else {
+        drawSingleOrb(activeDesign, 1.0, 1.0, orbSize, cx, cy, hoverState);
+      }
+
+      ctx.restore();
+    }
+
+    var drawFn = function () {
+      drawFrame();
+    };
+
+    function tick(now) {
+      rafId = 0;
+      if (paused || document.hidden) {
+        lastTs = 0;
+        return;
+      }
+      var maxDt = window.__desklandLowMode ? 0.12 : 0.08;
+      var dt = lastTs ? Math.min((now - lastTs) / 1000, maxDt) : 0.03;
+      lastTs = now;
+      stepSimulation(dt);
+      drawFn(now);
+      scheduleFrame();
+    }
+
+    function scheduleFrame() {
+      if (!paused && !rafId) {
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+
+    function setPaused(v) {
+      var next = PREVIEW ? false : !!v;
+      if (paused === next && (paused || rafId)) return;
+      paused = next;
+      if (paused) {
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
+        lastTs = 0;
+      } else {
+        scheduleFrame();
+      }
+    }
+
+    function toBool(val, fallback) {
+      if (val === undefined) return fallback;
+      return val === true || val === 'true' || val === 1;
+    }
+
+    function applySettings(v) {
+      if (!v || typeof v !== 'object') return;
+      var needResize = false;
+
+      if (typeof v.lowMode === 'boolean' && typeof window.__desklandSetLowMode === 'function') {
+        window.__desklandSetLowMode(v.lowMode);
+      }
+      if (typeof v.orbDesign === 'string' && Engine.DESIGN_TO_MODE[v.orbDesign]) {
+        P.orbDesign = v.orbDesign;
+        setDesign(v.orbDesign, false);
+        cycleTimer = 0;
+      }
+      if (v.autoCycle !== undefined) {
+        P.autoCycle = toBool(v.autoCycle, P.autoCycle);
+      }
+      if (v.iconLinks !== undefined) {
+        P.iconLinks = toBool(v.iconLinks, P.iconLinks);
+      }
+      if (typeof v.hoverReaction === 'string' && (v.hoverReaction === 'off' || v.hoverReaction === 'soft' || v.hoverReaction === 'strong')) {
+        P.hoverReaction = v.hoverReaction;
+      }
+      if (typeof v.palette === 'string' && PALETTES[v.palette]) {
+        if (P.palette !== v.palette) {
+          P.palette = v.palette;
+          cacheOK = false;
+        }
+      }
+      if (typeof v.quality === 'string' && QUALITY_PROFILES[v.quality] && P.quality !== v.quality) {
+        P.quality = v.quality;
+        needResize = true;
+      }
+
+      var nums = ['orbScale', 'dotDensity', 'animSpeed', 'dotGlow', 'adaptive', 'seed'];
+      for (var i = 0; i < nums.length; i++) {
+        var k = nums[i];
+        if (v[k] !== undefined) {
+          var n = Number(v[k]);
+          if (Number.isFinite(n)) P[k] = n;
+        }
+      }
+
+      if (needResize) resize();
+      if (paused) drawFn();
+    }
+
+    function syncIncomingIcons(rects) {
+      iconsSeen = true;
+      icons = rects.slice();
+    }
+
+    function drawGhosts() {
+      var box = document.getElementById('ghosts');
+      if (!box) return;
+      box.innerHTML = icons.map(function (ic) {
+        return '<div class="ghost" style="left:' + ic.x + 'px;top:' + ic.y + 'px;width:' + ic.w + 'px;height:' + ic.h + 'px"><i></i><b></b></div>';
+      }).join('');
+    }
+
+    function commit() {
+      if (PREVIEW) drawGhosts();
+      if (paused) drawFn();
+    }
+
+    function handlePointerMsg(kind, x, y) {
+      var rect = cv.getBoundingClientRect();
+      var lx = Number.isFinite(Number(x)) ? Number(x) - (PREVIEW ? 0 : rect.left) : pointer.targetX;
+      var ly = Number.isFinite(Number(y)) ? Number(y) - (PREVIEW ? 0 : rect.top) : pointer.targetY;
+      if (kind === 'leave' || kind === 'cancel') {
+        pointer.down = false;
+        pointer.active = false;
+        return;
+      }
+      pointer.targetX = lx;
+      pointer.targetY = ly;
+      pointer.active = true;
+      if (kind === 'down') {
+        pointer.down = true;
+        spawnRipple(lx, ly);
+      } else if (kind === 'up') {
+        pointer.down = false;
+        pointer.touchDecay = 0.9;
+      }
+    }
+
+    function handleMessage(ev) {
+      var m = ev && ev.data !== undefined ? ev.data : ev;
+      if (typeof m === 'string') {
+        try { m = JSON.parse(m); } catch (e) { return; }
+      }
+      if (!m || typeof m !== 'object') return;
+      var kind = m.t || m.type;
+      if (kind === 'pause') {
+        setPaused(m.v);
+        if (paused) drawFn();
+        return;
+      }
+      if (kind === 'resume') {
+        setPaused(false);
+        return;
+      }
+      if (kind === 'lowMode') {
+        if (typeof window.__desklandSetLowMode === 'function') {
+          window.__desklandSetLowMode(!!m.v);
+        }
+        resize();
+        return;
+      }
+      if (kind === 'pointer') {
+        handlePointerMsg(m.kind || 'move', m.x, m.y);
+        return;
+      }
+      if (kind === 'settings') {
+        applySettings(m.v || m.params || m);
+        return;
+      }
+      if (kind === 'reset') {
+        applySettings(Object.assign({}, DEFAULTS, m.v || {}));
+        return;
+      }
+      if (kind === 'icons') {
+        var k = window.devicePixelRatio || 1;
+        var rects = m.vis !== false && Array.isArray(m.r)
+          ? m.r.map(function (r) {
+              return { x: r[0] / k, y: r[1] / k, w: (r[2] - r[0]) / k, h: (r[3] - r[1]) / k };
+            })
+          : [];
+        syncIncomingIcons(rects);
+        if (PREVIEW) drawGhosts();
+        if (paused) drawFn();
+      }
+    }
+
+    function buildDemoIcons() {
+      var cells = [
+        [0.05, 0.14], [0.05, 0.30], [0.05, 0.46], [0.05, 0.62],
+        [0.14, 0.14], [0.14, 0.30], [0.80, 0.22], [0.80, 0.38], [0.80, 0.70]
+      ];
+      return cells.map(function (c, i) {
+        return {
+          x: Math.round(c[0] * W),
+          y: Math.round(c[1] * H),
+          w: i % 3 === 0 ? 80 : 72,
+          h: 86
+        };
+      });
+    }
+
+    function init() {
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('deskland:lowmode', resize);
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && !paused) {
+          lastTs = 0;
+          scheduleFrame();
+        }
+      });
+
+      var dragIdx = -1;
+      var dragOffX = 0;
+      var dragOffY = 0;
+
+      window.addEventListener('pointermove', function (ev) {
+        var rect = cv.getBoundingClientRect();
+        var px = ev.clientX - rect.left;
+        var py = ev.clientY - rect.top;
+        pointer.targetX = px;
+        pointer.targetY = py;
+        pointer.active = true;
+        if (STANDALONE && dragIdx >= 0) {
+          icons[dragIdx].x = px - dragOffX;
+          icons[dragIdx].y = py - dragOffY;
+        }
+      }, { passive: true });
+
+      window.addEventListener('pointerdown', function (ev) {
+        if (STANDALONE && ev.target && ev.target.closest && ev.target.closest('#demo-hud')) return;
+        var rect = cv.getBoundingClientRect();
+        var px = ev.clientX - rect.left;
+        var py = ev.clientY - rect.top;
+        pointer.targetX = px;
+        pointer.targetY = py;
+        pointer.active = true;
+        pointer.down = true;
+        if (STANDALONE) {
+          for (var i = icons.length - 1; i >= 0; i--) {
+            var ic = icons[i];
+            if (px >= ic.x && px <= ic.x + ic.w && py >= ic.y && py <= ic.y + ic.h) {
+              dragIdx = i;
+              dragOffX = px - ic.x;
+              dragOffY = py - ic.y;
+              return;
+            }
+          }
+        }
+        spawnRipple(px, py);
+      }, { passive: true });
+
+      window.addEventListener('pointerup', function () {
+        dragIdx = -1;
+        pointer.down = false;
+        pointer.touchDecay = 0.95;
+      }, { passive: true });
+
+      window.addEventListener('pointercancel', function () {
+        dragIdx = -1;
+        pointer.down = false;
+        pointer.active = false;
+      }, { passive: true });
+
+      var onPointerLeave = function () {
+        dragIdx = -1;
+        pointer.down = false;
+        pointer.active = false;
+      };
+      window.addEventListener('pointerleave', onPointerLeave, { passive: true });
+      document.addEventListener('pointerleave', onPointerLeave, { passive: true });
+
+      if (STANDALONE) {
+        document.body.classList.add('standalone');
+        syncIncomingIcons(buildDemoIcons());
+        var modeSel = document.getElementById('demo-mode');
+        var palBtn = document.getElementById('demo-palette');
+        var cycBtn = document.getElementById('demo-cycle');
+        var palKeys = Object.keys(PALETTES);
+        modeSel.addEventListener('change', function () {
+          P.orbDesign = modeSel.value;
+          setDesign(modeSel.value, false);
+        });
+        palBtn.addEventListener('click', function () {
+          var nextIdx = (palKeys.indexOf(P.palette) + 1) % palKeys.length;
+          P.palette = palKeys[nextIdx];
+          cacheOK = false;
+        });
+        cycBtn.addEventListener('click', function () {
+          P.autoCycle = !P.autoCycle;
+          cycleTimer = 0;
+          cycBtn.textContent = P.autoCycle ? 'Auto: On' : 'Auto: Off';
+        });
+      } else if (PREVIEW) {
+        document.body.classList.add('preview');
+        window.addEventListener('message', handleMessage, false);
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(JSON.stringify({ t: 'ready' }), '*');
+        }
+      } else if (WALL) {
+        window.addEventListener('message', handleMessage, false);
+        var host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', handleMessage);
+          host.postMessage('ready');
+        }
+      }
+
+      if (window.WallIcons && typeof window.WallIcons.subscribe === 'function') {
+        window.WallIcons.subscribe(function (vList) {
+          if (!WALL && !PREVIEW) return;
+          if (!iconsSeen && Array.isArray(vList) && vList.length) {
+            var k = window.devicePixelRatio || 1;
+            var rects = vList.map(function (v) {
+              return { x: v.left / k, y: v.top / k, w: (v.right - v.left) / k, h: (v.bottom - v.top) / k };
+            });
+            syncIncomingIcons(rects);
+          }
+        });
+      }
+
+      // Expose share.js & debugging contract
+      Object.defineProperty(window, 'cv', { get: function () { return cv; } });
+      Object.defineProperty(window, 'W', { get: function () { return W; } });
+      Object.defineProperty(window, 'H', { get: function () { return H; } });
+      Object.defineProperty(window, 'WALL', { get: function () { return WALL; } });
+      Object.defineProperty(window, 'icons', { get: function () { return icons; } });
+      Object.defineProperty(window, 'frameN', { get: function () { return frameN; } });
+      Object.defineProperty(window, 'paused', {
+        get: function () { return paused; },
+        set: function (v) { setPaused(v); },
+        configurable: true
+      });
+      Object.defineProperty(window, 'cacheOK', {
+        get: function () { return cacheOK; },
+        set: function (v) { cacheOK = !!v; }
+      });
+      Object.defineProperty(window, 'draw', {
+        get: function () { return drawFn; },
+        set: function (fn) { if (typeof fn === 'function') drawFn = fn; },
+        configurable: true
+      });
+      window.TASKBAR = TASKBAR;
+      window.GRID_X0 = GRID_X0;
+      window.GRID_Y0 = GRID_Y0;
+      window.CELL_W = CELL_W;
+      window.CELL_H = CELL_H;
+      window.commit = commit;
+      window.handleMessage = handleMessage;
+
+      scheduleFrame();
+    }
+
+    init();
+  })();
+  </script>
+  <script src="share.js"></script>
+</body>
+</html>

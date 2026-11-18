@@ -15,3 +15,13 @@ The host uses the Microsoft Edge WebView2 SDK and Runtime. SDK binaries are down
 ## NSIS
 
 Windows 安装包使用 NSIS 3.13 制作。便携编译器仅在构建时下载，不作为项目源码提交。NSIS 及其压缩模块适用各自许可，详见 https://nsis.sourceforge.io/License 。安装包附带项目对应源码 ZIP。
+
+## ThinkingOrbs
+
+`prototype/thinking-orbs-engine.js` 与 `prototype/thinking-orbs.html` 中的 9 种 3D 点阵球体动画算法移植自 `haplollc/ThinkingOrbs`（其底层数学引擎源自 Jakub Antalik 的 `thinking-orbs`），采用 MIT 许可证发布：
+
+- 仓库地址：https://github.com/haplollc/ThinkingOrbs
+- 版权声明：Copyright (c) 2026 Haplo LLC; Copyright (c) 2026 Jakub Antalik
+- 许可证：MIT License（https://opensource.org/licenses/MIT）
+
+The 9 3D dotted orb designs in `prototype/thinking-orbs-engine.js` and `prototype/thinking-orbs.html` are ported from `haplollc/ThinkingOrbs` (originally Jakub Antalik's `thinking-orbs` web engine) under the MIT License.

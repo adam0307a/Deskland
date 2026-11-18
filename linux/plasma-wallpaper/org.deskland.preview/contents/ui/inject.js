@@ -31,7 +31,9 @@
   var filePaused = false;
   var lastPauseSent = null;
   var lastLowModeSent = null;
+  var disableAutoPause = false;
   window.__desklandLowModeState = false;
+  window.__desklandDisableAutoPause = false;
   try {
     if (HOME && HOME !== '/') {
       var initXhr = new XMLHttpRequest();
@@ -43,6 +45,10 @@
           window.__desklandInitialLowMode = initCfg.lowMode;
           window.__desklandLowModeState = initCfg.lowMode;
           lastLowModeSent = initCfg.lowMode;
+        }
+        if (initCfg && typeof initCfg.disableAutoPause === 'boolean') {
+          disableAutoPause = initCfg.disableAutoPause;
+          window.__desklandDisableAutoPause = disableAutoPause;
         }
       }
     }
@@ -158,6 +164,7 @@
     voxelcraft: 'voxelcraft.html',
     liquidglass: 'liquidglass.html',
     'software-world': 'software-world.html',
+    'thinking-orbs': 'thinking-orbs.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';
@@ -233,6 +240,14 @@
         lastLowModeSent = lowMode;
         window.__desklandDeliver(JSON.stringify({ t: 'lowMode', v: lowMode }));
       }
+      var nextDisableAutoPause = !!data.disableAutoPause;
+      if (nextDisableAutoPause !== disableAutoPause) {
+        disableAutoPause = nextDisableAutoPause;
+        window.__desklandDisableAutoPause = disableAutoPause;
+        syncPause();
+      } else {
+        window.__desklandDisableAutoPause = nextDisableAutoPause;
+      }
       var theme = data.theme || 'meadow';
       var page = THEME_PAGES[theme];
       if (theme !== CURRENT_THEME) {
@@ -264,7 +279,7 @@
   }
 
   function syncPause() {
-    var effective = !!(hostPaused || filePaused);
+    var effective = !!((hostPaused && !disableAutoPause) || filePaused);
     if (effective !== lastPauseSent) {
       lastPauseSent = effective;
       window.__desklandDeliver(JSON.stringify({ t: 'pause', v: effective }));
@@ -308,8 +323,25 @@
       window.roachHostPointer(kind, x, y);
       return;
     }
+    if (kind === 'leave') {
+      downPos = null;
+      if (typeof PointerEvent === 'function') {
+        var leaveEvt = new PointerEvent('pointerleave', {
+          bubbles: false,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true
+        });
+        try { window.dispatchEvent(leaveEvt); } catch (e) {}
+        if (document.documentElement) {
+          try { document.documentElement.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false, pointerId: 1, pointerType: 'mouse', isPrimary: true })); } catch (e) {}
+        }
+      }
+      return;
+    }
     var evtType = kind === 'down' ? 'pointerdown'
-      : (kind === 'move' ? 'pointermove'
+      : ((kind === 'move' || kind === 'hover') ? 'pointermove'
       : (kind === 'up' || kind === 'cancel' ? 'pointerup' : ''));
     if (!evtType || typeof PointerEvent !== 'function') return;
     var cx = Number(x) || 0;
@@ -326,7 +358,7 @@
       clientX: cx,
       clientY: cy,
       button: evtType === 'pointermove' ? -1 : 0,
-      buttons: evtType === 'pointerup' ? 0 : 1
+      buttons: (evtType === 'pointerup' || kind === 'hover') ? 0 : 1
     }));
     if (kind === 'up' && downPos) {
       var moved = Math.hypot(cx - downPos.x, cy - downPos.y);
