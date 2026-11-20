@@ -29,7 +29,7 @@ def test_settings_tolerates_broken_json(tmp_path):
     (tmp_path / "settings.json").write_text("{broken", encoding="utf-8")
     store = SettingsStore(tmp_path)
     store.load()
-    assert store.theme == "software-world"
+    assert store.theme == "papercut"
 
 
 def test_theme_registry_free_only(tmp_path):

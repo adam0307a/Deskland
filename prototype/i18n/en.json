@@ -1187,6 +1187,88 @@
         }
       }
     },
+    "papercut": {
+      "name": "Paper Garden — Katı' Light",
+      "desc": "Layered papercut shadow-box garden with tulips, carnations, hyacinths, cypress and plane trees, and a distant Bosphorus skyline. Desktop icons become triple-ringed recessed arch windows.",
+      "groups": [
+        "Light & Time",
+        "Paper",
+        "Garden",
+        "Motion",
+        "Icon Windows",
+        "Performance"
+      ],
+      "params": {
+        "time": {
+          "label": "Time of day",
+          "hint": "Auto switches between morning, noon, sunset, and night palettes using system clock",
+          "options": ["Auto", "Morning", "Noon", "Sunset", "Night"]
+        },
+        "light": {
+          "label": "Light angle",
+          "hint": "Direction of incoming light; shadows fall opposite (225° = top-left)"
+        },
+        "shadow": {
+          "label": "Shadow depth",
+          "hint": "Darkness of shadows cast between paper layers"
+        },
+        "palette": {
+          "label": "Palette",
+          "hint": "Color family for paper layers and flowers",
+          "options": ["Rose Garden", "Turquoise-Coral", "Navy-Gold", "Pastel"]
+        },
+        "grain": {
+          "label": "Paper grain",
+          "hint": "Strength of paper fibers and grain texture"
+        },
+        "gap": {
+          "label": "Layer spacing",
+          "hint": "Distance between paper layers; higher values deepen the shadow box"
+        },
+        "flowers": {
+          "label": "Flower density",
+          "hint": "Number of foreground tulips, carnations, and hyacinths"
+        },
+        "trees": {
+          "label": "Cypress & plane trees",
+          "hint": "Side tree layer with cut-out leaf perforations",
+          "options": ["Hide", "Show"]
+        },
+        "critters": {
+          "label": "Birds & butterflies",
+          "hint": "Paper birds flying overhead and butterflies over flowers",
+          "options": ["None", "Few", "Many"]
+        },
+        "skyline": {
+          "label": "City skyline",
+          "hint": "Domes, minarets, and Galata Tower silhouette",
+          "options": ["Hide", "Show"]
+        },
+        "frame": {
+          "label": "Box frame",
+          "hint": "Embossed paper border around the screen edge",
+          "options": ["Hide", "Show"]
+        },
+        "sway": {
+          "label": "Breeze",
+          "hint": "How much flowers sway in the breeze"
+        },
+        "fw": {
+          "label": "Frame width",
+          "hint": "Total width of the three paper rings around icons"
+        },
+        "fstyle": {
+          "label": "Frame shape",
+          "hint": "Arch niche is rounded at the top and flat at the bottom",
+          "options": ["Arch niche", "Rounded"]
+        },
+        "quality": {
+          "label": "Quality",
+          "hint": "Render resolution scale and flower count budget",
+          "options": ["Low", "Balanced", "High"]
+        }
+      }
+    },
     "software-world": {
       "name": "Software World",
       "desc": "Living software ecosystem where desktop icons become interactive nodes with data flows, packets, git branches, and subtle terminal atmosphere.",

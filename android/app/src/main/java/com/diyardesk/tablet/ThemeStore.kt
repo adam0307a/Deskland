@@ -372,7 +372,7 @@ class ThemeStore(private val storageDir: File) {
     }
 
     companion object {
-        const val DEFAULT_THEME = "software-world"
+        const val DEFAULT_THEME = "papercut"
 
         fun resolveEffectiveLang(setting: String, systemLang: String): String {
             return when {

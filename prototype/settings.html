@@ -477,7 +477,7 @@
 const host = window.chrome && window.chrome.webview;
 const send = m => { if (host) host.postMessage(JSON.stringify(m)); };
 
-const state = { registry0: null, registry: null, theme: 'software-world', params: {}, screen: null, icons: null,
+const state = { registry0: null, registry: null, theme: 'papercut', params: {}, screen: null, icons: null,
   langSetting: 'auto', langSys: 'zh-CN', autostartWarn: false, autostartSw: '', canSaveSnapshot: false,
   updateVersion: '', updateStatus: '', updateProgress: -1, updateError: '' };
 const $ = id => document.getElementById(id);
@@ -1099,7 +1099,7 @@ function onHost(m) {
     state.langSetting = m.lang || 'auto';
     state.langSys = m.langSys || 'zh-CN';
     setLang(m.langEff || state.langSys).then(() => {        // 先按界面语言把文字表读进来，再画界面
-      state.theme = themeById(m.theme) && themeById(m.theme).status === 'ready' ? m.theme : 'software-world';
+      state.theme = themeById(m.theme) && themeById(m.theme).status === 'ready' ? m.theme : 'papercut';
       state.params = m.params || {};
       state.screen = m.screen;
       state.lowMode = !!m.lowMode;
@@ -1166,7 +1166,7 @@ function onHost(m) {
   } else if (m.t === 'themeRemoved') {
     state.registry0.themes = state.registry0.themes.filter(x => x.id !== m.id);
     localizeRegistry();
-    state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'software-world');
+    state.theme = (m.active && themeById(m.active)) ? m.active : (state.registry.themes.find(x => x.status === 'ready')?.id || 'papercut');
     showTheme();
   } else if (m.t === 'importError') {
     $('importWarnTitle').textContent = t('importErrorTitle') || 'Theme import failed';
@@ -1200,7 +1200,7 @@ function mockHost() {
   for (let c = 0; c < 4; c++) for (let row = 0; row < 9; row++) cell(c, row);
   for (const [c, row] of [[6, 0], [6, 1], [7, 3], [8, 3], [8, 4], [12, 1], [13, 1], [14, 1], [13, 2], [14, 2], [20, 0], [21, 0], [19, 5], [20, 5]]) cell(c, row);
   const bl = browserLang();
-  onHost({ t: 'init', theme: 'software-world', params: {}, screen: { w: W * k, h: H * k }, autostart: false, lang: 'auto', langEff: bl, langSys: bl });
+  onHost({ t: 'init', theme: 'papercut', params: {}, screen: { w: W * k, h: H * k }, autostart: false, lang: 'auto', langEff: bl, langSys: bl });
   onHost({ t: 'icons', vis: true, r });
   if (new URLSearchParams(location.search).has('updateDemo')) onHost({ t: 'updateState', version: '0.2.0', status: 'available', progress: -1 });
 }

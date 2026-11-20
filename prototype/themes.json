@@ -2,6 +2,174 @@
   "version": 1,
   "themes": [
     {
+      "id": "papercut",
+      "adaptive": true,
+      "name": "纸雕花园",
+      "desc": "层叠剪纸光影盒花园：郁金香、康乃馨、风信子、柏树、梧桐与远方博斯普鲁斯天际线，桌面图标化作三环纸雕拱窗",
+      "page": "papercut.html",
+      "status": "ready",
+      "product": "free",
+      "thumb": "linear-gradient(0deg, #2f6f49 0 14%, #4f8f5b 14% 24%, transparent 24%), linear-gradient(0deg, transparent 0 24%, #1f6585 24% 34%, #2b7f9a 34% 44%, #3d9fb5 44% 52%, transparent 52%), linear-gradient(180deg, #9fd8e6 0%, #e9a7a0 100%)",
+      "groups": [
+        {
+          "name": "光影与时段",
+          "params": [
+            {
+              "key": "time",
+              "label": "时段",
+              "hint": "自动模式按系统时间切换清晨、正午、日落或夜晚配色",
+              "options": ["自动", "清晨", "正午", "日落", "夜晚"],
+              "default": 0
+            },
+            {
+              "key": "light",
+              "label": "光照方向",
+              "hint": "光线来源角度，投影向反方向落下（225° 为左上）",
+              "min": 0,
+              "max": 360,
+              "step": 5,
+              "default": 225,
+              "unit": "°"
+            },
+            {
+              "key": "shadow",
+              "label": "阴影深度",
+              "hint": "纸层之间投射阴影的浓淡程度",
+              "min": 0,
+              "max": 1.5,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "纸张",
+          "params": [
+            {
+              "key": "palette",
+              "label": "配色方案",
+              "hint": "纸层与花卉的整体色系",
+              "options": ["玫瑰花园", "松石珊瑚", "靛蓝鎏金", "柔和粉彩"],
+              "default": 0
+            },
+            {
+              "key": "grain",
+              "label": "纸张纹理",
+              "hint": "纸张纤维与颗粒质感的强弱",
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "default": 0.5,
+              "format": "percent"
+            },
+            {
+              "key": "gap",
+              "label": "纸层间距",
+              "hint": "各纸层之间的距离，越大景深盒越立体",
+              "min": 0.5,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "花园",
+          "params": [
+            {
+              "key": "flowers",
+              "label": "花卉密度",
+              "hint": "前景中郁金香、康乃馨与风信子的数量",
+              "min": 0,
+              "max": 1,
+              "step": 0.05,
+              "default": 0.6,
+              "format": "percent"
+            },
+            {
+              "key": "trees",
+              "label": "柏树与梧桐",
+              "hint": "画面两侧带镂空叶纹的树影纸层",
+              "options": ["隐藏", "显示"],
+              "default": 1
+            },
+            {
+              "key": "critters",
+              "label": "飞鸟与蝴蝶",
+              "hint": "空中掠过的剪纸小鸟与花间飞舞的蝴蝶",
+              "options": ["无", "少", "多"],
+              "default": 1
+            },
+            {
+              "key": "skyline",
+              "label": "城市天际线",
+              "hint": "穹顶、宣礼塔与加拉塔塔剪影",
+              "options": ["隐藏", "显示"],
+              "default": 1
+            },
+            {
+              "key": "frame",
+              "label": "光影盒边框",
+              "hint": "屏幕边缘的浮雕纸质外框",
+              "options": ["隐藏", "显示"],
+              "default": 1
+            }
+          ]
+        },
+        {
+          "name": "动态",
+          "params": [
+            {
+              "key": "sway",
+              "label": "微风",
+              "hint": "花朵随风轻摆的幅度",
+              "min": 0,
+              "max": 2,
+              "step": 0.05,
+              "default": 1,
+              "format": "times"
+            }
+          ]
+        },
+        {
+          "name": "图标视窗",
+          "params": [
+            {
+              "key": "fw",
+              "label": "边框宽度",
+              "hint": "围绕图标的三层纸环总宽度",
+              "min": 6,
+              "max": 40,
+              "step": 1,
+              "default": 16,
+              "unit": "px"
+            },
+            {
+              "key": "fstyle",
+              "label": "视窗形状",
+              "hint": "拱形壁龛上圆下方，圆形为全圆角",
+              "options": ["拱形壁龛", "圆角"],
+              "default": 0
+            }
+          ]
+        },
+        {
+          "name": "性能",
+          "params": [
+            {
+              "key": "quality",
+              "label": "画质",
+              "hint": "绘制分辨率与花卉数量预算",
+              "options": ["低", "平衡", "高"],
+              "default": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "software-world",
       "adaptive": true,
       "name": "代码生态",

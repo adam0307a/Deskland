@@ -162,6 +162,88 @@
     "errStart": "Başlatılamadı: {msg}"
   },
   "themes": {
+    "papercut": {
+      "name": "Kâğıt Bahçe — Katı' Işığında",
+      "desc": "Katmanlı kâğıt kesme (shadow box) bahçesi: lale, karanfil, sümbül, selvi, çınar ve uzakta Boğaz silüeti. Masaüstü ikonları kâğıtlara kesilmiş, üç halkalı niş pencerelere dönüşür.",
+      "groups": [
+        "Işık ve Zaman",
+        "Kâğıt",
+        "Bahçe",
+        "Hareket",
+        "İkon pencereleri",
+        "Performans"
+      ],
+      "params": {
+        "time": {
+          "label": "Zaman dilimi",
+          "hint": "Otomatik mod sistem saatine göre sabah, öğle, gün batımı veya gece paletine geçer",
+          "options": ["Otomatik", "Sabah", "Öğle", "Gün batımı", "Gece"]
+        },
+        "light": {
+          "label": "Işık yönü",
+          "hint": "Işığın geldiği yön; gölgeler tersine düşer (225° = sol üst)"
+        },
+        "shadow": {
+          "label": "Gölge derinliği",
+          "hint": "Kâğıt katmanlarının birbirine düşürdüğü gölgenin koyuluğu"
+        },
+        "palette": {
+          "label": "Palet",
+          "hint": "Katmanların ve çiçeklerin renk ailesi",
+          "options": ["Gül Bahçesi", "Turkuaz-Mercan", "Lacivert-Altın", "Pastel"]
+        },
+        "grain": {
+          "label": "Kâğıt dokusu",
+          "hint": "Kâğıt lifi ve tane görünümünün şiddeti"
+        },
+        "gap": {
+          "label": "Katman aralığı",
+          "hint": "Katmanlar arası uzaklık; arttıkça kutu daha derin görünür"
+        },
+        "flowers": {
+          "label": "Çiçek yoğunluğu",
+          "hint": "Ön plandaki lale, karanfil ve sümbül sayısı"
+        },
+        "trees": {
+          "label": "Selvi ve çınar",
+          "hint": "Kenarlardaki yaprak delikli ağaç katmanı",
+          "options": ["Gizle", "Göster"]
+        },
+        "critters": {
+          "label": "Kuş ve kelebek",
+          "hint": "Gökte uçan kâğıt kuşlar ve çiçek üstünde kelebekler",
+          "options": ["Yok", "Az", "Çok"]
+        },
+        "skyline": {
+          "label": "Şehir silüeti",
+          "hint": "Kubbe, minare ve Galata Kulesi silüeti",
+          "options": ["Gizle", "Göster"]
+        },
+        "frame": {
+          "label": "Kutu çerçevesi",
+          "hint": "Ekran kenarında kabartmalı kâğıt çerçeve",
+          "options": ["Gizle", "Göster"]
+        },
+        "sway": {
+          "label": "Rüzgâr",
+          "hint": "Çiçeklerin rüzgârda sallanma miktarı"
+        },
+        "fw": {
+          "label": "Çerçeve genişliği",
+          "hint": "İkon etrafındaki üç kâğıt halkanın toplam genişliği"
+        },
+        "fstyle": {
+          "label": "Çerçeve biçimi",
+          "hint": "Niş kemer üstten yuvarlak, alttan düzdür",
+          "options": ["Niş kemer", "Yuvarlak"]
+        },
+        "quality": {
+          "label": "Kalite",
+          "hint": "Çizim çözünürlüğü ve çiçek sayısı bütçesi",
+          "options": ["Düşük", "Dengeli", "Yüksek"]
+        }
+      }
+    },
     "software-world": {
       "name": "Software World",
       "desc": "Masaüstü simgelerinin veri akışları, paketler, git dalları ve terminal atmosferiyle etkileşimli düğümlere dönüştüğü canlı yazılım ekosistemi.",

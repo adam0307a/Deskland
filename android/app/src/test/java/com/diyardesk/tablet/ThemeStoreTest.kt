@@ -83,7 +83,7 @@ class ThemeStoreTest {
     fun resolvesTurkishAndDefaultThemeCorrectly() {
         val dir = tmp.newFolder("store3")
         val s = ThemeStore(dir)
-        assertEquals("software-world", s.activeTheme)
+        assertEquals("papercut", s.activeTheme)
         assertEquals("tr", ThemeStore.resolveEffectiveLang("auto", "tr"))
         assertEquals("tr", ThemeStore.resolveEffectiveLang("auto", "tr-TR"))
         assertEquals("tr", ThemeStore.resolveEffectiveLang("tr", "en"))

@@ -14,7 +14,7 @@ APP_NAME = "DiyarDesk"
 APP_ID = "app.deskland.Preview"
 VERSION = "0.1.4-linux.1"
 
-THEME_DEFAULT = "software-world"
+THEME_DEFAULT = "papercut"
 LANG_DEFAULT = "auto"
 SUPPORTED_LANGS = ("zh-CN", "en", "tr")
 

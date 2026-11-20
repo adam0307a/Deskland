@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Kâğıt Bahçe — Katı' Işığında</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#1b2340}
+#art{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ghosts{position:fixed;inset:0;pointer-events:none}
+.ghost{position:absolute;display:flex;flex-direction:column;align-items:center;padding-top:6px;opacity:.3}
+.ghost i{width:40px;height:40px;border-radius:9px;background:#fff}
+.ghost b{width:46px;height:6px;margin-top:8px;border-radius:3px;background:#fff}
+</style></head>
+<body><canvas id="art"></canvas>
+<script>
+'use strict';
+/* Kâğıt Bahçe · katmanlı kâğıt kesme (shadow box) duvar kağıdı.
+   Arka plan (gök, bulut, şehir, Boğaz) ve ön plan (tepe, ağaç, yaprak, çerçeve) bir kez çizilir;
+   ikonlar ön katmanı niş kemer biçiminde keser, 3 kâğıt halka ile çerçeveler. Çiçekler/kuşlar her karede sprite olarak çizilir.
+   share.js'in beklediği global isimler: cv, draw(), icons, W, H, WALL, cacheOK */
+const QS=new URLSearchParams(location.search),WALL=QS.has('wallpaper'),PREVIEW=QS.has('preview');
+let LOW=QS.get('low')==='1'||!!window.__desklandInitialLowMode;
+const cv=document.getElementById('art'),ctx=cv.getContext('2d'),mk=()=>document.createElement('canvas');
+const comp=mk(),cc=comp.getContext('2d');
+let back=null,fgc=null;
+const DEF={adaptive:1,time:0,light:225,shadow:1,palette:0,grain:.5,gap:1,flowers:.6,trees:1,critters:1,skyline:1,frame:1,sway:1,fw:16,fstyle:0,quality:1};
+const P=Object.assign({},DEF);
+const REB=new Set(['time','light','shadow','palette','grain','gap','flowers','trees','critters','skyline','frame']);
+let W=innerWidth,H=innerHeight,gw=W,gh=H,S=1,T=3,icons=[],plazas=[],sprites=[],crit=[],grainPat=null;
+let paused=false,cacheOK=false,dirty=true,lastT=0,lastClock=0,rafId=0;
+
+/* ---- yardımcılar ---- */
+const rng=a=>()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const hx=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16));
+const mix=(a,b,k)=>a.map((v,i)=>v+(b[i]-v)*k);
+const css=(c,a=1)=>'rgba('+c.map(Math.round).join()+','+a+')';
+const timeNow=()=>P.time>0?P.time:(h=>h>=5&&h<10?1:h>=10&&h<17?2:h>=17&&h<20?3:4)(new Date().getHours());
+/* palet: gök, bulut, şehir, Boğaz×3, tepe, ağaç, yaprak */
+const PAL=[
+ ['#9fd8e6','#f4efe6','#e9a7a0','#3d9fb5','#2b7f9a','#1f6585','#9cc77a','#4f8f5b','#2f6f49'],
+ ['#8fe0d9','#fff3e0','#f5b393','#27b3b0','#1b8f9a','#16707f','#7fcf9a','#2e9a7a','#1c6e5c'],
+ ['#2f4b8f','#f2e2b8','#d9a441','#2a4f9c','#1e3b7d','#162d63','#5a8f6a','#2f5f4f','#1f4538'],
+ ['#cfe3ee','#fdf6ec','#f2c6c2','#a9cfe0','#8fbdd4','#74a7c4','#c8dfae','#9dc29e','#7fa88a']];
+const FLW=[['#e8575f','#f2a33a','#7b5fc9','#f7e7c4'],['#ff7a59','#ffd166','#ef476f','#ffffff'],['#f2c14e','#e8575f','#8ab4f8','#fff3c4'],['#f4a6b8','#ffd9a0','#b9a7e8','#ffffff']];
+const TT=[0,{c:hx('#ffd2a8'),k:.14,l:1},{c:[255,255,255],k:0,l:1},{c:hx('#ff7a3d'),k:.24,l:.97},{c:hx('#141c4d'),k:.58,l:.6}];
+const shade=c=>{const t=TT[T];return mix(c,t.c,t.k).map(v=>v*t.l)};
+const col=i=>shade(hx(PAL[P.palette][i]));
+const L=()=>{const a=P.light*Math.PI/180;return[Math.cos(a),Math.sin(a)]};   // ışığa doğru yön
+/* gölge: kanvas piksel biriminde (dönüşümden etkilenmez) olduğu için S ile çarpılır */
+function sh(c,o,b,a){const l=L(),k=o*P.gap;c.shadowColor='rgba(12,10,36,'+Math.min(.9,a*P.shadow)+')';c.shadowOffsetX=-l[0]*k*S;c.shadowOffsetY=-l[1]*k*S;c.shadowBlur=b*P.gap*S}
+const sh0=c=>{c.shadowColor='transparent';c.shadowBlur=0;c.shadowOffsetX=c.shadowOffsetY=0};
+/* bir kâğıt parçası: dolgu + iki katmanlı gölge (temas + yumuşak) + ince kenar ışığı */
+function pp(c,color,dep,f,rule){
+  c.fillStyle=css(color);
+  for(const[m,b,a]of[[.45,1.5,.32],[1,dep*1.2+2,.2]]){sh(c,dep*m,b,a);c.beginPath();f(c);c.fill(rule)}
+  sh0(c);c.strokeStyle='rgba(255,255,255,.18)';c.lineWidth=1;c.stroke();
+}
+function lay(w,h,fn){const k=mk();k.width=Math.round(w*S);k.height=Math.round(h*S);const c=k.getContext('2d');c.setTransform(S,0,0,S,0,0);fn(c,w,h);return k}
+const rr=(c,x,y,w,h,a,b)=>{c.moveTo(x+a,y);c.arcTo(x+w,y,x+w,y+h,a);c.arcTo(x+w,y+h,x,y+h,b);c.arcTo(x,y+h,x,y,b);c.arcTo(x,y,x+w,y,a);c.closePath()};
+const circ=(c,x,y,r)=>{c.moveTo(x+r,y);c.arc(x,y,r,0,6.2832)};
+const dome=(c,x,y,r)=>{c.moveTo(x-r,y);c.arc(x,y,r,Math.PI,6.2832);c.closePath()};
+function star(c,x,y,r){for(let i=0;i<16;i++){const a=i*Math.PI/8-Math.PI/2,q=i%2?r*.45:r;i?c.lineTo(x+Math.cos(a)*q,y+Math.sin(a)*q):c.moveTo(x+Math.cos(a)*q,y+Math.sin(a)*q)}c.closePath()}
+function mina(c,x,y,hh,w){c.rect(x-w/2,y-hh,w,hh);c.rect(x-w*1.3,y-hh*.7,w*2.6,w*.55);c.moveTo(x-w*.75,y-hh);c.lineTo(x,y-hh-w*3.4);c.lineTo(x+w*.75,y-hh);c.closePath()}
+function mosque(c,x,y,r){const bh=r*.95;c.rect(x-r*1.7,y-bh,r*3.4,bh);dome(c,x,y-bh,r);dome(c,x-r*1.15,y-bh,r*.62);dome(c,x+r*1.15,y-bh,r*.62);mina(c,x-r*2.1,y,r*3.3,r*.2);mina(c,x+r*2.1,y,r*3.3,r*.2)}
+
+/* ---- arka plan: gök, gök cisimleri, bulutlar, şehir silüeti, Boğaz ---- */
+function buildBack(c,w,h){
+  const r=rng(11),u=h/720;
+  c.fillStyle=css(col(0));c.fillRect(0,0,w,h);
+  let g=c.createLinearGradient(0,0,0,h*.62);g.addColorStop(0,'rgba(0,0,30,.12)');g.addColorStop(1,'rgba(255,255,255,.16)');c.fillStyle=g;c.fillRect(0,0,w,h);
+  const ns=T===4?70:T===1?10:0;c.fillStyle='rgba(255,244,200,.95)';
+  for(let i=0;i<ns;i++){c.beginPath();star(c,r()*w,r()*h*.5,(1.5+r()*2.8)*u);c.fill()}
+  const BX=[0,.18,.5,.78,.76],BY=[0,.28,.14,.34,.2],BC=['','#ffd9a0','#ffe27a','#ff9a4d','#f4edd0'],R=34*u,bc=hx(BC[T]),sk=col(0);
+  [[2.1,.2],[1.5,.5],[1,1]].forEach(([m,k],i)=>pp(c,mix(sk,bc,k),2+i,cc=>circ(cc,w*BX[T],h*BY[T],R*m)));
+  for(let i=0;i<7;i++){const far=i%2,cx=(.08+i*.14+r()*.05)*w,cy=h*(.13+far*.12+r()*.1),s=(24+r()*20)*u*(far?.7:1);
+    pp(c,mix(col(1),sk,far?.35:0),far?3:5,cc=>{for(let j=0;j<5;j++)circ(cc,cx+(j-2)*s*.8,cy,s*(.55+.35*Math.sin(j*1.9+i)))})}
+  if(P.skyline){
+    const y0=h*.63,hs=[];let x=-20;while(x<w+20){const bw=(14+r()*26)*u,bh=(10+r()*34)*u;hs.push([x,bw,bh,r()<.45]);x+=bw*(.7+r()*.5)}
+    pp(c,col(2),5,cc=>{
+      for(const[x,bw,bh,rf]of hs){cc.rect(x,y0-bh,bw,bh);if(rf){cc.moveTo(x-2*u,y0-bh);cc.lineTo(x+bw/2,y0-bh-bw*.35);cc.lineTo(x+bw+2*u,y0-bh);cc.closePath()}}
+      mosque(cc,w*.27,y0,21*u);mosque(cc,w*.7,y0,17*u);
+      const gx=w*.5;cc.rect(gx-7*u,y0-118*u,14*u,118*u);cc.rect(gx-10*u,y0-124*u,20*u,7*u);cc.moveTo(gx-10*u,y0-124*u);cc.lineTo(gx,y0-152*u);cc.lineTo(gx+10*u,y0-124*u);cc.closePath()});
+    if(T>=3){c.fillStyle='rgba(255,208,110,.92)';const r2=rng(4);for(const[x,bw,bh]of hs)for(let k=0;k<1+(r2()*3|0);k++)c.fillRect(x+r2()*(bw-3*u),y0-bh*(.2+r2()*.7),2.4*u,3.2*u)}
+  }
+  for(let i=0;i<3;i++){const y0=h*(.6+i*.055),A=(5+i*3)*u,f=.006-i*.0011,ph=i*1.7;
+    pp(c,col(3+i),4+i*1.5,cc=>{cc.moveTo(-10,h);for(let x=-10;x<=w+10;x+=10)cc.lineTo(x,y0+A*Math.sin(x*f+ph)+A*.5*Math.sin(x*f*2.3+ph*2));cc.lineTo(w+10,h);cc.closePath()})}
+}
+/* ---- ön plan: tepeler, selvi/çınar (yaprak delikli), saz yaprakları, kutu çerçevesi ---- */
+function buildFg(c,w,h){
+  const r=rng(21),u=h/720;
+  const hill=(y0,A,ph,color,dep)=>pp(c,color,dep,cc=>{cc.moveTo(-10,h+10);for(let x=-10;x<=w+10;x+=10)cc.lineTo(x,y0+A*Math.sin(x*.004+ph)+A*.4*Math.sin(x*.011+ph*2));cc.lineTo(w+10,h+10);cc.closePath()});
+  hill(h*.76,8*u,.5,col(6),6);
+  if(P.trees){
+    const tc=lay(w,h,(t)=>{
+      const yb=h*.84,holes=[],tcol=col(7);
+      for(const[x,ht,wd]of[[.045,.52,20],[.1,.4,16],[.935,.48,19],[.975,.36,15]]){const X=w*x,HT=h*ht,WD=wd*u;
+        pp(t,tcol,6,cc=>{cc.moveTo(X-WD,yb);cc.quadraticCurveTo(X-WD*1.15,yb-HT*.55,X,yb-HT);cc.quadraticCurveTo(X+WD*1.15,yb-HT*.55,X+WD,yb);cc.closePath()});
+        for(let i=0;i<22;i++){const py=yb-HT*(.12+.78*r()),hw=WD*.8*(1-Math.pow((yb-py)/HT,2));holes.push([X+(r()*2-1)*hw*.65,py,2.2*u,5*u,r()*3])}}
+      const cx=w*.84,cy=h*.46,cr=h*.1;
+      pp(t,mix(tcol,col(6),.25),7,cc=>{cc.rect(cx-8*u,cy,16*u,yb-cy);for(let j=0;j<7;j++){const a=j*.9;circ(cc,cx+Math.cos(a)*cr*.55,cy-cr*.1+Math.sin(a)*cr*.45,cr*(.55+.15*(j%3)/2))}});
+      for(let i=0;i<30;i++){const a=r()*6.28,d=Math.sqrt(r())*cr*.85;holes.push([cx+Math.cos(a)*d,cy-cr*.1+Math.sin(a)*d*.8,3*u,6*u,r()*3])}
+      t.globalCompositeOperation='destination-out';t.fillStyle='#000';
+      for(const[x,y,rx,ry,ro]of holes){t.beginPath();t.ellipse(x,y,rx,ry,ro,0,6.2832);t.fill()}
+    });
+    c.drawImage(tc,0,0,w,h);
+  }
+  hill(h*.88,6*u,2.1,col(8),8);
+  for(const side of[0,1])for(let i=0;i<5;i++){
+    const bx=side?w-(10+i*20)*u:(10+i*20)*u,by=h+8,len=(90+i*28+r()*30)*u,dir=(side?-1:1)*(.15+i*.14),tx=bx+dir*len,ty=by-len*.9,wd=13*u,bend=(side?1:-1)*20*u;
+    pp(c,mix(col(8),col(6),(i%2)*.4),9,cc=>{cc.moveTo(bx-wd,by);cc.quadraticCurveTo(bx-wd+(tx-bx)*.2+bend,by+(ty-by)*.55,tx,ty);cc.quadraticCurveTo(bx+wd+(tx-bx)*.2+bend*.3,by+(ty-by)*.55,bx+wd,by);cc.closePath()})}
+  if(P.frame){const fb=Math.max(10,Math.min(w,h)*.022);pp(c,mix(col(1),[255,255,255],.2),7,cc=>{cc.rect(0,0,w,h);rr(cc,fb,fb,w-2*fb,h-2*fb,fb*.9,fb*.9)},'evenodd')}
+}
+/* ---- çiçek sprite'ları: lale, karanfil, sümbül (gölge pişirilmiş) ---- */
+function flower(t,fc,sz){
+  const w=Math.ceil(sz*1.1),h=Math.ceil(sz*1.5),k=mk();k.width=Math.round(w*S);k.height=Math.round(h*S);
+  const c=k.getContext('2d');c.setTransform(S,0,0,S,0,0);
+  const gx=w/2,by=h-4,hy=by-sz*1.05,a=sz*.2;
+  pp(c,col(8),1.5,cc=>cc.rect(gx-sz*.03,hy,sz*.06,by-hy));
+  for(const d of[-1,1])pp(c,col(6),1.5,cc=>{cc.moveTo(gx,by);cc.quadraticCurveTo(gx+d*sz*.35,by-sz*.25,gx+d*sz*.3,by-sz*.55);cc.quadraticCurveTo(gx+d*sz*.1,by-sz*.3,gx,by);cc.closePath()});
+  if(t===0){
+    pp(c,fc,2,cc=>{cc.moveTo(gx-a,hy);cc.lineTo(gx-a*.85,hy-a*1.5);cc.lineTo(gx-a*.3,hy-a*.8);cc.lineTo(gx,hy-a*1.7);cc.lineTo(gx+a*.3,hy-a*.8);cc.lineTo(gx+a*.85,hy-a*1.5);cc.lineTo(gx+a,hy);cc.quadraticCurveTo(gx,hy+a*1.3,gx-a,hy);cc.closePath()});
+    pp(c,mix(fc,[255,255,255],.3),1,cc=>{cc.moveTo(gx-a*.45,hy+a*.1);cc.lineTo(gx,hy-a*1.1);cc.lineTo(gx+a*.45,hy+a*.1);cc.quadraticCurveTo(gx,hy+a*.7,gx-a*.45,hy+a*.1);cc.closePath()});
+  }else if(t===1){
+    pp(c,fc,2,cc=>{for(let i=0;i<9;i++)circ(cc,gx+Math.cos(i*.698)*a*.75,hy-a*.6+Math.sin(i*.698)*a*.75,a*.55);circ(cc,gx,hy-a*.6,a*.8)});
+    pp(c,mix(fc,[40,10,30],.28),1,cc=>circ(cc,gx,hy-a*.6,a*.35));
+  }else{
+    pp(c,fc,2,cc=>{for(let i=0;i<8;i++)circ(cc,gx+(i%2?1:-1)*a*.35*(1-i/10),hy-i*a*.38,a*.38*(1-i*.06))});
+  }
+  return{img:k,dw:w,dh:h};
+}
+function mkSprites(w,h){
+  const r=rng(5),u=h/720,n=Math.round(w/16*P.flowers*(P.quality===0?.6:1)),FC=FLW[P.palette].map(x=>shade(hx(x)));sprites=[];
+  for(let i=0;i<n;i++){const y=h*(.8+r()*.18),sc=.7+.7*(y-h*.78)/(h*.22),f=flower(i%3,FC[(r()*4)|0],(46+r()*24)*u*sc);
+    sprites.push({x:w*(.1+r()*.8),y,s:f,f:.7+r()*.9,ph:r()*6.28,am:.03+r()*.05})}
+  sprites.sort((a,b)=>a.y-b.y);
+}
+function mkCrit(w,h){
+  const r=rng(9),n=[0,4,9][P.critters]||0,FC=FLW[P.palette].map(x=>shade(hx(x)));crit=[];
+  for(let i=0;i<n;i++){const b=i<n/2;crit.push({b,x:r()*w,y:h*(b?.08+r()*.3:.7+r()*.22),s:(b?12+r()*8:9+r()*5)*h/720,v:(b?8+r()*14:5+r()*8)*(r()<.5?-1:1),ph:r()*6,c:b?mix(col(7),[0,0,30],.35):FC[i%4]})}
+}
+function mkGrain(){
+  const k=mk();k.width=k.height=128;const c=k.getContext('2d'),r=rng(3),d=c.createImageData(128,128);
+  for(let i=0;i<d.data.length;i+=4){const v=215+r()*40;d.data[i]=d.data[i+1]=d.data[i+2]=v;d.data[i+3]=255}
+  c.putImageData(d,0,0);c.lineWidth=.6;
+  for(let i=0;i<70;i++){c.strokeStyle=r()<.5?'rgba(255,255,255,.35)':'rgba(120,100,80,.25)';const x=r()*128,y=r()*128,a=r()*6.28,l=4+r()*10;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke()}
+  grainPat=cc.createPattern(k,'repeat');
+}
+/* ---- kurulum / yeniden kurma ---- */
+function resize(){
+  const q=LOW?.75:[1,1.25,1.5][P.quality]||1.25,d=window.__desklandScale?window.__desklandScale(q):Math.min(devicePixelRatio||1,q),b=cv.getBoundingClientRect();
+  W=b.width||innerWidth;H=b.height||innerHeight;cv.width=Math.round(W*d);cv.height=Math.round(H*d);cv._scale=d;cacheOK=false;
+}
+function build(){
+  S=cv._scale||1;gw=cv.width/S;gh=cv.height/S;T=timeNow();
+  back=lay(gw,gh,buildBack);fgc=lay(gw,gh,buildFg);comp.width=cv.width;comp.height=cv.height;
+  mkGrain();mkSprites(gw,gh);mkCrit(gw,gh);cacheOK=true;dirty=true;
+}
+const arch=(c,p,ex)=>{const k=Math.max(.02,p.k),hw=(p.w/2+ex)*k,hh=(p.h/2+ex)*k,a=P.fstyle?Math.min(hw,hh):Math.min(hw,hh*.9),b=P.fstyle?a:8*k;rr(c,p.x+p.w/2-hw,p.y+p.h/2-hh,hw*2,hh*2,a,b)};
+/* arka+ön katmanı birleştirir; ikon pencereleri: 3 halka (dıştan içe) + delik + iç gölge */
+function recomp(){
+  const c=cc;c.setTransform(1,0,0,1,0,0);c.globalCompositeOperation='source-over';c.globalAlpha=1;c.clearRect(0,0,comp.width,comp.height);
+  c.setTransform(S,0,0,S,0,0);c.drawImage(back,0,0,gw,gh);c.drawImage(fgc,0,0,gw,gh);
+  const act=plazas.filter(p=>p.k>.02);
+  if(act.length){
+    const e=P.fw,hole=new Path2D(),RC=[col(7),col(6),mix(col(1),[255,255,255],.3)];
+    for(const p of act)arch(hole,p,8);
+    for(let k=3;k>=1;k--){const pa=new Path2D();for(const p of act)arch(pa,p,8+e*k/3);c.fillStyle=css(RC[3-k]);sh(c,2+k*1.5,3+k*2,.32);c.fill(pa)}
+    sh0(c);c.save();c.clip(hole);c.drawImage(back,0,0,gw,gh);
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;for(const p of act){x0=Math.min(x0,p.x);y0=Math.min(y0,p.y);x1=Math.max(x1,p.x+p.w);y1=Math.max(y1,p.y+p.h)}
+    const sp=new Path2D();sp.rect(x0-60,y0-60,x1-x0+120,y1-y0+120);sp.addPath(hole);
+    c.fillStyle='#000';sh(c,5,10,.55);c.fill(sp,'evenodd');sh0(c);c.restore();
+  }
+  c.setTransform(1,0,0,1,0,0);c.globalCompositeOperation='multiply';c.globalAlpha=.08+P.grain*.32;c.fillStyle=grainPat;c.fillRect(0,0,comp.width,comp.height);
+  c.globalAlpha=1;c.globalCompositeOperation='source-over';c.setTransform(S,0,0,S,0,0);
+  const l=L(),g=c.createRadialGradient(gw*(.5+l[0]*.3),gh*(.5+l[1]*.3),Math.min(gw,gh)*.3,gw/2,gh/2,Math.max(gw,gh)*.8);
+  g.addColorStop(0,'rgba(255,255,255,.06)');g.addColorStop(1,'rgba(10,8,30,.3)');c.fillStyle=g;c.fillRect(0,0,gw,gh);
+}
+/* ---- durum güncelle (draw() sadece okur) ---- */
+function step(dt){
+  const f=Math.min(1,dt*9);let ch=false;
+  for(const p of plazas)p.used=false;
+  const activeIcons=P.adaptive?icons:[];
+  for(const ic of activeIcons){let best=null,bd=8100;
+    for(const p of plazas){if(p.used)continue;const d=(p.tx-ic.x)**2+(p.ty-ic.y)**2;if(d<bd){bd=d;best=p}}
+    if(!best){best={x:ic.x,y:ic.y,w:ic.w,h:ic.h,k:0};plazas.push(best)}
+    best.used=true;best.tx=ic.x;best.ty=ic.y;best.tw=ic.w;best.th=ic.h}
+  for(const p of plazas){const o=p.x+p.y+p.w+p.h,ok=p.k;
+    p.x+=(p.tx-p.x)*f;p.y+=(p.ty-p.y)*f;p.w+=(p.tw-p.w)*f;p.h+=(p.th-p.h)*f;
+    if(Math.abs(p.tx-p.x)+Math.abs(p.ty-p.y)<.2){p.x=p.tx;p.y=p.ty}
+    p.k+=((p.used?1:0)-p.k)*Math.min(1,dt*4);
+    if(Math.abs(p.x+p.y+p.w+p.h-o)>.04||Math.abs(p.k-ok)>.002)ch=true}
+  const n=plazas.length;plazas=plazas.filter(p=>p.used||p.k>.02);if(plazas.length!==n)ch=true;if(ch)dirty=true;
+  for(const q of crit){q.x+=q.v*dt;if(q.x>gw+40)q.x=-40;if(q.x<-40)q.x=gw+40}
+}
+const near=s=>{const m=P.fw+14;for(const p of plazas)if(p.k>.15&&s.x>p.x-m-20&&s.x<p.x+p.w+m+20&&s.y>p.y-m&&s.y-s.s.dh<p.y+p.h+m)return true;return false};
+function draw(now){
+  if(!cacheOK)build();
+  if(dirty){recomp();dirty=false}
+  const t=now/1000;
+  ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.drawImage(comp,0,0);ctx.setTransform(S,0,0,S,0,0);
+  for(const s of sprites){if(near(s))continue;
+    ctx.save();ctx.translate(s.x,s.y);ctx.rotate((Math.sin(t*s.f+s.ph)*s.am+Math.sin(t*.35+s.x*.004)*.04)*P.sway);
+    ctx.drawImage(s.s.img,-s.s.dw/2,-(s.s.dh-4),s.s.dw,s.s.dh);ctx.restore()}
+  for(const q of crit){
+    ctx.save();ctx.translate(q.x,q.y+(q.b?Math.sin(t*.9+q.ph)*8:Math.sin(t*1.7+q.ph)*10));if(q.v<0)ctx.scale(-1,1);
+    const fl=Math.abs(Math.sin(t*(q.b?3:9)+q.ph)),s=q.s;ctx.fillStyle=css(q.c);ctx.beginPath();
+    if(q.b){ctx.moveTo(0,0);ctx.lineTo(-s,-s*(.2+.8*fl));ctx.lineTo(-s*.5,s*.15);ctx.moveTo(0,0);ctx.lineTo(s*.2,-s*(.2+.8*fl));ctx.lineTo(s,-s*.1);ctx.lineTo(s*.4,s*.18)}
+    else{ctx.scale(.2+.8*fl,1);ctx.ellipse(-s*.45,0,s*.45,s*.7,-.4,0,6.2832);ctx.ellipse(s*.45,0,s*.45,s*.7,.4,0,6.2832)}
+    ctx.fill();ctx.restore()}
+}
+/* ---- döngü ve host mesajları ---- */
+const sched=()=>{if(!paused&&!rafId)rafId=requestAnimationFrame(frame)};
+function setPaused(v){paused=!!v;if(paused){if(rafId){cancelAnimationFrame(rafId);rafId=0}}else sched()}
+function frame(now){
+  rafId=0;if(paused)return;sched();
+  if(now-lastT<(LOW?66:30))return;
+  const dt=Math.min(.1,(now-lastT)/1000||.033);lastT=now;
+  if(P.time===0&&now-lastClock>60000){lastClock=now;if(timeNow()!==T)cacheOK=false}
+  if(!cacheOK)build();
+  step(dt);draw(now);
+}
+function applySettings(v){for(const k in v)if(k in P&&typeof v[k]==='number'&&P[k]!==v[k]){P[k]=v[k];if(REB.has(k))cacheOK=false;else if(k==='quality')resize();else dirty=true}}
+function drawGhosts(){const g=document.getElementById('ghosts');if(g)g.innerHTML=icons.map(ic=>'<div class="ghost" style="left:'+ic.x+'px;top:'+ic.y+'px;width:'+ic.w+'px;height:'+ic.h+'px"><i></i><b></b></div>').join('')}
+function handle(m){
+  if(!m)return;
+  if(m.t==='pause')setPaused(PREVIEW?false:!!m.v);
+  else if(m.t==='lowMode'){LOW=!!m.v;resize()}
+  else if(m.t==='settings')applySettings(m.v||m.params||{});
+  else if(m.t==='reset')applySettings(Object.assign({},DEF,m.v||{}));
+  else if(m.t==='icons'){const k=devicePixelRatio||1;icons=m.vis?(m.r||[]).map(([l,t,r,b])=>({x:l/k,y:t/k,w:(r-l)/k,h:(b-t)/k})):[];if(PREVIEW||!WALL)drawGhosts()}
+}
+resize();addEventListener('resize',resize);
+if(!WALL){const gd=document.createElement('div');gd.id='ghosts';document.body.appendChild(gd)}
+if(PREVIEW){
+  addEventListener('message',ev=>{if(ev.source===parent)handle(typeof ev.data==='string'?JSON.parse(ev.data):ev.data)});
+  parent.postMessage(JSON.stringify({t:'ready'}),'*');
+}else if(WALL){
+  const host=window.chrome&&window.chrome.webview;
+  if(host){host.addEventListener('message',ev=>{try{handle(typeof ev.data==='string'?JSON.parse(ev.data):ev.data)}catch(_){}});host.postMessage('ready')}
+}else{
+  icons=[[.04,.06],[.04,.2],[.04,.34],[.15,.06],[.15,.2],[.88,.06],[.88,.2],[.5,.84],[.62,.84],[.3,.6]].map(([a,b])=>({x:W*a,y:H*b,w:76,h:90}));drawGhosts();
+}
+sched();
+</script>
+<script src="share.js"></script>
+</body></html>

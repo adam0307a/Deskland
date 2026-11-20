@@ -22,7 +22,7 @@ WallpaperItem {
     objectName: "desklandWallpaper"
 
     property string prototypeRoot: "file:///usr/lib/deskland/prototype/"
-    property string theme: "software-world"
+    property string theme: "papercut"
     property string homeDir: {
         var base = String(StandardPaths.writableLocation(StandardPaths.GenericConfigLocation));
         // "file:///home/user/.config" -> "/home/user"

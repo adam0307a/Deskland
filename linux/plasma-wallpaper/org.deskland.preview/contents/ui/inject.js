@@ -18,7 +18,7 @@
 
   var QS = new URLSearchParams(location.search);
   var HOME = decodeURIComponent(QS.get('home') || '/');
-  var CURRENT_THEME = QS.get('theme') || 'software-world';
+  var CURRENT_THEME = QS.get('theme') || 'papercut';
   var ICONS_JSON = HOME + '/.cache/deskland/icons.json';
   var SETTINGS = HOME + '/.config/deskland/settings.json';
   var PAUSE_JSON = HOME + '/.cache/deskland/pause.json';
@@ -165,6 +165,7 @@
     liquidglass: 'liquidglass.html',
     'software-world': 'software-world.html',
     'thinking-orbs': 'thinking-orbs.html',
+    papercut: 'papercut.html',
   };
 
   var CUSTOM_DIR = HOME + '/.config/deskland/themes';

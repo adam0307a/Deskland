@@ -214,7 +214,7 @@ static class Json
 static class Settings
 {
     static readonly string FilePath = Path.Combine(Log.DataDir, "settings.json");
-    public static string Theme = "software-world";
+    public static string Theme = "papercut";
     public static string Lang = "auto";                // 界面语言："auto"（跟随系统）或 I18n.Supported 里的一种
     public static Dictionary<string, Dictionary<string, object>> Params = new Dictionary<string, Dictionary<string, object>>();
     public static List<Dictionary<string, object>> VirtualIcons = new List<Dictionary<string, object>>();
@@ -1012,7 +1012,7 @@ class HostContext : ApplicationContext
     void StartForm()
     {
         nextStart = DateTime.MaxValue;
-        if (!ThemeAllowed(Settings.Theme)) Settings.Theme = ThemeAllowed("software-world") ? "software-world" : (ThemeAllowed("beach") ? "beach" : "meadow");
+        if (!ThemeAllowed(Settings.Theme)) Settings.Theme = ThemeAllowed("papercut") ? "papercut" : (ThemeAllowed("software-world") ? "software-world" : (ThemeAllowed("beach") ? "beach" : "meadow"));
         string page = ThemeAllowed(Settings.Theme) ? Themes.PageFor(pageDir, Settings.Theme) : null;
         if (string.IsNullOrEmpty(page) || !Themes.PageExists(pageDir, page))
         {
