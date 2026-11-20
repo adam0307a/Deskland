@@ -18,3 +18,8 @@ __pycache__/
 /android/local.properties
 *.apk
 *.aab
+
+# Graphify (code knowledge graph) generated output
+/graphify-out/*
+# ...but keep the interactive HTML visualization committed
+!/graphify-out/graph.html
