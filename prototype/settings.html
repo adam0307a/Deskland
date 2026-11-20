@@ -601,15 +601,31 @@ function fmt(p, v) {
   return p.unit ? s + ' ' + p.unit : s;
 }
 
-const thumbUrl = (value, id) => window.DESKLAND_THUMBS?.[id] || String(value || '').match(/^url\(['"]?([^)'"]+)['"]?\)/)?.[1] || '';
+let customBaseUrl = location.hostname === 'app.local' ? 'https://custom.local/' : '__custom/';
+function resolveCustomPath(p) {
+  const s = String(p || '');
+  if (!s.startsWith('__custom/')) return s;
+  const sub = s.slice('__custom/'.length).split('/').filter(Boolean).map(seg => {
+    try { return encodeURIComponent(decodeURIComponent(seg)); } catch (_) { return encodeURIComponent(seg); }
+  }).join('/');
+  return customBaseUrl + sub;
+}
+function resolveThumbBg(bg) {
+  return String(bg || '').replace(/url\((['"]?)(__custom\/[^)'"]+)\1\)/g, (_, q, p) => `url(${q}${resolveCustomPath(p)}${q})`);
+}
+const thumbUrl = (value, id) => {
+  const raw = window.DESKLAND_THUMBS?.[id] || String(value || '').match(/^url\(['"]?([^)'"]+)['"]?\)/)?.[1] || '';
+  return raw.startsWith('__custom/') ? resolveCustomPath(raw) : raw;
+};
 function renderThemes() {
   $('themes').innerHTML = state.registry.themes.map(th => {
     const ready = th.status === 'ready', on = th.id === state.theme;
+    const tUrl = thumbUrl(th.thumb, th.id);
     return `<button class="theme${on ? ' on' : ''}" data-id="${th.id}" aria-pressed="${on}" aria-label="${th.name}" ${ready ? '' : 'disabled'}>
       <div class="theme-copy"><div class="theme-meta"><span class="badge">${t(on ? 'badgeOn' : ready ? 'badgeReady' : 'badgeSoon')}</span>
         <svg class="theme-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 15 15 5M5 5h10v10"/></svg></div>
         <div class="name">${th.name}</div></div>
-      <div class="thumb" style="background:${th.thumb || '#ccc'}">${thumbUrl(th.thumb, th.id) ? `<img src="${thumbUrl(th.thumb, th.id)}" alt="" decoding="async">` : ''}</div></button>`;
+      <div class="thumb" style="background:${resolveThumbBg(th.thumb || '#ccc')}">${tUrl ? `<img src="${tUrl}" alt="" decoding="async">` : ''}</div></button>`;
   }).join('');
 }
 $('themes').addEventListener('click', e => {
@@ -946,7 +962,7 @@ function showTheme() {
   layoutPreview();
   previewReady = false;
   clearTimeout(previewReadyTimer);
-  frame.src = themeById(state.theme).page + '?preview=1';
+  frame.src = resolveCustomPath(themeById(state.theme).page) + '?preview=1';
 }
 
 /* ---------- 分享：宿主让壁纸页面画一张图 / 录一段动画（示例图标、名字是色块），保存、复制到剪贴板，再把预览发回来 ---------- */
@@ -980,9 +996,13 @@ function showShare(r) {
   $('shareClose').focus();
 }
 function closeShare() { $('shareModal').hidden = true; $('shareVid').pause(); }
+function canAccessPreviewFn(name) {
+  try { return !!(frame.contentWindow && typeof frame.contentWindow[name] === 'function'); }
+  catch (_) { return false; }
+}
 $('share').addEventListener('click', () => {
   shareBusy('image');
-  if (host && !(state.canSaveSnapshot && frame.contentWindow && typeof frame.contentWindow.desklandSnapshot === 'function')) {
+  if (host && !(state.canSaveSnapshot && canAccessPreviewFn('desklandSnapshot'))) {
     send({ t: 'share' });
     return;
   }
@@ -1003,7 +1023,7 @@ $('share').addEventListener('click', () => {
 });
 $('shareVideo').addEventListener('click', () => {
   shareBusy('video');
-  if (host && !(state.canSaveSnapshot && frame.contentWindow && typeof frame.contentWindow.desklandRecord === 'function')) {
+  if (host && !(state.canSaveSnapshot && canAccessPreviewFn('desklandRecord'))) {
     send({ t: 'shareVideo' });
     return;
   }
@@ -1065,6 +1085,17 @@ $('shareReveal').addEventListener('click', () => send({ t: 'revealShare' }));
 /* ---------- 和宿主通信 ---------- */
 function onHost(m) {
   if (m.t === 'init') {
+    if (typeof m.customBase === 'string' && m.customBase) customBaseUrl = m.customBase;
+    if (Array.isArray(m.customThemes) && m.customThemes.length) {
+      let added = false;
+      for (const ct of m.customThemes) {
+        if (ct && ct.id && !state.registry0.themes.some(x => x.id === ct.id)) {
+          state.registry0.themes.push(ct);
+          added = true;
+        }
+      }
+      if (added) localizeRegistry();
+    }
     state.langSetting = m.lang || 'auto';
     state.langSys = m.langSys || 'zh-CN';
     setLang(m.langEff || state.langSys).then(() => {        // 先按界面语言把文字表读进来，再画界面

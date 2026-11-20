@@ -574,6 +574,7 @@ class HostContext : ApplicationContext
                     "screen", Json.Obj("w", scr.Width, "h", scr.Height), "autostart", IsAutoStart(),
                     "autostartWarn", autoStartSw != null, "autostartSw", autoStartSw ?? "",
                     "lang", Settings.Lang, "langEff", I18n.Code, "langSys", I18n.Sys,
+                    "customBase", WebCustomHelper.CustomBaseUrl, "customThemes", CustomThemes.Load(),
                     "virtualBarMode", Settings.VirtualBarMode, "lowMode", Settings.LowMode, "disableAutoPause", Settings.DisableAutoPause)));
                 if (updateVersion != null) PostUpdateState();
                 if (form != null && form.LastIcons != "") settingsWin.Post(form.LastIcons);
@@ -1152,121 +1153,37 @@ class HotkeyWindow : NativeWindow, IDisposable
 
 static class WebCustomHelper
 {
-    sealed class BoundedReadStream : Stream
-    {
-        readonly Stream inner;
-        long remaining;
-
-        public BoundedReadStream(Stream inner, long count)
-        {
-            this.inner = inner;
-            this.remaining = count;
-        }
-
-        public override bool CanRead { get { return true; } }
-        public override bool CanSeek { get { return false; } }
-        public override bool CanWrite { get { return false; } }
-        public override long Length { get { return remaining; } }
-        public override long Position
-        {
-            get { throw new NotSupportedException(); }
-            set { throw new NotSupportedException(); }
-        }
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
-        public override void SetLength(long value) { throw new NotSupportedException(); }
-        public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            if (remaining <= 0) return 0;
-            int toRead = count > remaining ? (int)remaining : count;
-            int n = inner.Read(buffer, offset, toRead);
-            remaining -= n;
-            return n;
-        }
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) inner.Dispose();
-            base.Dispose(disposing);
-        }
-    }
+    public const string CustomHost = "custom.local";
+    public const string CustomBaseUrl = "https://" + CustomHost + "/";
 
     public static void Attach(CoreWebView2 core, string pageDir)
     {
-        core.AddWebResourceRequestedFilter("https://app.local/themes.json*", CoreWebView2WebResourceContext.All);
-        core.AddWebResourceRequestedFilter("https://app.local/__custom/*", CoreWebView2WebResourceContext.All);
-        core.WebResourceRequested += delegate(object sender, CoreWebView2WebResourceRequestedEventArgs args)
+        // WebView2's SetVirtualHostNameToFolderMapping bypasses WebResourceRequested for mapped hosts (app.local),
+        // so custom themes are mapped to their own virtual host (custom.local -> %LOCALAPPDATA%\DesklandPreview\themes).
+        Directory.CreateDirectory(CustomThemes.Dir);
+        core.SetVirtualHostNameToFolderMapping(CustomHost, CustomThemes.Dir, CoreWebView2HostResourceAccessKind.Allow);
+    }
+
+    public static string EncodePathSegments(string relPath)
+    {
+        if (string.IsNullOrEmpty(relPath)) return "";
+        string[] segs = relPath.Replace('\\', '/').Split('/');
+        var encoded = new List<string>(segs.Length);
+        for (int i = 0; i < segs.Length; i++)
         {
-            Uri uri;
-            if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out uri)) return;
-            string path = uri.AbsolutePath ?? "";
-            if (string.Equals(path, "/themes.json", StringComparison.Ordinal))
-            {
-                byte[] json = Themes.MergedThemesJsonBytes(pageDir);
-                args.Response = core.Environment.CreateWebResourceResponse(
-                    new MemoryStream(json), 200, "OK",
-                    "Content-Type: application/json; charset=utf-8\r\nCache-Control: no-store");
-                return;
-            }
-            if (!path.StartsWith("/__custom/", StringComparison.Ordinal)) return;
+            if (string.IsNullOrEmpty(segs[i])) continue;
+            string s = segs[i];
+            try { s = Uri.UnescapeDataString(s); } catch { }
+            encoded.Add(Uri.EscapeDataString(s));
+        }
+        return string.Join("/", encoded.ToArray());
+    }
 
-            string fullPath, mime;
-            if (!CustomThemes.ResolveFile(path.Substring(1), out fullPath, out mime))
-            {
-                args.Response = core.Environment.CreateWebResourceResponse(new MemoryStream(new byte[0]), 404, "Not Found", "");
-                return;
-            }
-
-            string rangeHdr = null;
-            try { if (args.Request.Headers.Contains("Range")) rangeHdr = args.Request.Headers.GetHeader("Range"); }
-            catch { }
-
-            var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            long total = fs.Length;
-            if (!string.IsNullOrEmpty(rangeHdr) && rangeHdr.StartsWith("bytes=", StringComparison.OrdinalIgnoreCase) && total > 0)
-            {
-                string spec = rangeHdr.Substring(6).Split(',')[0].Trim();
-                int dash = spec.IndexOf('-');
-                if (dash >= 0)
-                {
-                    long start = 0, end = total - 1;
-                    string sPart = spec.Substring(0, dash).Trim();
-                    string ePart = spec.Substring(dash + 1).Trim();
-                    bool ok = true;
-                    if (sPart.Length == 0 && ePart.Length > 0)
-                    {
-                        long suffix;
-                        if (long.TryParse(ePart, out suffix) && suffix > 0)
-                            start = Math.Max(0, total - suffix);
-                        else ok = false;
-                    }
-                    else
-                    {
-                        if (!long.TryParse(sPart, out start) || start < 0 || start >= total) ok = false;
-                        if (ok && ePart.Length > 0)
-                        {
-                            if (!long.TryParse(ePart, out end) || end < start) ok = false;
-                            if (end >= total) end = total - 1;
-                        }
-                    }
-                    if (ok)
-                    {
-                        long len = end - start + 1;
-                        fs.Seek(start, SeekOrigin.Begin);
-                        string hdrs = "Content-Type: " + mime
-                            + "\r\nAccept-Ranges: bytes"
-                            + "\r\nContent-Range: bytes " + start + "-" + end + "/" + total
-                            + "\r\nContent-Length: " + len
-                            + "\r\nCache-Control: no-store";
-                        args.Response = core.Environment.CreateWebResourceResponse(new BoundedReadStream(fs, len), 206, "Partial Content", hdrs);
-                        return;
-                    }
-                }
-            }
-
-            string fullHdrs = "Content-Type: " + mime + "\r\nAccept-Ranges: bytes\r\nContent-Length: " + total + "\r\nCache-Control: no-store";
-            args.Response = core.Environment.CreateWebResourceResponse(fs, 200, "OK", fullHdrs);
-        };
+    public static string PageUrl(string page)
+    {
+        if (!string.IsNullOrEmpty(page) && page.StartsWith("__custom/", StringComparison.Ordinal))
+            return CustomBaseUrl + EncodePathSegments(page.Substring("__custom/".Length));
+        return "https://app.local/" + EncodePathSegments(page);
     }
 }
 
@@ -1574,7 +1491,7 @@ class WallpaperForm : Form
         Log.Write("WebView2 失效（运行时更新或进程退出），重新挂载壁纸窗口：" + ex.Message);
         Shutdown();
     }
-    string PageUrl { get { return "https://app.local/" + page + "?wallpaper=1" + (lowMode ? "&low=1" : ""); } }
+    string PageUrl { get { return WebCustomHelper.PageUrl(page) + "?wallpaper=1" + (lowMode ? "&low=1" : ""); } }
 
     // 切换主题：换页面；新页面就绪后会重新收到设置和图标
     public void LoadPage(string newPage)
