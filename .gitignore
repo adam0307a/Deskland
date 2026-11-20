@@ -20,4 +20,6 @@ __pycache__/
 *.aab
 
 # Graphify (code knowledge graph) generated output
-/graphify-out/
+/graphify-out/*
+# ...but keep the interactive HTML visualization committed
+!/graphify-out/graph.html
